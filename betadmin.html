@@ -49,8 +49,8 @@ td::before{content:attr(data-l);color:var(--mu);font-size:12px;text-align:left}}
 <div id="md"><div id="mb"></div></div><div id="ts"></div>
 
 <script>
-const API = window.location.origin;
-let PIN = "", ACTOR = "Admin", D = null, U = null, SQ = "", AL = [], BOT = null, page = "Overview", prev = { d: 0, w: 0 };
+const API = (() => { try { const q = new URLSearchParams(location.search).get('api'); if (q && /^https?:\/\//i.test(q)) return q.replace(/\/+$/, ''); } catch (_) {} return window.location.origin; })();
+let PIN = "", ACTOR = "Admin", D = null, U = null, SQ = "", AL = [], BOT = null, SM = null, page = "Overview", prev = { d: 0, w: 0 };
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const etb = n => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ETB';
@@ -132,14 +132,33 @@ const ACT = {
   adj: d => ask('Adjust balance: ' + d.name, [{ k: 'action', label: 'Action', type: 'select', options: ['ADD', 'DEDUCT'] }, { k: 'amount', label: 'Amount (ETB)', type: 'number' }, { k: 'reason', label: 'Reason (required)' }],
     v => v.reason ? act('/api/admin/adjust-balance', { userId: d.id, amount: v.amount, action: v.action, reason: v.reason }) : toast('Reason is required', true), 'Apply'),
   promoNew: () => ask('New promo code', [{ k: 'code', label: 'Code' }, { k: 'amt', label: 'Bonus (ETB)', type: 'number' }, { k: 'max', label: 'Max uses', type: 'number', value: '100' }], v => act('/api/admin/create-promo', { code: v.code, bonusAmount: v.amt, maxUses: v.max }), 'Create'),
-  cashback: () => ask('Distribute cashback', [{ k: 'pct', label: 'Percent of NEW net loss (1-50)', type: 'number', value: '10' }, { k: 'min', label: 'Minimum new net loss (ETB)', type: 'number', value: '100' }],
+  promoToggle: d => act('/api/admin/toggle-promo', { code: d.code }),
+  cashback: () => ask('Distribute cashback', [{ k: 'pct', label: 'Percent of NEW net loss (1-50)', type: 'number', value: String(D?.settings?.cashbackPercent || 10) }, { k: 'min', label: 'Minimum new net loss (ETB)', type: 'number', value: String(D?.settings?.cashbackMinLoss || 100) }],
     v => sure('Pay ' + v.pct + '% cashback?', 'This credits real balance to every eligible player (1x wagering applies).', () => act('/api/admin/distribute-cashback', { percentage: v.pct, minLoss: v.min })), 'Next'),
   reward: () => ask('Reward players', [{ k: 'ids', label: 'Player IDs (comma separated)', long: 1 }, { k: 'amt', label: 'Amount each (ETB, max 1000)', type: 'number' }],
     v => act('/api/admin/reward-users', { userIds: v.ids.split(/[\s,]+/).filter(Boolean), rewardAmount: v.amt }), 'Send'),
+  sportNew: () => ask('Add Live Match', [
+    { k: 'sport', label: 'Sport', type: 'select', options: ['Soccer', 'Basketball', 'Boxing'] },
+    { k: 'league', label: 'League / Tournament', value: 'Ethiopia Premier League' },
+    { k: 'home', label: 'Home Team / Fighter' },
+    { k: 'away', label: 'Away Team / Fighter' }
+  ], async v => { await act('/api/admin/sports/create', v); const s = await call('/api/admin/sports'); if (s.success) { SM = s.matches; R(); } }, 'Add Match'),
+  sportEdit: d => ask('Update Live Score: ' + d.title, [
+    { k: 'homeScore', label: 'Home Score', type: 'number', value: d.hs },
+    { k: 'awayScore', label: 'Away Score', type: 'number', value: d.as },
+    { k: 'progress', label: 'Match Progress (0.05 to 0.99)', type: 'number', value: d.prog }
+  ], async v => { await act('/api/admin/sports/update', { matchId: d.id, ...v }); const s = await call('/api/admin/sports'); if (s.success) { SM = s.matches; R(); } }, 'Update'),
+  sportSettle: d => ask('Settle FT & Pay Winners: ' + d.title, [
+    { k: 'homeScore', label: 'Final Home Score', type: 'number', value: d.hs },
+    { k: 'awayScore', label: 'Final Away Score', type: 'number', value: d.as }
+  ], async v => { await act('/api/admin/sports/settle', { matchId: d.id, ...v }); const s = await call('/api/admin/sports'); if (s.success) { SM = s.matches; R(); } }, 'Settle FT'),
   saveSet: () => {
-    const rtp = parseFloat($('#s_rtp').value), com = parseFloat($('#s_com').value);
-    if (!(rtp >= 50 && rtp <= 99) || !(com >= 0 && com <= 20)) return toast('RTP 50-99 and commission 0-20', true);
-    sure('Save settings?', `RTP ${rtp}% (applies to every new bet) and agent commission ${com}%.`, () => act('/api/admin/update-settings', { targetRtp: rtp / 100, agentCommission: com / 100 }));
+    const rtp = parseFloat($('#s_rtp').value), krtp = parseFloat($('#s_krtp').value), com = parseFloat($('#s_com').value);
+    const wb = parseFloat($('#s_wb').value), rb = parseFloat($('#s_rb').value), cb = parseFloat($('#s_cb').value);
+    if (!(rtp >= 50 && rtp <= 99) || !(krtp >= 50 && krtp <= 99) || !(com >= 0 && com <= 20)) return toast('RTP 50-99, Keno RTP 50-99, Commission 0-20', true);
+    if (!(wb >= 0 && wb <= 500) || !(rb >= 0 && rb <= 1000) || !(cb >= 1 && cb <= 50)) return toast('Welcome 0-500, Referral 0-1000, Cashback 1-50%', true);
+    sure('Save settings?', `Target RTP ${rtp}%, Keno RTP ${krtp}%, Commission ${com}%, Welcome ${wb} ETB, Referral ${rb} ETB, Cashback ${cb}%.`,
+      () => act('/api/admin/update-settings', { targetRtp: rtp / 100, kenoRtp: krtp / 100, agentCommission: com / 100, welcomeBonus: wb, referralBonus: rb, cashbackPercent: cb }));
   },
   runAudit12h: () => sure(
     'Run 12-Hour Audit & Prune?',
@@ -178,7 +197,7 @@ const V = {
       <div class="c"><div class="k">Pending deposits</div><div class="v" style="color:var(--am)">${D.pendingDeposits.length}</div></div>
       <div class="c"><div class="k">Pending withdrawals</div><div class="v" style="color:var(--am)">${D.pendingWithdrawals.length}</div><div class="k">${etb(pw)}</div></div>
       <div class="c"><div class="k">Actual RTP / target</div><div class="v">${rtp.toFixed(1)}% <span class="k">/ ${D.settings.targetRtp}%</span></div></div></div>
-    <div class="c"><h2>RTP by game (actual vs target)</h2>${gs.length ? gs.map(g => `<div class="li" style="border:0;padding:0"><span>${esc(g.game)} <span class="k">${g.bets} bets</span></span><span>${g.rtp}%</span></div><div class="bar"><i style="width:${Math.min(100, g.rtp)}%;${Math.abs(g.rtp - D.settings.targetRtp) > 8 && g.wagered > 5000 ? 'background:var(--am)' : ''}"></i></div>`).join('') : empty('No settled bets yet')}</div>
+    <div class="c"><h2>RTP by game (cumulative actual vs target)</h2>${gs.length ? gs.map(g => { const tRtp = g.targetRtp || D.settings.targetRtp; return `<div class="li" style="border:0;padding:0"><span>${esc(g.game)} <span class="k">${g.bets} bets · target ${tRtp}%</span></span><span>${g.rtp}%</span></div><div class="bar"><i style="width:${Math.min(100, g.rtp)}%;${Math.abs(g.rtp - tRtp) > 8 && g.wagered > 5000 ? 'background:var(--am)' : ''}"></i></div>`; }).join('') : empty('No settled bets yet')}</div>
     <div class="c"><h2>Latest transactions</h2>${tbl(['Type', 'Player', 'Amount', 'Status', 'Age'], D.recentTransactions.slice(0, 10).map(t => [esc(t.type), esc(t.username || t.user_id), etb(t.amount), badge(t.status), ago(t.created_at)]))}</div>`;
   },
   Deposits() {
@@ -198,17 +217,40 @@ const V = {
   },
   Players() { return `<div class="c"><h2>Players</h2><input placeholder="Search name, @username or ID" value="${esc(SQ)}" oninput="onSearch(this.value)"><div id="ptab">${playersTable(U || D.users)}</div><p class="k">Showing the top 100 by balance – use search to find anyone.</p></div>`; },
   Bets() {
-    return `<div class="c"><h2>Game performance</h2>${tbl(['Game', 'Bets', 'Wagered', 'Paid out', 'House profit', 'RTP'], D.gameStats.map(g => [esc(g.game), g.bets, etb(g.wagered), etb(g.paid), etb(g.wagered - g.paid), badge(g.rtp + '%', Math.abs(g.rtp - D.settings.targetRtp) <= 8 || g.wagered < 5000 ? 'ok' : 'wa')]))}<p class="k">Target RTP ${D.settings.targetRtp}%. Small samples swing a lot; judge after several thousand bets.</p></div>
+    return `<div class="c"><h2>Cumulative Game Performance</h2>${tbl(['Game', 'Bets', 'Wagered', 'Paid out', 'House profit', 'Actual / Target RTP'], D.gameStats.map(g => { const tRtp = g.targetRtp || D.settings.targetRtp; return [esc(g.game), g.bets, etb(g.wagered), etb(g.paid), etb(g.wagered - g.paid), badge(g.rtp + '% / ' + tRtp + '%', Math.abs(g.rtp - tRtp) <= 8 || g.wagered < 5000 ? 'ok' : 'wa')]; }))}<p class="k">Default Target RTP ${D.settings.targetRtp}% | Keno RTP ${D.settings.kenoRtp}%. Includes active (&lt;12h) + archived 12h rollups.</p></div>
     <div class="c"><h2>Latest settled bets</h2>${tbl(['ID', 'Player', 'Game', 'Mult', 'Stake', 'Result'], D.bets.map(b => [esc(b.id), esc(b.u), esc(b.m), esc(b.p), etb(b.s), badge(b.st)]))}</div>`;
   },
+  Sports() {
+    const list = SM || [];
+    return `<div class="c"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Live Sportsbook Fixtures (${list.length})</h2>${btn('+ Add Match', 'sportNew', {}, 'g2')}</div>
+      ${list.length ? tbl(['Sport', 'Match', 'Clock', 'Score', 'Open Bets', 'Exposure', 'Actions'], list.map(m => [
+        esc(m.sport),
+        `<b>${esc(m.home)} vs ${esc(m.away)}</b><br><span class="k">${esc(m.league)}</span>`,
+        badge(m.minute, m.status === 'LIVE' ? 'ok' : 'in'),
+        `<b>${esc(m.score)}</b>`,
+        m.openTickets || 0,
+        etb(m.maxLiability || 0),
+        m.status === 'LIVE'
+          ? btn('Score', 'sportEdit', { id: m.id, title: `${m.home} vs ${m.away}`, hs: m.homeScore, as: m.awayScore, prog: m.progress }) +
+            btn('Settle FT', 'sportSettle', { id: m.id, title: `${m.home} vs ${m.away}`, hs: m.homeScore, as: m.awayScore }, 'g2')
+          : badge('Settled', 'in')
+      ])) : empty('Loading live fixtures…')}
+    </div>`;
+  },
   Promo() {
-    return `<div class="c"><h2>Promo codes</h2>${D.promos.length ? D.promos.map(p => `<div class="li"><span><b>${esc(p.c)}</b><br><span class="k">${esc(p.d)}</span></span>${badge(p.on ? 'active' : 'off', p.on ? 'ok' : '')}</div>`).join('') : empty('No promo codes')}<div style="margin-top:10px">${btn('+ New promo', 'promoNew', {}, 'g2')}</div></div>
+    return `<div class="c"><h2>Promo codes</h2>${D.promos.length ? D.promos.map(p => `<div class="li"><span><b>${esc(p.c)}</b><br><span class="k">${esc(p.d)}</span></span><span class="row">${badge(p.on ? 'active' : 'off', p.on ? 'ok' : 'no')}${btn(p.on ? 'Disable' : 'Enable', 'promoToggle', { code: p.c }, p.on ? 'm' : 'g2')}</span></div>`).join('') : empty('No promo codes')}<div style="margin-top:10px">${btn('+ New promo', 'promoNew', {}, 'g2')}</div></div>
     <div class="c"><h2>Bonuses</h2><p class="k">Cashback pays only on new net loss since the last run, so running it twice never double-pays. All bonuses carry wagering.</p>${btn('Distribute cashback', 'cashback', {}, 'g2')}${btn('Reward players', 'reward')}</div>`;
   },
   Settings() {
     const s = D.settings;
-    return `<div class="c"><h2>Game settings</h2><label class="k">Target RTP % (applies immediately to all games)</label><input id="s_rtp" type="number" step="0.5" value="${s.targetRtp}">
-      <label class="k">Agent commission %</label><input id="s_com" type="number" step="0.5" value="${s.agentCommission}">${btn('Save settings', 'saveSet', {}, 'g2')}</div>
+    return `<div class="c"><h2>RTP &amp; Bonus Settings</h2>
+      <label class="k">Target RTP % (Crash, Slots, Plinko, Chicken, Avia — 50–99%)</label><input id="s_rtp" type="number" step="0.5" value="${s.targetRtp}">
+      <label class="k">Keno RTP % (Fast Keno &amp; Classic Keno — 50–99%)</label><input id="s_krtp" type="number" step="0.5" value="${s.kenoRtp ?? 70}">
+      <label class="k">Agent Commission % (0–20%)</label><input id="s_com" type="number" step="0.5" value="${s.agentCommission}">
+      <label class="k">Welcome Bonus (ETB — 0–500)</label><input id="s_wb" type="number" step="1" value="${s.welcomeBonus ?? 20}">
+      <label class="k">Referral Bonus (ETB — 0–1000)</label><input id="s_rb" type="number" step="1" value="${s.referralBonus ?? 50}">
+      <label class="k">Daily Cashback % (1–50%)</label><input id="s_cb" type="number" step="1" value="${s.cashbackPercent ?? 10}">
+      ${btn('Save settings', 'saveSet', {}, 'g2')}</div>
     <div class="c"><h2>Limits (set in server.js)</h2><div class="li"><span>Deposit</span><span>${etb(s.minDep)} – ${etb(s.maxDep)}</span></div><div class="li"><span>Withdrawal</span><span>${etb(s.minWd)} – ${etb(s.maxWd)}</span></div></div>`;
   },
   Audit() { return `<div class="c"><h2>Admin actions</h2>${AL.length ? tbl(['When', 'Admin', 'Action', 'Detail', 'IP'], AL.map(a => [new Date(a.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }), esc(a.actor), esc(a.action), esc(a.detail), esc(a.ip)])) : empty('Loading…')}</div>`; },
@@ -229,7 +271,7 @@ const V = {
     ])) : empty('No 12-hour archived reports yet. Active rows younger than 12h stay live until the 12h window rolls over.')}</div>`;
   }
 };
-const NAV = [['Overview', '📊'], ['Deposits', '📥'], ['Withdrawals', '💸'], ['Players', '👥'], ['Bets', '🎲'], ['12h Audit', '🗄️'], ['Promo', '🎁'], ['Settings', '⚙️'], ['Audit', '🧾']];
+const NAV = [['Overview', '📊'], ['Deposits', '📥'], ['Withdrawals', '💸'], ['Players', '👥'], ['Bets', '🎲'], ['Sports', '⚽'], ['12h Audit', '🗄️'], ['Promo', '🎁'], ['Settings', '⚙️'], ['Audit', '🧾']];
 function R() {
   if (!D) return;
   const cnt = { Deposits: D.pendingDeposits.length, Withdrawals: D.pendingWithdrawals.length };
@@ -239,6 +281,7 @@ function R() {
 async function go(p) {
   page = p; scrollTo(0, 0); R();
   if (p === 'Audit') { const d = await call('/api/admin/audit'); AL = d.success ? d.log : []; R(); }
+  if (p === 'Sports') { const d = await call('/api/admin/sports'); SM = d.success ? d.matches : []; R(); }
   if (p === '12h Audit') {
     const [r12, botRes] = await Promise.all([
       call('/api/admin/reports-12h'),
@@ -249,5 +292,9 @@ async function go(p) {
     R();
   }
 }
-setInterval(() => { if (D && !document.hidden && !modalOpen() && ['Overview', 'Deposits', 'Withdrawals', 'Bets'].includes(page)) load(true); }, 20000);
+setInterval(() => {
+  if (!D || document.hidden || modalOpen()) return;
+  if (['Overview', 'Deposits', 'Withdrawals', 'Bets'].includes(page)) load(true);
+  if (page === 'Sports') call('/api/admin/sports').then(d => { if (d.success) { SM = d.matches; R(); } });
+}, 20000);
 </script></body></html>

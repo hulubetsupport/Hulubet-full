@@ -9,6 +9,7 @@ function createMockPool() {
     transactions: [],
     balance_audit_logs: [],
     admin_actions: [],
+    chat_messages: [],
     system_settings: new Map(),
     promo_codes: new Map([
       ['HULU50', { code: 'HULU50', bonus_amount: 50, max_uses: 100, times_used: 0, is_active: true }]
@@ -137,6 +138,7 @@ function createMockPool() {
         referrer_id: ref || '',
         referral_paid: false,
         last_cashback_at: null,
+        last_spin_at: null,
         cashback_settled_loss: 0,
         last_active_at: new Date(),
         role: 'player',
@@ -144,6 +146,11 @@ function createMockPool() {
       };
       db.users.set(id, u);
       return { rows: [{ ...u }], rowCount: 1 };
+    }
+    if (low.startsWith('select count(*) n from users where referrer_id=$1')) {
+      const refId = String(params[0]);
+      const n = [...db.users.values()].filter(u => u.referrer_id === refId).length;
+      return { rows: [{ n: String(n) }], rowCount: 1 };
     }
     if (low.startsWith('select count(*) n from users')) {
       return { rows: [{ n: String(db.users.size) }], rowCount: 1 };
@@ -243,6 +250,21 @@ function createMockPool() {
       u.bonus_balance += Number(params[0]);
       u.wager_requirement_left += Number(params[1]);
       return { rows: [{ balance: u.balance }], rowCount: 1 };
+    }
+    if (low.startsWith('update users set last_spin_at=now(),balance=$1,bonus_balance=bonus_balance+$2,wager_requirement_left=wager_requirement_left+$3')) {
+      const u = db.users.get(String(params[3]));
+      if (!u) return { rows: [], rowCount: 0 };
+      u.balance = Number(params[0]);
+      u.bonus_balance += Number(params[1]);
+      u.wager_requirement_left += Number(params[2]);
+      u.last_spin_at = new Date();
+      return { rows: [], rowCount: 1 };
+    }
+    if (low.startsWith('update users set last_spin_at=now() where user_id=$1')) {
+      const u = db.users.get(String(params[0]));
+      if (!u) return { rows: [], rowCount: 0 };
+      u.last_spin_at = new Date();
+      return { rows: [], rowCount: 1 };
     }
     if (low.startsWith('update users set balance=$1 where user_id=$2')) {
       const u = db.users.get(String(params[1]));
@@ -396,7 +418,7 @@ function createMockPool() {
       const rows = db.universal_bets.filter(b => b.game_name === params[0] && ['WON', 'LOST'].includes(b.status)).slice(0, lim);
       return { rows, rowCount: rows.length };
     }
-    if (low.startsWith("select bet_id,game_name,bet_amount,multiplier,payout,status,created_at from universal_bets where user_id=$1")) {
+    if (low.startsWith("select bet_id,game_name,bet_amount,multiplier,payout,status") && low.includes("from universal_bets where user_id=$1")) {
       const rows = db.universal_bets.filter(b => b.user_id === String(params[0]) && b.status !== 'IN_FLIGHT').slice(0, 30);
       return { rows, rowCount: rows.length };
     }
@@ -483,6 +505,18 @@ function createMockPool() {
       const rows = db.game_12h_reports.slice(0, lim);
       return { rows, rowCount: rows.length };
     }
+    if (low.startsWith('select game_name,coalesce(sum(total_bets),0)')) {
+      const map = new Map();
+      for (const r of db.game_12h_reports) {
+        const cur = map.get(r.game_name) || { game_name: r.game_name, bets: 0, wagered: 0, paid: 0 };
+        cur.bets += Number(r.total_bets || 0);
+        cur.wagered += Number(r.total_wagered || 0);
+        cur.paid += Number(r.total_payout || 0);
+        map.set(r.game_name, cur);
+      }
+      const rows = [...map.values()];
+      return { rows, rowCount: rows.length };
+    }
 
     // ---- sports_bets ----
     if (low.startsWith('insert into sports_bets')) {
@@ -510,14 +544,36 @@ function createMockPool() {
       const rows = db.sports_bets.filter(s => s.user_id === String(params[0])).slice(0, 40);
       return { rows, rowCount: rows.length };
     }
+    if (low.startsWith("select * from sports_bets where match_id=$1 and status='in_play'")) {
+      const rows = db.sports_bets.filter(s => s.match_id === params[0] && s.status === 'IN_PLAY');
+      return { rows: rows.map(r => ({ ...r })), rowCount: rows.length };
+    }
+    if (low.startsWith("select match_id,stake,potential_win from sports_bets where status='in_play'")) {
+      const rows = db.sports_bets.filter(s => s.status === 'IN_PLAY').map(s => ({ match_id: s.match_id, stake: s.stake, potential_win: s.potential_win }));
+      return { rows, rowCount: rows.length };
+    }
+    if (low.startsWith("select count(*) bets,coalesce(sum(stake),0) wagered,coalesce(sum(payout),0) paid from sports_bets")) {
+      const list = db.sports_bets.filter(s => ['WON', 'LOST', 'CASHED_OUT'].includes(s.status));
+      return { rows: [{ bets: list.length, wagered: list.reduce((a, b) => a + b.stake, 0), paid: list.reduce((a, b) => a + b.payout, 0) }], rowCount: 1 };
+    }
     if (low.startsWith('select * from sports_bets where (ticket_id=$1 or bet_id=$1) and user_id=$2') ||
         low.startsWith('select * from sports_bets where ticket_id=$1 and user_id=$2')) {
       const s = db.sports_bets.find(x => (x.ticket_id === params[0] || x.bet_id === params[0]) && x.user_id === String(params[1]));
       return s ? { rows: [{ ...s }], rowCount: 1 } : { rows: [], rowCount: 0 };
     }
+    if (low.startsWith("update sports_bets set status='won'")) {
+      const s = db.sports_bets.find(x => (x.ticket_id === params[1] || x.bet_id === params[1]) && x.status === 'IN_PLAY');
+      if (s) { s.status = 'WON'; s.payout = Number(params[0]); s.settled_at = new Date(); }
+      return { rows: [], rowCount: s ? 1 : 0 };
+    }
+    if (low.startsWith("update sports_bets set status='lost'")) {
+      const s = db.sports_bets.find(x => (x.ticket_id === params[0] || x.bet_id === params[0]) && x.status === 'IN_PLAY');
+      if (s) { s.status = 'LOST'; s.payout = 0; s.settled_at = new Date(); }
+      return { rows: [], rowCount: s ? 1 : 0 };
+    }
     if (low.startsWith("update sports_bets set status='cashed_out'")) {
       const s = db.sports_bets.find(x => (x.ticket_id === params[1] || x.bet_id === params[1]) && x.status === 'IN_PLAY');
-      if (s) { s.status = 'CASHED_OUT'; s.payout = Number(params[0]); s.settled_at = new Date(); }
+      if (s) { s.status = 'CASHED_OUT'; s.payout = Number(params[0]); s.cashout_value = Number(params[0]); s.settled_at = new Date(); }
       return { rows: [], rowCount: s ? 1 : 0 };
     }
     if (low.includes("as game_name, user_id, stake as bet_amount, payout, status, created_at from sports_bets where status in ('won','lost','cashed_out','void') and created_at < $1")) {
@@ -729,6 +785,12 @@ function createMockPool() {
       if (p) p.times_used += 1;
       return { rows: [], rowCount: p ? 1 : 0 };
     }
+    if (low.startsWith('update promo_codes set is_active=not is_active')) {
+      const p = db.promo_codes.get(params[0]);
+      if (!p) return { rows: [], rowCount: 0 };
+      p.is_active = !p.is_active;
+      return { rows: [{ code: p.code, is_active: p.is_active }], rowCount: 1 };
+    }
     if (low.startsWith('select 1 from promo_redemptions')) {
       const found = db.promo_redemptions.some(r => r.user_id === String(params[0]) && r.code === params[1]);
       return found ? { rows: [{ '?column?': 1 }], rowCount: 1 } : { rows: [], rowCount: 0 };
@@ -737,6 +799,24 @@ function createMockPool() {
       const [user_id, code, amount_awarded] = params;
       db.promo_redemptions.push({ user_id: String(user_id), code, amount_awarded });
       return { rows: [], rowCount: 1 };
+    }
+
+    // ---- chat_messages ----
+    if (low.startsWith('insert into chat_messages')) {
+      const [user_id, username, message] = params;
+      const row = { id: db.seq++, user_id: String(user_id), username, message, created_at: new Date() };
+      db.chat_messages.push(row);
+      if (db.chat_messages.length > 100) db.chat_messages = db.chat_messages.slice(-100);
+      return { rows: [row], rowCount: 1 };
+    }
+    if (low.startsWith('select id,user_id,username,message,created_at from chat_messages')) {
+      const lim = Number(params[0] || 30);
+      const rows = db.chat_messages.slice(-lim).reverse();
+      return { rows, rowCount: rows.length };
+    }
+    if (low.startsWith('delete from chat_messages')) {
+      if (db.chat_messages.length > 100) db.chat_messages = db.chat_messages.slice(-100);
+      return { rows: [], rowCount: 0 };
     }
 
     return { rows: [], rowCount: 0 };

@@ -22,6 +22,7 @@ const crypto = require('crypto');
 require('dotenv').config();
 const { createMockPool } = require('./mock-db');
 const { r2, num, cashbackDue } = require('./lib/game-math');
+const { SPIN_SLICES, rollSpinPrize, getSpinAvailability, computeClaimableCashback } = require('./lib/bonus-engine');
 const { runTwelveHourAuditAndPrune, getRetentionStats, getReports12h } = require('./lib/audit-rollup');
 const { registerTelegramBot } = require('./lib/telegram-bot');
 const { mountAllGames, CRASH_GAMES } = require('./games');
@@ -57,6 +58,15 @@ const CONFIG = {
   KENO_RTP: 0.70,   // Keno return-to-player (other games follow TARGET_RTP)
   MIN_BET: 1, MAX_BET: 1000, MAX_PAYOUT: 20000, SAFETY_BUFFER: 50000, MAX_CRASH: 100,
   DAILY_WTH_LIMIT: 100000, MAX_PENDING_WTH: 2, REVIEW_AMOUNT: 10000, DEP_EXPIRE_HOURS: 24
+};
+const _cbPct = parseFloat(ENV.CASHBACK_PERCENT);
+const _cbHr = parseFloat(ENV.CASHBACK_HOUR);
+const _cbMin = parseFloat(ENV.CASHBACK_MIN_LOSS);
+const CASHBACK = {
+  auto: ENV.CASHBACK_AUTO !== '0',
+  percent: Math.min(50, Math.max(1, Number.isFinite(_cbPct) ? (_cbPct > 0 && _cbPct < 1 ? _cbPct * 100 : _cbPct) : 10)),
+  hour: Math.min(23, Math.max(0, Number.isFinite(_cbHr) ? _cbHr : 10)),
+  minLoss: Math.max(10, Number.isFinite(_cbMin) ? _cbMin : 100)
 };
 const AGENTS = ['Agent1hulubet', 'Agent2hulubet'];
 const PAY_METHODS = ['Telebirr', 'CBE'];
@@ -205,6 +215,7 @@ async function ensureSchema() {
     `CREATE TABLE IF NOT EXISTS balance_audit_logs (id BIGSERIAL PRIMARY KEY,user_id VARCHAR(64),action_type VARCHAR(40),amount NUMERIC(14,2),balance_before NUMERIC(14,2),balance_after NUMERIC(14,2),reference_id VARCHAR(64),created_at TIMESTAMPTZ DEFAULT NOW())`,
     `CREATE TABLE IF NOT EXISTS system_settings (key VARCHAR(64) PRIMARY KEY,value TEXT)`,
     `CREATE TABLE IF NOT EXISTS admin_actions (id BIGSERIAL PRIMARY KEY,actor TEXT,action TEXT,detail TEXT,ip TEXT,created_at TIMESTAMPTZ DEFAULT NOW())`,
+    `CREATE TABLE IF NOT EXISTS chat_messages (id BIGSERIAL PRIMARY KEY,user_id VARCHAR(64),username VARCHAR(128),message TEXT NOT NULL,created_at TIMESTAMPTZ DEFAULT NOW())`,
     `CREATE TABLE IF NOT EXISTS game_12h_reports (id BIGSERIAL PRIMARY KEY,period_start TIMESTAMPTZ,period_end TIMESTAMPTZ,game_name VARCHAR(64),total_bets INTEGER,won_bets INTEGER,lost_bets INTEGER,total_wagered NUMERIC(14,2),total_payout NUMERIC(14,2),net_profit NUMERIC(14,2),actual_rtp NUMERIC(6,2),unique_players INTEGER,audit_entries_purged INTEGER DEFAULT 0,created_at TIMESTAMPTZ DEFAULT NOW())`,
     `CREATE TABLE IF NOT EXISTS promo_codes (code VARCHAR(64) PRIMARY KEY,bonus_amount NUMERIC(14,2) NOT NULL,max_uses INTEGER DEFAULT 100,times_used INTEGER DEFAULT 0,is_active BOOLEAN DEFAULT TRUE,created_at TIMESTAMPTZ DEFAULT NOW())`,
     `ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS bonus_amount NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS max_uses INTEGER DEFAULT 100, ADD COLUMN IF NOT EXISTS times_used INTEGER DEFAULT 0, ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE`,
@@ -214,7 +225,7 @@ async function ensureSchema() {
     `CREATE TABLE IF NOT EXISTS sports_bets (ticket_id VARCHAR(64) PRIMARY KEY,bet_id VARCHAR(64),user_id VARCHAR(64),username VARCHAR(128),match_id VARCHAR(64),match_title TEXT,market TEXT,odds NUMERIC(8,2),stake NUMERIC(14,2),potential_win NUMERIC(14,2),cashout_value NUMERIC(14,2),payout NUMERIC(14,2) DEFAULT 0,status VARCHAR(24) DEFAULT 'IN_PLAY',created_at TIMESTAMPTZ DEFAULT NOW(),settled_at TIMESTAMPTZ)`,
     `ALTER TABLE sports_bets ADD COLUMN IF NOT EXISTS ticket_id VARCHAR(64), ADD COLUMN IF NOT EXISTS bet_id VARCHAR(64), ADD COLUMN IF NOT EXISTS user_id VARCHAR(64), ADD COLUMN IF NOT EXISTS username VARCHAR(128), ADD COLUMN IF NOT EXISTS match_id VARCHAR(64), ADD COLUMN IF NOT EXISTS match_title TEXT, ADD COLUMN IF NOT EXISTS market TEXT, ADD COLUMN IF NOT EXISTS odds NUMERIC(8,2), ADD COLUMN IF NOT EXISTS stake NUMERIC(14,2), ADD COLUMN IF NOT EXISTS potential_win NUMERIC(14,2), ADD COLUMN IF NOT EXISTS cashout_value NUMERIC(14,2), ADD COLUMN IF NOT EXISTS payout NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS status VARCHAR(24) DEFAULT 'IN_PLAY', ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS settled_at TIMESTAMPTZ`,
     `CREATE UNIQUE INDEX IF NOT EXISTS uq_sports_ticket ON sports_bets (ticket_id) WHERE ticket_id IS NOT NULL`,
-    `ALTER TABLE users ADD COLUMN IF NOT EXISTS bonus_balance NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS wager_requirement_left NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS total_won NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS total_wagered NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS total_deposited NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS referrer_id VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS referral_paid BOOLEAN DEFAULT FALSE, ADD COLUMN IF NOT EXISTS last_cashback_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS cashback_settled_loss NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS bonus_balance NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS wager_requirement_left NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS total_won NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS total_wagered NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS total_deposited NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS referrer_id VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS referral_paid BOOLEAN DEFAULT FALSE, ADD COLUMN IF NOT EXISTS last_cashback_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS last_spin_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS cashback_settled_loss NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ`,
     `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS bank_txn_id VARCHAR(64), ADD COLUMN IF NOT EXISTS processed_by VARCHAR(64), ADD COLUMN IF NOT EXISTS agent_assigned VARCHAR(64), ADD COLUMN IF NOT EXISTS sender_account VARCHAR(128), ADD COLUMN IF NOT EXISTS remarks TEXT`,
     `ALTER TABLE universal_bets ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS flight_start TIMESTAMPTZ`,
     `ALTER TABLE casino_vault ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`,
@@ -244,19 +255,21 @@ async function ensureSchema() {
   }
 }
 async function loadSettings() {
+  const norm = v => { const x = parseFloat(v); return x > 1 ? x / 100 : x; };
+  if (ENV.KENO_RTP) CONFIG.KENO_RTP = norm(ENV.KENO_RTP) || CONFIG.KENO_RTP;
   try {
     const r = await pool.query('SELECT key,value FROM system_settings');
-    const norm = v => { const x = parseFloat(v); return x > 1 ? x / 100 : x; };
     r.rows.forEach(({ key, value }) => {
-      if (key === 'target_rtp') CONFIG.TARGET_RTP = norm(value);
-      if (key === 'keno_rtp') CONFIG.KENO_RTP = norm(value);
-      if (key === 'agent_commission') CONFIG.AGENT_COMMISSION = norm(value);
-      if (key === 'welcome_bonus') CONFIG.WELCOME_BONUS = parseFloat(value);
-      if (key === 'referral_bonus') CONFIG.REFERRAL_BONUS = parseFloat(value);
+      if (key === 'target_rtp' && Number.isFinite(norm(value))) CONFIG.TARGET_RTP = norm(value);
+      if (key === 'keno_rtp' && Number.isFinite(norm(value))) CONFIG.KENO_RTP = norm(value);
+      if (key === 'agent_commission' && Number.isFinite(norm(value))) CONFIG.AGENT_COMMISSION = norm(value);
+      if (key === 'welcome_bonus' && Number.isFinite(parseFloat(value))) CONFIG.WELCOME_BONUS = parseFloat(value);
+      if (key === 'referral_bonus' && Number.isFinite(parseFloat(value))) CONFIG.REFERRAL_BONUS = parseFloat(value);
+      if (key === 'cashback_percent') { const v = parseFloat(value); if (Number.isFinite(v) && v >= 1 && v <= 50) CASHBACK.percent = v; }
+      if (key === 'cashback_min_loss') { const v = parseFloat(value); if (Number.isFinite(v) && v >= 10) CASHBACK.minLoss = v; }
     });
   } catch (e) { console.warn('settings not loaded:', e.message); }
-  if (ENV.KENO_RTP) CONFIG.KENO_RTP = (v => (v > 1 ? v / 100 : v))(parseFloat(ENV.KENO_RTP)) || CONFIG.KENO_RTP;
-  console.log(`Settings: RTP=${CONFIG.TARGET_RTP * 100}% (Keno ${CONFIG.KENO_RTP * 100}%) commission=${CONFIG.AGENT_COMMISSION * 100}%`);
+  console.log(`Settings: RTP=${CONFIG.TARGET_RTP * 100}% (Keno ${CONFIG.KENO_RTP * 100}%) commission=${CONFIG.AGENT_COMMISSION * 100}% welcome=${CONFIG.WELCOME_BONUS} ref=${CONFIG.REFERRAL_BONUS} cashback=${CASHBACK.percent}%`);
 }
 
 // Telegram notifications (player gets a message when a request is approved/rejected; admin chat gets new requests)
@@ -295,28 +308,202 @@ app.get('/game-bridge.js', (_q, res) => res.sendFile(path.join(__dirname, 'game-
 // ---------------------------------------------------------------- public
 app.get('/api/ping', (_q, res) => res.json({ status: 'OK', timestamp: Date.now() }));
 app.get('/api/heartbeat', (_q, res) => res.json({ status: 'ALIVE' }));
+app.get('/api/public/config', (_q, res) => res.json({
+  success: true,
+  welcomeBonus: CONFIG.WELCOME_BONUS,
+  referralBonus: CONFIG.REFERRAL_BONUS,
+  cashbackPercent: CASHBACK.percent,
+  cashbackMinLoss: CASHBACK.minLoss,
+  minBet: CONFIG.MIN_BET,
+  maxBet: CONFIG.MAX_BET,
+  minDep: CONFIG.MIN_DEP,
+  minWth: CONFIG.MIN_WTH,
+  botUsername: ENV.BOT_USERNAME || 'Hulubetethbot'
+}));
 app.get('/api/agents', h(async (_q, res) => {
   const r = await pool.query('SELECT telegram_username FROM agents');
   res.json({ success: true, agents: r.rows });
 }));
 app.get('/api/user/history', userAuth, h(async (req, res) => {
   const r = await pool.query(
-    `SELECT bet_id,game_name,bet_amount,multiplier,payout,status,created_at FROM universal_bets WHERE user_id=$1 AND status<>'IN_FLIGHT' ORDER BY created_at DESC LIMIT 30`,
+    `SELECT bet_id,game_name,bet_amount,multiplier,payout,status,game_data,created_at FROM universal_bets WHERE user_id=$1 AND status<>'IN_FLIGHT' ORDER BY created_at DESC LIMIT 30`,
     [req.tg.id]
   ).catch(() => ({ rows: [] }));
   res.json({
     success: true,
-    history: r.rows.map(b => ({
-      betId: b.bet_id,
-      game: b.game_name,
-      betAmount: num(b.bet_amount),
-      multiplier: num(b.multiplier),
-      payout: num(b.payout),
-      status: b.status,
-      createdAt: b.created_at
+    history: r.rows.map(b => {
+      const gd = parseJson(b.game_data);
+      const amount = num(b.bet_amount);
+      const win = num(b.payout);
+      return {
+        betId: b.bet_id,
+        roundId: gd.roundId || b.bet_id,
+        game: b.game_name,
+        betAmount: amount,
+        amount,
+        multiplier: num(b.multiplier),
+        payout: win,
+        win,
+        status: b.status,
+        createdAt: b.created_at,
+        time: new Date(b.created_at).getTime(),
+        picks: Array.isArray(gd.picks) ? gd.picks : undefined,
+        drawnNumbers: Array.isArray(gd.drawnNumbers) ? gd.drawnNumbers : undefined,
+        hits: gd.hits !== undefined ? Number(gd.hits) : undefined
+      };
+    })
+  });
+}));
+
+// ---- Bonuses & Live Chat ----
+app.get('/api/bonus/status', userAuth, limit('bonusstat', 60, 60e3), h(async (req, res) => {
+  const uid = req.tg.id;
+  const [ur, rr] = await Promise.all([
+    pool.query('SELECT balance,bonus_balance,wager_requirement_left,total_wagered,total_won,cashback_settled_loss,last_spin_at FROM users WHERE user_id=$1', [uid]),
+    pool.query('SELECT COUNT(*) n FROM users WHERE referrer_id=$1', [uid]).catch(() => ({ rows: [{ n: 0 }] }))
+  ]);
+  if (!ur.rows.length) throw new Biz('User not found', 404);
+  const u = ur.rows[0];
+  res.json({
+    success: true,
+    balance: num(u.balance),
+    bonusBalance: num(u.bonus_balance),
+    wagerRequirementLeft: num(u.wager_requirement_left),
+    welcomeBonus: CONFIG.WELCOME_BONUS,
+    referralBonus: CONFIG.REFERRAL_BONUS,
+    referralCount: Number(rr.rows[0]?.n || 0),
+    cashback: computeClaimableCashback({
+      totalWagered: u.total_wagered,
+      totalWon: u.total_won,
+      settledLoss: u.cashback_settled_loss,
+      percent: CASHBACK.percent,
+      minLoss: CASHBACK.minLoss
+    }),
+    spin: {
+      ...getSpinAvailability(u.last_spin_at),
+      slices: SPIN_SLICES.map(s => ({ label: s.label, amount: s.amount }))
+    }
+  });
+}));
+
+app.post('/api/bonus/lucky-spin', userAuth, limit('spin', 20, 60e3), h(async (req, res) => {
+  const uid = req.tg.id;
+  const out = await tx(async c => {
+    const u = await lockUser(c, uid);
+    const avail = getSpinAvailability(u.last_spin_at);
+    if (!avail.canSpin) {
+      throw new Biz('Daily Lucky Spin already claimed. Come back after 24h cooldown.', 429);
+    }
+    const prize = rollSpinPrize();
+    const before = num(u.balance);
+    const after = r2(before + prize.amount);
+    const wagerAdded = prize.amount > 0 ? r2(prize.amount * CONFIG.WAGER_REQ_MULT) : 0;
+
+    if (prize.amount > 0) {
+      await c.query(
+        `UPDATE users SET last_spin_at=NOW(),balance=$1,bonus_balance=bonus_balance+$2,wager_requirement_left=wager_requirement_left+$3 WHERE user_id=$4`,
+        [after, prize.amount, wagerAdded, uid]
+      );
+      const id = newId('SPN');
+      await c.query(
+        `INSERT INTO transactions (txn_id,user_id,type,amount,status,remarks,processed_by) VALUES ($1,$2,'BONUS',$3,'APPROVED','Daily Lucky Spin','AUTO')`,
+        [id, uid, prize.amount]
+      );
+      await audit(c, uid, 'LUCKY_SPIN', prize.amount, before, after, id);
+    } else {
+      await c.query(`UPDATE users SET last_spin_at=NOW() WHERE user_id=$1`, [uid]);
+    }
+    return { prize, after, wagerAdded, nextSpinAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() };
+  });
+
+  if (out.prize.amount > 0) vaultAdd({ bonus: out.prize.amount });
+  res.json({
+    success: true,
+    sliceIndex: out.prize.sliceIndex,
+    amount: out.prize.amount,
+    label: out.prize.label,
+    newBalance: out.after,
+    wagerAdded: out.wagerAdded,
+    nextSpinAt: out.nextSpinAt
+  });
+}));
+
+app.post('/api/bonus/claim-cashback', userAuth, limit('claimcb', 15, 60e3), h(async (req, res) => {
+  const uid = req.tg.id;
+  const out = await tx(async c => {
+    const u = await lockUser(c, uid);
+    const calc = computeClaimableCashback({
+      totalWagered: u.total_wagered,
+      totalWon: u.total_won,
+      settledLoss: u.cashback_settled_loss,
+      percent: CASHBACK.percent,
+      minLoss: CASHBACK.minLoss
+    });
+    if (!calc.eligible || calc.cashbackAmount <= 0) {
+      const need = r2(Math.max(0, calc.minLoss - calc.unclaimedLoss));
+      throw new Biz(`Need ${need.toFixed(2)} ETB more net loss to reach minimum ${calc.minLoss} ETB cashback threshold.`);
+    }
+    const cb = calc.cashbackAmount;
+    const before = num(u.balance);
+    const after = r2(before + cb);
+    const id = newId('CB');
+    await c.query(
+      `UPDATE users SET balance=$1,bonus_balance=bonus_balance+$2,wager_requirement_left=wager_requirement_left+$2,cashback_settled_loss=$3,last_cashback_at=NOW() WHERE user_id=$4`,
+      [after, cb, calc.totalNetLoss, uid]
+    );
+    await c.query(
+      `INSERT INTO transactions (txn_id,user_id,type,amount,status,remarks,processed_by) VALUES ($1,$2,'BONUS',$3,'APPROVED',$4,'SELF_CLAIM')`,
+      [id, uid, cb, `${calc.percent}% cashback claim`]
+    );
+    await audit(c, uid, 'CASHBACK_CLAIM', cb, before, after, id);
+    return { cb, after, unclaimedCleared: calc.unclaimedLoss };
+  });
+
+  vaultAdd({ bonus: out.cb });
+  res.json({
+    success: true,
+    cashbackAmount: out.cb,
+    newBalance: out.after,
+    unclaimedLossCleared: out.unclaimedCleared,
+    message: `+${out.cb.toFixed(2)} ETB cashback added (1x wagering applies)`
+  });
+}));
+
+app.get('/api/chat/messages', limit('chatread', 120, 60e3), h(async (_req, res) => {
+  const r = await pool.query(`SELECT id,user_id,username,message,created_at FROM chat_messages ORDER BY id DESC LIMIT 30`).catch(() => ({ rows: [] }));
+  res.json({
+    success: true,
+    messages: r.rows.reverse().map(m => ({
+      id: m.id,
+      userId: m.user_id,
+      username: m.username || 'Player',
+      message: m.message,
+      createdAt: m.created_at
     }))
   });
 }));
+
+app.post('/api/chat/send', userAuth, limit('chat', 15, 60e3), h(async (req, res) => {
+  const clean = String(req.body?.message || '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, 200);
+  if (!clean) throw new Biz('Enter a message');
+  const uname = req.tg.name || (req.tg.username ? '@' + req.tg.username : mask(req.tg.id));
+  const r = await pool.query(
+    `INSERT INTO chat_messages (user_id,username,message) VALUES ($1,$2,$3) RETURNING id,user_id,username,message,created_at`,
+    [req.tg.id, uname.slice(0, 48), clean]
+  );
+  await pool.query(`DELETE FROM chat_messages WHERE id NOT IN (SELECT id FROM chat_messages ORDER BY id DESC LIMIT 100)`).catch(() => {});
+  const row = r.rows[0] || { id: Date.now(), user_id: req.tg.id, username: uname, message: clean, created_at: new Date() };
+  const msgObj = {
+    id: row.id,
+    userId: row.user_id,
+    username: row.username,
+    message: row.message,
+    createdAt: row.created_at
+  };
+  io.emit('chat:msg', msgObj);
+  res.json({ success: true, msg: msgObj });
+}));
+
 app.get('/api/public/feed', limit('feed', 60, 60e3), h(async (req, res) => {
   const game = CRASH_GAMES.includes(req.query.game) ? req.query.game : 'JetX';
   const [w, c] = await Promise.all([
@@ -354,7 +541,7 @@ app.post('/api/user/init', userAuth, limit('init', 60, 60e3), initHandler);
 // Shared context passed into every game module, Sportsbook & Telegram Bot
 const appCtx = {
   pool, io, CONFIG, Biz, h, tx, audit, lockUser, validWager,
-  newId, mask, parseJson, vaultAdd, userAuth, limit, flights, r2, num, parseInitData
+  newId, mask, parseJson, vaultAdd, userAuth, admin, alog, notify, limit, flights, r2, num, parseInitData
 };
 const { shared: gameShared, chickenMod } = mountAllGames(app, appCtx, __dirname);
 registerSportsbook(app, appCtx);
@@ -559,7 +746,7 @@ const fmtTx = t => ({ id: t.txn_id, u: t.username || t.user_id, uid: t.user_id, 
 
 const dashboard = h(async (_req, res) => {
   const q = (s, p) => pool.query(s, p);
-  const [vault, cnt, pd, pw, rec, deps, wds, bets, promos, users, ggr, gs, retentionStats, reports12h] = await Promise.all([
+  const [vault, cnt, pd, pw, rec, deps, wds, bets, promos, users, ggr, gs, gs12, spStats, retentionStats, reports12h] = await Promise.all([
     q('SELECT * FROM casino_vault WHERE id=1'),
     q('SELECT COUNT(*) n FROM users'),
     q(`SELECT * FROM transactions WHERE type='DEPOSIT' AND status='PENDING' ORDER BY created_at DESC LIMIT 200`),
@@ -573,12 +760,40 @@ const dashboard = h(async (_req, res) => {
     q(`SELECT COALESCE(SUM(house_profit) FILTER (WHERE created_at>=date_trunc('day',NOW())),0) d,
               COALESCE(SUM(house_profit) FILTER (WHERE created_at>=date_trunc('month',NOW())),0) m FROM universal_bets WHERE status IN ('WON','LOST')`),
     q(`SELECT game_name,COUNT(*) bets,COALESCE(SUM(bet_amount),0) wagered,COALESCE(SUM(payout),0) paid FROM universal_bets WHERE status IN ('WON','LOST') GROUP BY game_name`),
+    q(`SELECT game_name,COALESCE(SUM(total_bets),0) bets,COALESCE(SUM(total_wagered),0) wagered,COALESCE(SUM(total_payout),0) paid FROM game_12h_reports GROUP BY game_name`).catch(() => ({ rows: [] })),
+    q(`SELECT COUNT(*) bets,COALESCE(SUM(stake),0) wagered,COALESCE(SUM(payout),0) paid FROM sports_bets WHERE status IN ('WON','LOST','CASHED_OUT')`).catch(() => ({ rows: [{ bets: 0, wagered: 0, paid: 0 }] })),
     getRetentionStats(pool).catch(() => ({ activeBetsInDb: 0, activeAuditLogsInDb: 0, archived12hReports: 0, retentionWindowHours: 12 })),
     getReports12h(pool, 100).catch(() => [])
   ]);
   const v = vault.rows[0] || {};
   const bonusM = await q(`SELECT COALESCE(SUM(amount),0) s FROM transactions WHERE type='BONUS' AND created_at>=date_trunc('month',NOW())`).catch(() => ({ rows: [{ s: 0 }] }));
   const usersList = users.rows.map(userRow);
+
+  const gameMap = new Map();
+  const addGameStat = (name, b, w, p) => {
+    const cur = gameMap.get(name) || { game: name, bets: 0, wagered: 0, paid: 0 };
+    cur.bets += Number(b || 0);
+    cur.wagered = r2(cur.wagered + num(w));
+    cur.paid = r2(cur.paid + num(p));
+    gameMap.set(name, cur);
+  };
+  gs.rows.forEach(g => addGameStat(g.game_name, g.bets, g.wagered, g.paid));
+  gs12.rows.forEach(g => addGameStat(g.game_name, g.bets, g.wagered, g.paid));
+  const sp = spStats.rows[0];
+  if (sp && Number(sp.bets || 0) > 0) addGameStat('Sportsbook', sp.bets, sp.wagered, sp.paid);
+
+  const targetFor = g => {
+    if (g === 'KenoFast' || g === 'ClassicKeno') return r2(CONFIG.KENO_RTP * 100);
+    if (g === 'Roulette') return 97.3;
+    if (g === 'Sportsbook') return 92.0;
+    return r2(CONFIG.TARGET_RTP * 100);
+  };
+  const gameStats = [...gameMap.values()].map(g => ({
+    ...g,
+    rtp: g.wagered ? r2((g.paid / g.wagered) * 100) : 0,
+    targetRtp: targetFor(g.game)
+  }));
+
   res.json({
     success: true,
     vault: { gross_profit: num(v.gross_profit), vault_balance: num(v.vault_balance), total_wagered: num(v.total_wagered), ggrToday: num(ggr.rows[0].d), ngrMonth: r2(num(ggr.rows[0].m) - num(bonusM.rows[0].s)), vaultBalance: num(v.vault_balance), totalWagered: num(v.total_wagered) },
@@ -587,10 +802,19 @@ const dashboard = h(async (_req, res) => {
     usersList, users: usersList, dep: deps.rows.map(fmtTx), wd: wds.rows.map(fmtTx),
     bets: bets.rows.map(b => ({ id: b.bet_id, u: b.username || b.user_id, m: b.game_name, p: num(b.multiplier) + 'x', s: num(b.bet_amount), st: String(b.status).toLowerCase() })),
     promos: promos.rows.map(p => ({ c: p.code, code: p.code, d: `+${p.bonus_amount} ETB (${p.times_used}/${p.max_uses})`, on: p.is_active ? 1 : 0 })),
-    gameStats: gs.rows.map(g => ({ game: g.game_name, bets: Number(g.bets), wagered: num(g.wagered), paid: num(g.paid), rtp: num(g.wagered) ? r2(num(g.paid) / num(g.wagered) * 100) : 0 })),
+    gameStats,
     retentionStats,
     reports12h,
-    settings: { targetRtp: r2(CONFIG.TARGET_RTP * 100), kenoRtp: r2(CONFIG.KENO_RTP * 100), agentCommission: r2(CONFIG.AGENT_COMMISSION * 100), minDep: CONFIG.MIN_DEP, maxDep: CONFIG.MAX_DEP, minWd: CONFIG.MIN_WTH, maxWd: CONFIG.MAX_WTH }
+    settings: {
+      targetRtp: r2(CONFIG.TARGET_RTP * 100),
+      kenoRtp: r2(CONFIG.KENO_RTP * 100),
+      agentCommission: r2(CONFIG.AGENT_COMMISSION * 100),
+      welcomeBonus: CONFIG.WELCOME_BONUS,
+      referralBonus: CONFIG.REFERRAL_BONUS,
+      cashbackPercent: CASHBACK.percent,
+      cashbackMinLoss: CASHBACK.minLoss,
+      minDep: CONFIG.MIN_DEP, maxDep: CONFIG.MAX_DEP, minWd: CONFIG.MIN_WTH, maxWd: CONFIG.MAX_WTH
+    }
   });
 });
 const userRow = u => ({
@@ -750,7 +974,6 @@ app.post('/api/admin/distribute-cashback', admin, h(async (req, res) => {
   res.json({ success: true, message: `Distributed ${out.total.toFixed(2)} ETB cashback to ${out.n} players (1x wagering applies)` });
 }));
 
-const CASHBACK = { auto: ENV.CASHBACK_AUTO !== '0', percent: Math.min(50, Math.max(1, Number(ENV.CASHBACK_PERCENT || 10))), hour: Math.min(23, Math.max(0, Number(ENV.CASHBACK_HOUR || 10))), minLoss: Number(ENV.CASHBACK_MIN_LOSS || 100) };
 let cashbackFailedAt = 0;
 async function cashbackTick() {
   if (!CASHBACK.auto || Date.now() - cashbackFailedAt < 10 * 60e3) return;
@@ -783,6 +1006,15 @@ app.post('/api/admin/create-promo', admin, h(async (req, res) => {
   alog(req, 'create-promo', `${code} +${amt} x${max}`);
   res.json({ success: true, message: `Promo ${code} created (+${amt} ETB)` });
 }));
+app.post('/api/admin/toggle-promo', admin, h(async (req, res) => {
+  const code = String(req.body.code || '').trim().toUpperCase().slice(0, 40);
+  if (!code) throw new Biz('Promo code required');
+  const r = await pool.query(`UPDATE promo_codes SET is_active=NOT is_active WHERE code=$1 RETURNING code,is_active`, [code]);
+  if (!r.rowCount) throw new Biz('Promo code not found', 404);
+  const on = Boolean(r.rows[0].is_active);
+  alog(req, 'toggle-promo', `${code} -> ${on ? 'active' : 'off'}`);
+  res.json({ success: true, code, isActive: on, message: `Promo ${code} is now ${on ? 'active' : 'disabled'}` });
+}));
 app.post('/api/admin/reward-users', admin, h(async (req, res) => {
   const ids = Array.isArray(req.body.userIds) ? [...new Set(req.body.userIds.map(String))].slice(0, 500) : [], amt = r2(req.body.rewardAmount);
   if (!ids.length || !(amt > 0 && amt <= 1000)) throw new Biz('Valid user IDs (max 500) and amount (max 1000) required');
@@ -801,21 +1033,34 @@ app.post('/api/admin/reward-users', admin, h(async (req, res) => {
 }));
 app.post('/api/admin/update-settings', admin, h(async (req, res) => {
   const norm = v => { const x = parseFloat(v); return x > 1 ? x / 100 : x; };
-  const { targetRtp, agentCommission, kenoRtp } = req.body;
+  const saveKey = (k, val) => pool.query(`INSERT INTO system_settings (key,value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value=$2`, [k, String(val)]);
+  const { targetRtp, agentCommission, kenoRtp, welcomeBonus, referralBonus, cashbackPercent } = req.body;
   if (kenoRtp !== undefined) {
     const v = norm(kenoRtp); if (!(v >= 0.5 && v <= 0.99)) throw new Biz('Keno RTP must be between 50% and 99%');
-    CONFIG.KENO_RTP = v; await pool.query(`INSERT INTO system_settings (key,value) VALUES ('keno_rtp',$1) ON CONFLICT (key) DO UPDATE SET value=$1`, [String(v)]);
+    CONFIG.KENO_RTP = v; await saveKey('keno_rtp', v);
   }
   if (targetRtp !== undefined) {
     const v = norm(targetRtp); if (!(v >= 0.5 && v <= 0.99)) throw new Biz('RTP must be between 50% and 99%');
-    CONFIG.TARGET_RTP = v; await pool.query(`INSERT INTO system_settings (key,value) VALUES ('target_rtp',$1) ON CONFLICT (key) DO UPDATE SET value=$1`, [String(v)]);
+    CONFIG.TARGET_RTP = v; await saveKey('target_rtp', v);
   }
   if (agentCommission !== undefined) {
     const v = norm(agentCommission); if (!(v >= 0 && v <= 0.2)) throw new Biz('Commission must be between 0% and 20%');
-    CONFIG.AGENT_COMMISSION = v; await pool.query(`INSERT INTO system_settings (key,value) VALUES ('agent_commission',$1) ON CONFLICT (key) DO UPDATE SET value=$1`, [String(v)]);
+    CONFIG.AGENT_COMMISSION = v; await saveKey('agent_commission', v);
   }
-  alog(req, 'update-settings', JSON.stringify({ targetRtp, agentCommission }));
-  res.json({ success: true, message: 'Settings saved' });
+  if (welcomeBonus !== undefined) {
+    const v = r2(welcomeBonus); if (!Number.isFinite(v) || v < 0 || v > 500) throw new Biz('Welcome bonus must be 0 to 500 ETB');
+    CONFIG.WELCOME_BONUS = v; await saveKey('welcome_bonus', v);
+  }
+  if (referralBonus !== undefined) {
+    const v = r2(referralBonus); if (!Number.isFinite(v) || v < 0 || v > 1000) throw new Biz('Referral bonus must be 0 to 1000 ETB');
+    CONFIG.REFERRAL_BONUS = v; await saveKey('referral_bonus', v);
+  }
+  if (cashbackPercent !== undefined) {
+    const v = r2(cashbackPercent); if (!Number.isFinite(v) || v < 1 || v > 50) throw new Biz('Cashback % must be 1 to 50');
+    CASHBACK.percent = v; await saveKey('cashback_percent', v);
+  }
+  alog(req, 'update-settings', JSON.stringify({ targetRtp, kenoRtp, agentCommission, welcomeBonus, referralBonus, cashbackPercent }));
+  res.json({ success: true, message: 'Settings saved & applied immediately' });
 }));
 app.post('/api/admin/user-status', admin, h(async (req, res) => {
   const status = String(req.body.status || '').toLowerCase();

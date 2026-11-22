@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="description" content="HuluBet Ultra - Official Telegram Mini App Sportsbook and 12 Verified Instant & Crash Casino Games.">
+<meta name="hulubet-api" content="">
 <meta property="og:title" content="HuluBet Ultra - Official Sportsbook & Casino">
 <meta property="og:description" content="Play 12 verified casino games and live Ethiopian & international sportsbook in full screen.">
 <title>HuluBet Ultra - Official Sportsbook & Casino</title>
@@ -504,18 +505,21 @@ body, html {
 }
 .pitch-radar-pulse {
   position: absolute;
-  top: 45%;
-  left: 65%;
-  width: 14px;
-  height: 14px;
+  top: 55%;
+  left: 34%;
+  width: 10px;
+  height: 10px;
   background: var(--emerald-primary);
   border-radius: 50%;
-  box-shadow: 0 0 14px var(--emerald-primary);
+  box-shadow: 0 0 12px var(--emerald-primary);
+  opacity: 0.32;
+  z-index: 1;
+  pointer-events: none;
   animation: radarPing 1.8s infinite;
 }
 @keyframes radarPing {
-  0% { transform: scale(0.8); opacity: 1; }
-  100% { transform: scale(2.6); opacity: 0; }
+  0% { transform: scale(0.8); opacity: 0.45; }
+  100% { transform: scale(2.4); opacity: 0; }
 }
 .sport-pills-row {
   display: flex;
@@ -722,23 +726,23 @@ body, html {
 }
 .browser-back-pill {
   position: fixed;
-  top: max(8px, var(--safe-top));
-  left: 8px;
+  bottom: max(12px, var(--safe-bottom));
+  left: 10px;
   z-index: 520;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  background: rgba(8, 13, 22, 0.72);
+  height: 30px;
+  padding: 0 11px;
+  background: rgba(8, 13, 22, 0.84);
   backdrop-filter: blur(10px);
   color: #fff;
   border: 1px solid rgba(0, 240, 118, 0.45);
-  border-radius: 50%;
-  font-size: 13px;
+  border-radius: 999px;
+  font-size: 11px;
   font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.88;
+  gap: 5px;
+  opacity: 0.92;
   cursor: pointer;
   box-shadow: 0 4px 16px rgba(0,0,0,0.45);
 }
@@ -861,13 +865,13 @@ body.is-tg-app .browser-back-pill {
   ======================================================== -->
   <div class="screen-view active" id="tab-casino">
     <!-- 10% Daily Cashback Widget -->
-    <div class="cashback-banner-widget">
+    <div class="cashback-banner-widget" id="cashbackBanner">
       <div>
-        <span class="cashback-time-chip"><i class="fa-solid fa-clock"></i> DAILY 10:00 AM CASHBACK</span>
-        <div style="font-size:12px;font-weight:900;color:#fff;">10% Losses Refund Everyday</div>
-        <div style="font-size:10px;color:var(--text-muted);" id="cashbackTimerTxt">Next refund in: 10:00 AM EAT</div>
+        <span class="cashback-time-chip" id="cbChipTxt"><i class="fa-solid fa-clock"></i> DAILY 10% CASHBACK</span>
+        <div style="font-size:12px;font-weight:900;color:#fff;" id="cbTitleTxt">10% Losses Refund Everyday</div>
+        <div style="font-size:10px;color:var(--text-muted);" id="cashbackTimerTxt">Checking net loss eligibility...</div>
       </div>
-      <button class="btn-deposit-header" style="padding:6px 12px;font-size:11px;" onclick="claimDailyCashback()">Claim 10%</button>
+      <button class="btn-deposit-header" id="btnClaimCashback" style="padding:6px 12px;font-size:11px;" onclick="claimDailyCashback()">Claim 10%</button>
     </div>
 
     <!-- Official Banner Ad -->
@@ -986,8 +990,8 @@ body.is-tg-app .browser-back-pill {
         <div class="pitch-lines"></div>
         <div class="pitch-radar-pulse"></div>
         <div style="position:relative;z-index:2;display:flex;justify-content:space-between;font-size:10px;font-weight:900;">
-          <span style="color:var(--emerald-primary);"><i class="fa-solid fa-bolt"></i> DANGEROUS ATTACK</span>
-          <span>ARSENAL FC ON PITCH</span>
+          <span style="color:var(--emerald-primary);"><i class="fa-solid fa-bolt"></i> LIVE COVERAGE</span>
+          <span id="livePitchTitle">REAL-TIME ODDS &amp; CASHOUT</span>
         </div>
       </div>
 
@@ -1180,9 +1184,13 @@ body.is-tg-app .browser-back-pill {
   <div class="screen-view" id="tab-invite">
     <div style="padding:12px;display:flex;flex-direction:column;gap:12px;">
       <div style="background:var(--bg-card);border:1.5px solid var(--emerald-primary);border-radius:var(--radius-lg);padding:16px;display:flex;flex-direction:column;gap:10px;">
-        <span style="background:rgba(0,240,118,0.15);color:var(--emerald-primary);font-size:9.5px;font-weight:900;padding:2px 8px;border-radius:10px;align-self:flex-start;">✨ REFERRAL</span>
-        <div style="font-family:'Outfit';font-size:22px;font-weight:900;">Invite friends. Earn Br 100.</div>
-        <p style="font-size:11px;color:var(--text-muted);">Earn Br 100 whenever an invited friend deposits. Automatic payout!</p>
+        <span style="background:rgba(0,240,118,0.15);color:var(--emerald-primary);font-size:9.5px;font-weight:900;padding:2px 8px;border-radius:10px;align-self:flex-start;">✨ REFERRAL PROGRAM</span>
+        <div style="font-family:'Outfit';font-size:22px;font-weight:900;" id="inviteHeadlineTxt">Invite friends. Earn Br 50.</div>
+        <p style="font-size:11px;color:var(--text-muted);" id="inviteSubTxt">Earn Br 50 whenever an invited friend completes their first deposit. Paid automatically!</p>
+        <div style="background:#070d16;border:1px solid var(--border-subtle);border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;font-size:11px;">
+          <span style="color:var(--text-muted);">Friends Invited</span>
+          <b style="color:var(--emerald-primary);" id="inviteCountTxt">0</b>
+        </div>
         <div style="display:flex;gap:6px;">
           <button class="btn-emerald-huge" style="flex:1;" onclick="shareInviteLink()"><i class="fa-solid fa-share-nodes"></i> Invite friends</button>
           <button class="btn-dark-huge" style="width:48px;padding:0;display:flex;align-items:center;justify-content:center;" onclick="copyReferralLink()"><i class="fa-regular fa-copy"></i></button>
@@ -1200,15 +1208,27 @@ body.is-tg-app .browser-back-pill {
         <div style="width:48px;height:48px;border-radius:12px;background:var(--emerald-gradient);display:flex;align-items:center;justify-content:center;font-size:20px;color:#000;font-weight:900;">
           🦁
         </div>
-        <div>
+        <div style="flex:1;">
           <div style="font-size:15px;font-weight:900;" id="profUsername">Player</div>
           <div style="font-size:11px;color:var(--text-muted);" id="profUserId">ID: Loading...</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:9px;color:var(--text-muted);font-weight:800;">WAGER LEFT</div>
+          <div style="font-size:12px;font-weight:900;color:var(--gold-primary);" id="profWagerLeft">0.00 ETB</div>
         </div>
       </div>
 
       <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px;overflow:hidden;">
         <div style="display:flex;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border-subtle);cursor:pointer;" onclick="openWithdrawDrawer()">
           <span><i class="fa-solid fa-money-bill-transfer" style="color:var(--emerald-primary);margin-right:8px;"></i> Cashout / Withdraw</span>
+          <i class="fa-solid fa-chevron-right" style="color:var(--text-dim);"></i>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border-subtle);cursor:pointer;" onclick="navigateToTab('invite')">
+          <span><i class="fa-solid fa-user-plus" style="color:var(--gold-primary);margin-right:8px;"></i> Invite &amp; Earn Referral Bonus</span>
+          <i class="fa-solid fa-chevron-right" style="color:var(--text-dim);"></i>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border-subtle);cursor:pointer;" onclick="openPromoModal()">
+          <span><i class="fa-solid fa-ticket" style="color:var(--emerald-primary);margin-right:8px;"></i> Redeem Promo Code</span>
           <i class="fa-solid fa-chevron-right" style="color:var(--text-dim);"></i>
         </div>
         <div style="display:flex;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border-subtle);cursor:pointer;" onclick="openSupportModal()">
@@ -1251,11 +1271,16 @@ body.is-tg-app .browser-back-pill {
   <div class="modal-overlay" id="modalLuckyWheel" onclick="closeModal('modalLuckyWheel')">
     <div class="bottom-sheet-card" onclick="event.stopPropagation()">
       <span class="sheet-close-x" onclick="closeModal('modalLuckyWheel')">✕</span>
-      <h3 style="font-family:'Outfit';font-size:18px;font-weight:900;margin-bottom:6px;">Daily Lucky Spin</h3>
-      <div style="width:180px;height:180px;border-radius:50%;border:4px solid var(--emerald-primary);display:flex;align-items:center;justify-content:center;background:radial-gradient(circle,#0f2419,#06100b);box-shadow:0 0 25px var(--emerald-glow);margin:14px 0;" id="wheelSpinnerBox">
-        <div style="font-size:32px;">🎁</div>
+      <h3 style="font-family:'Outfit';font-size:18px;font-weight:900;margin-bottom:2px;">Daily Lucky Spin</h3>
+      <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px;text-align:center;" id="spinCooldownTxt">Spin once every 24h to win up to 100 ETB!</p>
+      <div style="position:relative;width:210px;height:210px;margin:10px 0 14px;display:flex;align-items:center;justify-content:center;">
+        <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-top:18px solid var(--gold-primary);z-index:4;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.8));"></div>
+        <div id="wheelSpinnerBox" style="width:200px;height:200px;border-radius:50%;border:4px solid var(--emerald-primary);box-shadow:0 0 25px var(--emerald-glow);position:relative;overflow:hidden;background:conic-gradient(from -22.5deg,#0d1b2a 0deg 45deg,#0b2b1d 45deg 90deg,#12263a 90deg 135deg,#0d3b26 135deg 180deg,#16293d 180deg 225deg,#11472c 225deg 270deg,#1f2937 270deg 315deg,#15803d 315deg 360deg);">
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;" id="wheelLabelsLayer"></div>
+        </div>
+        <div style="position:absolute;width:44px;height:44px;border-radius:50%;background:radial-gradient(circle,#1e293b,#060a11);border:2px solid var(--emerald-primary);display:flex;align-items:center;justify-content:center;font-size:18px;z-index:3;">🎁</div>
       </div>
-      <button class="btn-emerald-huge" style="width:100%;" onclick="spinFortuneWheel()">Spin for Free</button>
+      <button class="btn-emerald-huge" id="btnSpinWheel" style="width:100%;" onclick="spinFortuneWheel()">Spin for Free</button>
     </div>
   </div>
 
@@ -1264,20 +1289,29 @@ body.is-tg-app .browser-back-pill {
       <span class="sheet-close-x" onclick="closeModal('modalLiveChat')">✕</span>
       <h3 style="font-family:'Outfit';font-size:16px;font-weight:900;margin-bottom:8px;">Live Community Chat</h3>
       <div style="flex:1;width:100%;overflow-y:auto;display:flex;flex-direction:column;gap:6px;" id="chatMsgFeed">
-        <div style="background:#0e1524;padding:8px;border-radius:8px;font-size:11px;"><b>TG_Abebe:</b> Aviator 30x hit! 🔥</div>
-        <div style="background:#0e1524;padding:8px;border-radius:8px;font-size:11px;"><b>TG_Natnael:</b> Telebirr auto-verify is super fast!</div>
+        <div style="color:var(--text-muted);font-size:11px;text-align:center;padding:16px;">Loading live community chat...</div>
       </div>
       <div style="display:flex;gap:6px;width:100%;margin-top:8px;">
-        <input type="text" id="liveChatInput" style="flex:1;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:8px;padding:10px;color:#fff;outline:none;" placeholder="Say something...">
+        <input type="text" id="liveChatInput" maxlength="200" style="flex:1;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:8px;padding:10px;color:#fff;outline:none;" placeholder="Say something...">
         <button class="btn-deposit-header" onclick="sendChatMsg()">Send</button>
       </div>
+    </div>
+  </div>
+
+  <!-- REMOTE BACKEND CONNECT MODAL (shown on GitHub Pages if backend URL is not yet configured) -->
+  <div class="modal-overlay" id="modalServerConnect">
+    <div class="bottom-sheet-card" onclick="event.stopPropagation()">
+      <h3 style="font-family:'Outfit';font-size:17px;font-weight:900;margin-bottom:6px;">Connect Game Server</h3>
+      <p style="font-size:11px;color:var(--text-muted);margin-bottom:10px;text-align:center;">Enter your live HuluBet Node.js server URL (e.g. Render URL) to connect games, balance &amp; sportsbook.</p>
+      <input type="url" id="serverUrlInput" class="verify-input-field" placeholder="https://your-hulubet-server.onrender.com" style="margin-bottom:10px;">
+      <button class="btn-emerald-huge" style="width:100%;" onclick="saveRemoteServerUrl()">Connect Server</button>
     </div>
   </div>
 
   <!-- FULLSCREEN GAME VIEWPORT MODAL (Telegram BackButton controls exit inside Telegram; corner pill in plain browser) -->
   <div class="game-viewport-modal" id="gameViewport">
     <button type="button" class="browser-back-pill" id="browserBackPill" onclick="closeGameViewport()" aria-label="Back to Lobby">
-      <i class="fa-solid fa-arrow-left"></i>
+      <i class="fa-solid fa-arrow-left"></i><span>Back</span>
     </button>
     <iframe class="viewport-iframe" id="gameIframe" src="about:blank" allow="autoplay; fullscreen"></iframe>
   </div>
@@ -1374,8 +1408,37 @@ body.is-tg-app .browser-back-pill {
      MASTER JAVASCRIPT LOGIC
 ======================================================== -->
 <script>
-const SERVER_URL = window.location.origin;
-const GAME_ORIGIN = window.location.origin;
+const DEFAULT_REMOTE_SERVER = "";
+function validateBackendUrl(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  try {
+    const u = new URL(raw.trim());
+    if (u.protocol === 'http:' || u.protocol === 'https:') return u.origin;
+  } catch (_) {}
+  return '';
+}
+function resolveBackendOrigin() {
+  const qs = new URLSearchParams(window.location.search);
+  const fromQuery = validateBackendUrl(qs.get('api') || qs.get('server'));
+  if (fromQuery) {
+    try { sessionStorage.setItem('hulubet_api', fromQuery); } catch (_) {}
+    return fromQuery;
+  }
+  const meta = validateBackendUrl(document.querySelector('meta[name="hulubet-api"]')?.getAttribute('content') || '');
+  if (meta) return meta;
+  let fromSession = '';
+  try { fromSession = validateBackendUrl(sessionStorage.getItem('hulubet_api') || ''); } catch (_) {}
+  if (fromSession) return fromSession;
+  const fromDef = validateBackendUrl(DEFAULT_REMOTE_SERVER);
+  if (fromDef) return fromDef;
+  if (window.location.hostname.endsWith('.github.io')) return '';
+  return window.location.origin;
+}
+
+let SERVER_URL = resolveBackendOrigin();
+let GAME_ORIGIN = SERVER_URL || window.location.origin;
+let NEEDS_BACKEND_SETUP = !SERVER_URL;
+if (!SERVER_URL) SERVER_URL = window.location.origin;
 
 // Payment Accounts
 const PAYMENT_ACCOUNTS = {
@@ -1520,26 +1583,25 @@ async function syncDatabaseBalance() {
       } catch (_) {}
     }
     return currentBalance;
-  } else if (d.message) toast(d.message);
+  } else if (d.message && !NEEDS_BACKEND_SETUP) toast(d.message);
   return null;
 }
-syncDatabaseBalance();
 
-// 12 REAL WORKING GAMES
-const GAMES = {
-  aviator: { title: "Aviator", url: GAME_ORIGIN + "/Aveiter/" },
-  keno: { title: "Fast Keno", url: GAME_ORIGIN + "/Keno-fast/" },
-  jetx: { title: "Jet-X", url: GAME_ORIGIN + "/Jet-x/" },
-  road: { title: "Chicken Road 2", url: GAME_ORIGIN + "/Chekn-road/" },
-  slot: { title: "777 Multi Slot", url: GAME_ORIGIN + "/Slot-777-/" },
-  avia: { title: "Avia Masters", url: GAME_ORIGIN + "/Avia-master/" },
-  roulette: { title: "Roulette", url: GAME_ORIGIN + "/Roulette/" },
-  classickeno: { title: "Classic Keno", url: GAME_ORIGIN + "/Classic-Keno/" },
-  plinko: { title: "Plinko", url: GAME_ORIGIN + "/Plinkok/" },
-  luckychicken: { title: "Lucky Chicken", url: GAME_ORIGIN + "/Lucky-Chicken-/" },
-  roastedchicken: { title: "Roasted Chicken", url: GAME_ORIGIN + "/Rosted-cheken/" },
-  megablock: { title: "Mega Block", url: GAME_ORIGIN + "/Mega-block/" }
+const GAME_ROUTES = {
+  aviator: { title: "Aviator", path: "/Aveiter/" },
+  keno: { title: "Fast Keno", path: "/Keno-fast/" },
+  jetx: { title: "Jet-X", path: "/Jet-x/" },
+  road: { title: "Chicken Road 2", path: "/Chekn-road/" },
+  slot: { title: "777 Multi Slot", path: "/Slot-777-/" },
+  avia: { title: "Avia Masters", path: "/Avia-master/" },
+  roulette: { title: "Roulette", path: "/Roulette/" },
+  classickeno: { title: "Classic Keno", path: "/Classic-Keno/" },
+  plinko: { title: "Plinko", path: "/Plinkok/" },
+  luckychicken: { title: "Lucky Chicken", path: "/Lucky-Chicken-/" },
+  roastedchicken: { title: "Roasted Chicken", path: "/Rosted-cheken/" },
+  megablock: { title: "Mega Block", path: "/Mega-block/" }
 };
+const getGameUrl = key => GAME_ORIGIN + (GAME_ROUTES[key] || GAME_ROUTES.aviator).path;
 
 let currentLoadedGame = null, isGameRoundActive = false;
 const gameWin = () => document.getElementById('gameIframe')?.contentWindow;
@@ -1560,13 +1622,14 @@ const sendInit = () => {
 
 async function launchGameEngine(key, title) {
   if (!INIT_DATA) return toast("Open the app from Telegram");
-  const g = GAMES[key] || GAMES['aviator'];
+  if (NEEDS_BACKEND_SETUP) return openModal('modalServerConnect');
   haptic('medium');
   if (currentBalance === null) await syncDatabaseBalance();
   const iframe = document.getElementById('gameIframe');
   document.getElementById('gameViewport').style.display = 'flex';
   syncBackButton();
-  if (currentLoadedGame === key && iframe.src && iframe.src !== 'about:blank') {
+  const targetUrl = getGameUrl(key);
+  if (currentLoadedGame === key && iframe.src && iframe.src === targetUrl) {
     sendInit();
     try { gameWin()?.postMessage({ type: 'UPDATE_BALANCE', balance: currentBalance }, GAME_ORIGIN); } catch (_) {}
     return;
@@ -1574,7 +1637,7 @@ async function launchGameEngine(key, title) {
   currentLoadedGame = key;
   isGameRoundActive = false;
   iframe.onload = () => sendInit();
-  iframe.src = g.url;
+  iframe.src = targetUrl;
 }
 
 async function closeGameViewport() {
@@ -1584,8 +1647,9 @@ async function closeGameViewport() {
   document.getElementById('gameViewport').style.display = 'none';
   syncBackButton(document.querySelector('.screen-view.active')?.id?.replace('tab-', '') || 'casino');
   await syncDatabaseBalance();
+  refreshBonusStatus();
   if (hadActiveRound) {
-    setTimeout(() => { syncDatabaseBalance(); }, 900);
+    setTimeout(() => { syncDatabaseBalance(); refreshBonusStatus(); }, 900);
   }
 }
 
@@ -1597,6 +1661,7 @@ window.addEventListener('message', e => {
   else if (d.type === 'BET_ENDED') {
     isGameRoundActive = false;
     syncDatabaseBalance();
+    refreshBonusStatus();
   } else if (d.type === 'EXIT_GAME') {
     closeGameViewport();
   } else if (d.type === 'BALANCE_UPDATE') {
@@ -1608,7 +1673,10 @@ window.addEventListener('message', e => {
 });
 
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && INIT_DATA) syncDatabaseBalance();
+  if (!document.hidden && INIT_DATA && !NEEDS_BACKEND_SETUP) {
+    syncDatabaseBalance();
+    refreshBonusStatus();
+  }
 });
 
 /* NAVIGATION & SCREENS */
@@ -1640,8 +1708,8 @@ const openModal = id => { haptic('light'); document.getElementById(id).style.dis
 const closeModal = id => { haptic('light'); document.getElementById(id).style.display = 'none'; };
 const openWithdrawDrawer = () => { syncDatabaseBalance(); openModal('modalWithdrawDrawer'); };
 const openSupportModal = () => openModal('modalSupport');
-const openLuckyWheelModal = () => openModal('modalLuckyWheel');
-const openLiveChatModal = () => openModal('modalLiveChat');
+const openLuckyWheelModal = () => { refreshBonusStatus(); openModal('modalLuckyWheel'); };
+const openLiveChatModal = () => { openModal('modalLiveChat'); loadChatHistory(); };
 const openPromoModal = () => {
   const inp = document.getElementById('promoCodeInput');
   if (inp) inp.value = '';
@@ -1663,6 +1731,7 @@ async function redeemPromoCode() {
   haptic('success');
   if (d.newBalance != null) currentBalance = Number(d.newBalance);
   updateBalanceDisplay();
+  refreshBonusStatus();
   closeModal('modalPromo');
   toast(`Promo ${code} redeemed: +${Number(d.awarded || 0).toFixed(2)} ETB!`);
 }
@@ -1724,7 +1793,7 @@ async function verifyAndSubmitPayment() {
       if (vd.newBalance != null) currentBalance = vd.newBalance;
       else currentBalance = (currentBalance || 0) + amt;
       updateBalanceDisplay();
-      toast(`✅ Successfully credited ${amt} ETB!`);
+      toast(`Successfully credited ${amt} ETB!`);
       navigateToTab('casino');
     } else if (vd.success && vd.pending) {
       toast(vd.message || "Payment verified and queued for cashier approval.");
@@ -1790,46 +1859,87 @@ async function submitWithdrawOrder() {
 
 /* SERVER-AUTHORITATIVE SPORTS BETTING ENGINE & REAL MY-BETS */
 let currentSportFilter = 'All';
-let activeBetSelection = { matchId: 'UCL-ARS-RMA', match: 'Arsenal FC vs Real Madrid', market: 'Arsenal Win', odds: 2.15 };
+let activeBetSelection = { matchId: 'UCL-ARS-RMA', match: 'Arsenal FC vs Real Madrid', market: 'Arsenal FC Win', odds: 2.15 };
 let userPlacedBets = [];
+let latestMatchesCache = [];
+
+function escHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function renderSportsMatchesList(matches) {
+  const box = document.getElementById('sportsMatchesList');
+  if (!box) return;
+  const filtered = currentSportFilter && currentSportFilter !== 'All'
+    ? matches.filter(m => String(m.sport).toLowerCase() === currentSportFilter.toLowerCase())
+    : matches;
+
+  const pitch = document.getElementById('livePitchTitle');
+  if (pitch && filtered.length) {
+    const top = filtered.find(m => m.status !== 'FT') || filtered[0];
+    pitch.innerText = `${top.home} ${top.score} ${top.away} (${top.minute})`;
+  }
+
+  if (!filtered.length) {
+    box.innerHTML = `<div style="text-align:center;color:var(--text-dim);padding:20px;">No live fixtures available</div>`;
+    return;
+  }
+
+  const renderOddBtn = (m, title, isFt, mk) => `
+    <button type="button" class="odd-btn" style="color:#fff;width:100%;${isFt ? 'opacity:0.45;cursor:not-allowed;' : ''}" ${isFt ? 'disabled' : ''} data-mid="${escHtml(m.id)}" data-match="${escHtml(title)}" data-market="${escHtml(mk.label)}" data-odds="${Number(mk.odds).toFixed(2)}" onclick="pickOddBtn(this)">
+      <small>${escHtml(mk.key)}</small><b>${isFt ? 'FT' : Number(mk.odds).toFixed(2)}</b>
+    </button>`;
+
+  box.innerHTML = filtered.map(m => {
+    const title = `${m.home} vs ${m.away}`;
+    const isFt = m.status === 'FT';
+    const primaryMarkets = m.markets.slice(0, 3);
+    const secondaryMarkets = m.markets.slice(3);
+    return `
+      <div class="live-match-card">
+        <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:800;color:var(--text-muted);">
+          <span><i class="fa-solid fa-trophy" style="color:var(--gold-primary);"></i> ${escHtml(m.league)}</span>
+          <span style="color:${isFt ? 'var(--gold-primary)' : 'var(--emerald-primary)'};">${escHtml(m.minute)}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
+          <div style="font-weight:900;font-size:13px;">${escHtml(title)}</div>
+          <div style="font-family:'Outfit';font-size:20px;font-weight:900;color:var(--emerald-primary);">${escHtml(m.score)}</div>
+        </div>
+        <div class="micro-odds-row" style="display:grid;grid-template-columns:repeat(${Math.max(1, primaryMarkets.length)},1fr);gap:6px;">
+          ${primaryMarkets.map(mk => renderOddBtn(m, title, isFt, mk)).join('')}
+        </div>
+        ${secondaryMarkets.length ? `
+        <div class="micro-odds-row" style="display:grid;grid-template-columns:repeat(${secondaryMarkets.length},1fr);gap:6px;margin-top:6px;">
+          ${secondaryMarkets.map(mk => renderOddBtn(m, title, isFt, mk)).join('')}
+        </div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+function pickOddBtn(el) {
+  addToQuickSlip(el.dataset.market, el.dataset.odds, el.dataset.match, el.dataset.mid);
+}
 
 async function loadSportsMatches(sport = 'All') {
   currentSportFilter = sport || 'All';
   const box = document.getElementById('sportsMatchesList');
   if (!box) return;
-  const d = await api('/api/sports/matches' + (currentSportFilter !== 'All' ? '?sport=' + encodeURIComponent(currentSportFilter) : ''));
-  if (!d.success || !Array.isArray(d.matches) || !d.matches.length) {
+  const d = await api('/api/sports/matches');
+  if (!d.success || !Array.isArray(d.matches)) {
     box.innerHTML = `<div style="text-align:center;color:var(--text-dim);padding:20px;">No live fixtures available</div>`;
     return;
   }
-  box.innerHTML = d.matches.map(m => {
-    const title = `${m.home} vs ${m.away}`;
-    return `
-      <div class="live-match-card">
-        <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:800;color:var(--text-muted);">
-          <span><i class="fa-solid fa-trophy" style="color:var(--gold-primary);"></i> ${m.league}</span>
-          <span style="color:var(--emerald-primary);">${m.minute}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
-          <div style="font-weight:900;font-size:13px;">${title}</div>
-          <div style="font-family:'Outfit';font-size:20px;font-weight:900;color:var(--emerald-primary);">${m.score}</div>
-        </div>
-        <div class="micro-odds-row">
-          ${m.markets.map(mk => `
-            <div class="odd-btn" onclick="addToQuickSlip('${mk.label.replace(/'/g, "\\'")}', ${mk.odds}, '${title.replace(/'/g, "\\'")}', '${m.id}')">
-              <small>${mk.key}</small><b>${Number(mk.odds).toFixed(2)}</b>
-            </div>
-          `).join('')}
-        </div>
-      </div>`;
-  }).join('');
+  latestMatchesCache = d.matches;
+  renderSportsMatchesList(d.matches);
 }
 
 function filterSportsFixtures(sport, btnEl) {
   haptic('light');
   document.querySelectorAll('.sport-pill-btn').forEach(b => b.classList.remove('active'));
   if (btnEl) btnEl.classList.add('active');
-  loadSportsMatches(sport);
+  currentSportFilter = sport || 'All';
+  if (latestMatchesCache.length) renderSportsMatchesList(latestMatchesCache);
+  else loadSportsMatches(sport);
 }
 
 function addToQuickSlip(market, odds, match = 'Live Match', matchId = '') {
@@ -1876,6 +1986,7 @@ async function placeBetslipTicket() {
   haptic('success');
   if (d.newBalance != null) currentBalance = Number(d.newBalance);
   updateBalanceDisplay();
+  refreshBonusStatus();
   if (d.ticket) userPlacedBets.unshift(d.ticket);
 
   closeModal('modalBetslipDrawer');
@@ -1906,32 +2017,37 @@ function renderMyBets() {
     return;
   }
 
-  box.innerHTML = userPlacedBets.map(b => `
+  const badgeStyle = st => st === 'WON' ? 'rgba(0,240,118,0.18);color:var(--emerald-primary)'
+    : st === 'LOST' ? 'rgba(255,51,68,0.18);color:var(--red-accent)'
+    : st === 'CASHED_OUT' ? 'rgba(245,180,0,0.18);color:var(--gold-primary)'
+    : 'rgba(0,210,255,0.15);color:var(--cyan-accent)';
+
+  box.innerHTML = userPlacedBets.map(b => {
+    const canCash = b.status === 'IN_PLAY' && Number(b.cashoutVal) > 0;
+    return `
     <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;">
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <span style="background:rgba(0,240,118,0.15);color:var(--emerald-primary);font-size:9px;font-weight:900;padding:2px 8px;border-radius:10px;">${b.status}</span>
-        <span style="font-size:10px;color:var(--text-muted);font-family:'JetBrains Mono';">#${b.id}</span>
+        <span style="background:${badgeStyle(b.status)};font-size:9px;font-weight:900;padding:2px 8px;border-radius:10px;">${escHtml(b.status)}${b.matchScore ? ' · ' + escHtml(b.matchScore) : ''}</span>
+        <span style="font-size:10px;color:var(--text-muted);font-family:'JetBrains Mono';">#${escHtml(b.id)}</span>
       </div>
-      <div style="font-weight:900;font-size:12.5px;color:#fff;">${b.match}</div>
-      <div style="font-size:11px;color:var(--emerald-primary);">${b.market} (Odds: ${Number(b.odds).toFixed(2)})</div>
+      <div style="font-weight:900;font-size:12.5px;color:#fff;">${escHtml(b.match)}</div>
+      <div style="font-size:11px;color:var(--emerald-primary);">${escHtml(b.market)} (Odds: ${Number(b.odds).toFixed(2)})</div>
       <div style="display:flex;justify-content:space-between;background:#060b13;padding:8px 10px;border-radius:8px;font-size:11px;">
         <span>Stake: <b>${Number(b.stake).toFixed(2)} ETB</b></span>
         <span>Return: <b style="color:var(--emerald-primary);">${Number(b.returnAmt).toFixed(2)} ETB</b></span>
       </div>
-      ${b.status === 'IN_PLAY' ? `
-        <button class="btn-deposit-header" style="width:100%;padding:9px;display:flex;justify-content:space-between;align-items:center;" onclick="executeTicketCashout('${b.id}')">
+      ${b.status === 'IN_PLAY' ? (canCash ? `
+        <button class="btn-deposit-header" style="width:100%;padding:9px;display:flex;justify-content:space-between;align-items:center;" onclick="executeTicketCashout('${escHtml(b.id)}')">
           <span><i class="fa-solid fa-bolt"></i> CASHOUT NOW</span>
           <span>${Number(b.cashoutVal).toFixed(2)} ETB</span>
-        </button>
-      ` : `
-        <div style="text-align:center;font-size:10.5px;color:var(--gold-primary);font-weight:800;">Ticket Settled (${Number(b.payout || b.cashoutVal || 0).toFixed(2)} ETB)</div>
+        </button>` : `
+        <div style="text-align:center;font-size:10.5px;color:var(--text-muted);padding:6px;background:#060b13;border-radius:8px;">Cashout suspended (${escHtml(b.matchMinute || 'Live')})</div>`
+      ) : `
+        <div style="text-align:center;font-size:10.5px;color:${b.status === 'LOST' ? 'var(--red-accent)' : 'var(--gold-primary)'};font-weight:800;">Settled Payout: ${Number(b.payout || 0).toFixed(2)} ETB</div>
       `}
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
-
-loadSportsMatches('All');
-loadMySportsBets();
 
 async function executeTicketCashout(ticketId) {
   const d = await api('/api/sports/cashout', {
@@ -1947,38 +2063,216 @@ async function executeTicketCashout(ticketId) {
   toast(`Cashed out #${ticketId}: +${Number(d.payout || 0).toFixed(2)} ETB credited!`);
 }
 
-/* DAILY 10% CASHBACK AT 10:00 AM (Server-Evaluated) */
+/* BONUSES: REAL CASHBACK, SERVER LUCKY SPIN & REFERRAL */
+let bonusStatusCache = null;
+let wheelCurrentDeg = 0;
+let wheelSpinning = false;
+let spinCountdownTimer = null;
+let botUsername = 'Hulubetethbot';
+
+function buildWheelLabels(slices) {
+  const layer = document.getElementById('wheelLabelsLayer');
+  if (!layer) return;
+  const list = Array.isArray(slices) && slices.length ? slices : [
+    { label: '0' }, { label: '2' }, { label: '5' }, { label: '10' },
+    { label: '15' }, { label: '25' }, { label: '50' }, { label: '100' }
+  ];
+  layer.innerHTML = '';
+  const step = 360 / list.length;
+  list.forEach((s, i) => {
+    const tag = document.createElement('div');
+    tag.style.cssText = `position:absolute;inset:0;transform:rotate(${i * step}deg);display:flex;justify-content:center;padding-top:12px;font-size:11px;font-weight:900;color:#fff;text-shadow:0 1px 3px #000;`;
+    tag.textContent = String(s.label).replace(' ETB', '');
+    layer.appendChild(tag);
+  });
+}
+buildWheelLabels();
+
+function updateSpinCooldownUI() {
+  if (spinCountdownTimer) clearInterval(spinCountdownTimer);
+  const txt = document.getElementById('spinCooldownTxt');
+  const btn = document.getElementById('btnSpinWheel');
+  const spin = bonusStatusCache?.spin;
+  if (!txt || !btn || !spin) return;
+
+  const paint = () => {
+    const rem = spin.nextSpinAt ? Math.max(0, new Date(spin.nextSpinAt).getTime() - Date.now()) : 0;
+    if (spin.canSpin || rem <= 0) {
+      spin.canSpin = true;
+      txt.innerText = 'Free daily spin ready! Win up to 100 ETB.';
+      btn.disabled = false;
+      btn.innerText = 'Spin for Free';
+      if (spinCountdownTimer) clearInterval(spinCountdownTimer);
+      return;
+    }
+    const hrs = String(Math.floor(rem / 3600000)).padStart(2, '0');
+    const mins = String(Math.floor((rem % 3600000) / 60000)).padStart(2, '0');
+    const secs = String(Math.floor((rem % 60000) / 1000)).padStart(2, '0');
+    txt.innerText = `Next free spin in ${hrs}:${mins}:${secs}`;
+    btn.disabled = true;
+    btn.innerText = `Cooldown (${hrs}:${mins})`;
+  };
+  paint();
+  if (!spin.canSpin && spin.nextSpinAt) {
+    spinCountdownTimer = setInterval(paint, 1000);
+  }
+}
+
+async function refreshBonusStatus() {
+  if (NEEDS_BACKEND_SETUP) return;
+  const d = await api('/api/bonus/status');
+  if (!d || !d.success) return;
+  bonusStatusCache = d;
+  if (d.wagerRequirementLeft != null) {
+    wagerLeft = Number(d.wagerRequirementLeft);
+    updateBalanceDisplay();
+  }
+  const profWager = document.getElementById('profWagerLeft');
+  if (profWager) profWager.innerText = wagerLeft.toFixed(2) + ' ETB';
+
+  const rb = Number(d.referralBonus ?? 50);
+  const invHead = document.getElementById('inviteHeadlineTxt');
+  const invSub = document.getElementById('inviteSubTxt');
+  const invCnt = document.getElementById('inviteCountTxt');
+  if (invHead) invHead.innerText = `Invite friends. Earn Br ${rb}.`;
+  if (invSub) invSub.innerText = `Earn Br ${rb} whenever an invited friend completes their first deposit. Paid automatically!`;
+  if (invCnt) invCnt.innerText = String(d.referralCount || 0);
+
+  if (d.cashback) {
+    const cb = d.cashback;
+    const chip = document.getElementById('cbChipTxt');
+    const title = document.getElementById('cbTitleTxt');
+    const sub = document.getElementById('cashbackTimerTxt');
+    const btn = document.getElementById('btnClaimCashback');
+    if (chip) chip.innerHTML = `<i class="fa-solid fa-clock"></i> DAILY ${cb.percent}% CASHBACK`;
+    if (title) title.innerText = `${cb.percent}% Losses Refund Everyday`;
+    if (sub) {
+      sub.innerText = cb.eligible
+        ? `Ready to claim: +${cb.cashbackAmount.toFixed(2)} ETB (on ${cb.unclaimedLoss.toFixed(0)} ETB net loss)`
+        : `Net loss progress: ${cb.unclaimedLoss.toFixed(0)} / ${cb.minLoss} ETB min`;
+    }
+    if (btn) {
+      btn.innerText = cb.eligible ? `Claim +${cb.cashbackAmount.toFixed(0)}` : `Claim ${cb.percent}%`;
+    }
+  }
+  if (d.spin) {
+    if (d.spin.slices) buildWheelLabels(d.spin.slices);
+    updateSpinCooldownUI();
+  }
+}
+
 async function claimDailyCashback() {
-  await syncDatabaseBalance();
-  toast("10% daily cashback auto-credits at 10:00 AM EAT on net losses >= 100 ETB.");
-  openWalletScreen();
+  const btn = document.getElementById('btnClaimCashback');
+  if (btn) btn.disabled = true;
+  const d = await api('/api/bonus/claim-cashback', { method: 'POST', body: JSON.stringify({}) });
+  if (btn) btn.disabled = false;
+  if (!d.success) {
+    toast(d.message || 'Not eligible for cashback yet.');
+    return;
+  }
+  haptic('success');
+  if (d.newBalance != null) currentBalance = Number(d.newBalance);
+  updateBalanceDisplay();
+  await refreshBonusStatus();
+  toast(d.message || `+${Number(d.cashbackAmount || 0).toFixed(2)} ETB cashback added!`);
 }
 
-/* LUCKY WHEEL, CHAT & REFERRAL */
-function spinFortuneWheel() {
-  haptic('medium');
+async function spinFortuneWheel() {
+  if (wheelSpinning) return;
+  const btn = document.getElementById('btnSpinWheel');
   const wheel = document.getElementById('wheelSpinnerBox');
-  wheel.style.transition = 'transform 3s cubic-bezier(0.17, 0.67, 0.12, 0.99)';
-  wheel.style.transform = 'rotate(' + (1440 + Math.floor(Math.random() * 360)) + 'deg)';
-  setTimeout(() => {
+  wheelSpinning = true;
+  if (btn) { btn.disabled = true; btn.innerText = 'Spinning...'; }
+  haptic('medium');
+
+  const d = await api('/api/bonus/lucky-spin', { method: 'POST', body: JSON.stringify({}) });
+  if (!d.success) {
+    wheelSpinning = false;
+    toast(d.message || 'Lucky Spin unavailable right now.');
+    await refreshBonusStatus();
+    return;
+  }
+
+  const sliceCount = 8;
+  const targetAngle = (360 - (d.sliceIndex * (360 / sliceCount))) % 360;
+  const base = wheelCurrentDeg - (wheelCurrentDeg % 360);
+  wheelCurrentDeg = base + 5 * 360 + targetAngle;
+  wheel.style.transition = 'transform 3.2s cubic-bezier(0.15, 0.72, 0.14, 1)';
+  wheel.style.transform = `rotate(${wheelCurrentDeg}deg)`;
+
+  setTimeout(async () => {
+    wheelSpinning = false;
     haptic('success');
-    toast("Congratulations! You won a Free Flight! 🎁");
-    closeModal('modalLuckyWheel');
-  }, 3200);
+    if (d.newBalance != null) currentBalance = Number(d.newBalance);
+    updateBalanceDisplay();
+    await refreshBonusStatus();
+    if (Number(d.amount) > 0) {
+      toast(`Lucky Spin WON +${Number(d.amount).toFixed(2)} ETB!`);
+    } else {
+      toast('Better luck tomorrow! Come back in 24 hours.');
+    }
+  }, 3300);
 }
 
-function sendChatMsg() {
-  const inp = document.getElementById('liveChatInput');
-  const txt = inp.value.trim();
-  if (!txt) return;
+/* LIVE CHAT (PERSISTED + SOCKET.IO + SAFE TEXT BINDINGS) */
+const seenChatIds = new Set();
+function appendChatMessage(msg, scroll = true) {
   const feed = document.getElementById('chatMsgFeed');
-  const d = document.createElement('div');
-  d.style.cssText = 'background:#0e1524;padding:8px;border-radius:8px;font-size:11px;';
-  d.innerHTML = `<b>You:</b> ${txt}`;
-  feed.appendChild(d);
-  feed.scrollTop = feed.scrollHeight;
-  inp.value = '';
+  if (!feed || !msg) return;
+  if (msg.id && seenChatIds.has(msg.id)) return;
+  if (msg.id) seenChatIds.add(msg.id);
+  if (feed.dataset.empty === '1') { feed.innerHTML = ''; delete feed.dataset.empty; }
+
+  const row = document.createElement('div');
+  row.style.cssText = 'background:#0e1524;padding:8px 10px;border-radius:8px;font-size:11.5px;border:1px solid rgba(255,255,255,0.04);';
+  const author = document.createElement('b');
+  author.style.color = String(msg.userId) === String(USER_ID) ? 'var(--emerald-primary)' : 'var(--gold-primary)';
+  author.textContent = (String(msg.userId) === String(USER_ID) ? 'You' : (msg.username || 'Player')) + ': ';
+  const body = document.createElement('span');
+  body.textContent = String(msg.message || '');
+  row.appendChild(author);
+  row.appendChild(body);
+  feed.appendChild(row);
+  if (scroll) feed.scrollTop = feed.scrollHeight;
 }
+
+async function loadChatHistory() {
+  const feed = document.getElementById('chatMsgFeed');
+  if (!feed) return;
+  const d = await api('/api/chat/messages');
+  if (!d.success) return;
+  seenChatIds.clear();
+  feed.innerHTML = '';
+  if (!d.messages || !d.messages.length) {
+    feed.dataset.empty = '1';
+    const empty = document.createElement('div');
+    empty.style.cssText = 'color:var(--text-muted);font-size:11px;text-align:center;padding:16px;';
+    empty.textContent = 'No messages yet. Say hello to the community!';
+    feed.appendChild(empty);
+    return;
+  }
+  d.messages.forEach(m => appendChatMessage(m, false));
+  feed.scrollTop = feed.scrollHeight;
+}
+
+async function sendChatMsg() {
+  const inp = document.getElementById('liveChatInput');
+  const txt = (inp?.value || '').trim();
+  if (!txt) return;
+  inp.value = '';
+  const d = await api('/api/chat/send', {
+    method: 'POST',
+    body: JSON.stringify({ message: txt })
+  });
+  if (!d.success) {
+    toast(d.message || 'Could not send message');
+    return;
+  }
+  if (d.msg) appendChatMessage(d.msg, true);
+}
+document.getElementById('liveChatInput')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') sendChatMsg();
+});
 
 function copyText(str) {
   navigator.clipboard.writeText(str).then(() => {
@@ -1989,16 +2283,76 @@ function copyText(str) {
 
 function copyReferralLink() {
   haptic('medium');
-  const link = `https://t.me/Hulubetethbot?start=${USER_ID || 'vip'}`;
+  const link = `https://t.me/${botUsername}?start=${USER_ID || 'vip'}`;
   navigator.clipboard.writeText(link).then(() => toast("Referral link copied!"));
 }
 
 function shareInviteLink() {
-  const link = `https://t.me/Hulubetethbot?start=${USER_ID || 'vip'}`;
-  const text = encodeURIComponent(`Play Aviator & Sports on HuluBet and get 100 ETB Bonus! Join here: ${link}`);
-  if (tg?.openTelegramLink) tg.openTelegramLink(`https://t.me/share/url?url=${link}&text=${text}`);
-  else window.open(`https://t.me/share/url?url=${link}&text=${text}`, '_blank');
+  const link = `https://t.me/${botUsername}?start=${USER_ID || 'vip'}`;
+  const rb = Number(bonusStatusCache?.referralBonus ?? 50);
+  const text = encodeURIComponent(`Play Aviator & Sports on HuluBet and get a welcome bonus! Invite bonus ${rb} ETB: ${link}`);
+  if (tg?.openTelegramLink) tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${text}`);
+  else window.open(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${text}`, '_blank');
 }
+
+/* SOCKET.IO REAL-TIME CONNECTION & BOOTSTRAP */
+let mainSocket = null;
+function initRealtimeSocket() {
+  if (NEEDS_BACKEND_SETUP || mainSocket) return;
+  const connectNow = () => {
+    if (typeof window.io !== 'function' || mainSocket) return;
+    mainSocket = window.io(SERVER_URL, { transports: ['websocket', 'polling'] });
+    mainSocket.on('sports:update', payload => {
+      if (payload && Array.isArray(payload.matches)) {
+        latestMatchesCache = payload.matches;
+        renderSportsMatchesList(payload.matches);
+      }
+    });
+    mainSocket.on('sports:settled', payload => {
+      syncDatabaseBalance();
+      loadMySportsBets();
+      if (payload?.matchId) toast(`Match settled (${payload.score || 'FT'})`);
+    });
+    mainSocket.on('chat:msg', msg => {
+      appendChatMessage(msg, true);
+    });
+  };
+  if (typeof window.io === 'function') return connectNow();
+  const s = document.createElement('script');
+  s.src = SERVER_URL + '/socket.io/socket.io.js';
+  s.async = true;
+  s.onload = connectNow;
+  document.head.appendChild(s);
+}
+
+async function bootApp() {
+  if (NEEDS_BACKEND_SETUP) {
+    openModal('modalServerConnect');
+    return;
+  }
+  api('/api/public/config').then(cfg => {
+    if (cfg?.success && cfg.botUsername) botUsername = cfg.botUsername;
+  });
+  await syncDatabaseBalance();
+  refreshBonusStatus();
+  loadSportsMatches('All');
+  loadMySportsBets();
+  initRealtimeSocket();
+}
+
+function saveRemoteServerUrl() {
+  const clean = validateBackendUrl(document.getElementById('serverUrlInput')?.value || '');
+  if (!clean) return toast('Enter a valid https://... server URL');
+  try { sessionStorage.setItem('hulubet_api', clean); } catch (_) {}
+  SERVER_URL = clean;
+  GAME_ORIGIN = clean;
+  NEEDS_BACKEND_SETUP = false;
+  closeModal('modalServerConnect');
+  toast('Connected to ' + clean);
+  bootApp();
+}
+
+bootApp();
 
 async function loadHistoryList() {
   const box = document.getElementById('histList');
