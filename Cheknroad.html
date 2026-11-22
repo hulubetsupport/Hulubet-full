@@ -1,0 +1,1641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Chicken Road 2</title>
+  <script src="/game-bridge.js"></script>
+  <style>
+    :root {
+      --bg-dark: #1e2027;
+      --panel-bg: #262932;
+      --card-bg: #323643;
+      --card-border: #3f4555;
+      --green-btn: #3ec85a;
+      --green-shadow: #28a742;
+      --yellow-btn: #f7c343;
+      --yellow-shadow: #cfa12b;
+      --road-color: #63656c;
+      --sidewalk: #c0c4cd;
+      --grass: #84bf41;
+      --text-white: #ffffff;
+      --text-dim: #9aa1b3;
+      --traffic-speed: 5s;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    }
+
+    body {
+      background: #111216;
+      color: var(--text-white);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    #game-app {
+      width: 100%;
+      max-width: 100%;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      background: var(--bg-dark);
+      overflow: hidden;
+    }
+
+    /* Top Bar */
+    header {
+      height: 50px;
+      background: #242731;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      z-index: 30;
+      border-bottom: 1px solid #1a1c23;
+    }
+
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .logo-text {
+      font-weight: 900;
+      font-size: 1.15rem;
+      letter-spacing: -0.5px;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+    }
+    .logo-badge {
+      background: #ef4444;
+      color: #fff;
+      font-size: 0.82rem;
+      font-weight: 900;
+      padding: 1px 5px;
+      border-radius: 4px;
+      margin: 0 3px;
+    }
+    .logo-star {
+      width: 14px;
+      height: 14px;
+      margin-left: 1px;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .balance-pill {
+      background: #393e4d;
+      border-radius: 18px;
+      padding: 4px 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 700;
+      font-size: 0.88rem;
+    }
+    .balance-coin {
+      width: 18px;
+      height: 18px;
+      background: #f59e0b;
+      color: #fff;
+      border-radius: 50%;
+      font-size: 0.55rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+    }
+
+    .icon-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+      position: relative;
+    }
+    .notif-dot {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      background: #ef4444;
+      color: #fff;
+      font-size: 0.55rem;
+      font-weight: 900;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* World Viewport */
+    #world-viewport {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background: var(--road-color);
+    }
+    #world-viewport.shake {
+      animation: screenShake 0.35s ease-out;
+    }
+    @keyframes screenShake {
+      0%, 100% { transform: translate(0, 0); }
+      20% { transform: translate(-6px, 4px); }
+      40% { transform: translate(6px, -4px); }
+      60% { transform: translate(-4px, 2px); }
+      80% { transform: translate(4px, -2px); }
+    }
+
+    /* Track (Moves dynamically with chicken) */
+    #world-track {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      display: flex;
+      transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    /* Sidewalk Start Area */
+    .sidewalk-area {
+      width: 140px;
+      height: 100%;
+      background: var(--sidewalk);
+      position: relative;
+      border-right: 4px solid #9499a5;
+      flex-shrink: 0;
+    }
+    .grass-strip {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 48px;
+      background: var(--grass);
+      border-right: 3px solid #6b9e30;
+    }
+    .bush {
+      position: absolute;
+      background: #669a2d;
+      border-radius: 50%;
+    }
+    .lamp-post {
+      position: absolute;
+      left: 60px;
+      top: 70px;
+      z-index: 5;
+    }
+    .lamp-glow {
+      position: absolute;
+      left: 30px;
+      top: 40px;
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(254, 240, 138, 0.45) 0%, rgba(254, 240, 138, 0) 70%);
+      pointer-events: none;
+      z-index: 4;
+    }
+
+    /* Lanes */
+    .lane {
+      width: 130px;
+      height: 100%;
+      position: relative;
+      border-right: 3px dashed rgba(255, 255, 255, 0.65);
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    /* Continuous Traffic Driving */
+    .lane-vehicle {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80px;
+      z-index: 8;
+      top: -200px;
+    }
+    .driving-active {
+      animation: driveLoop var(--traffic-speed) linear infinite;
+    }
+    @keyframes driveLoop {
+      0% { top: -200px; }
+      100% { top: 115%; }
+    }
+
+    /* Stopped at Breaker Barricade */
+    .stopped-at-barrier {
+      animation: none !important;
+      top: 15px !important;
+      transition: top 0.35s ease-out;
+    }
+
+    /* Crashing into Chicken */
+    .crash-dive {
+      animation: none !important;
+      top: 220px !important;
+      transition: top 0.16s cubic-bezier(0.5, 0, 1, 1) !important;
+    }
+
+    /* Safety Breaker Barricade */
+    .lane-barricade {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%) translateY(-60px);
+      top: 140px;
+      width: 96px;
+      z-index: 9;
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 0.28s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s ease;
+    }
+    .lane-barricade.deployed {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Manhole Covers */
+    .manhole {
+      position: absolute;
+      bottom: 115px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 92px;
+      height: 92px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #55575e 0%, #3e4046 70%, #282a2e 100%);
+      border: 3px solid #6f7179;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.6), 0 4px 8px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+    }
+    .manhole-bars {
+      position: absolute;
+      width: 62px;
+      height: 62px;
+      border-radius: 50%;
+      border: 2px solid #5a5c64;
+      opacity: 0.6;
+    }
+    .manhole-mult {
+      font-size: 1.15rem;
+      font-weight: 900;
+      color: #e5e7eb;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+      z-index: 3;
+    }
+    .manhole.passed {
+      opacity: 0.45;
+    }
+
+    /* Real Chicken Entity (Inside #world-track for 1:1 camera lock) */
+    #chicken {
+      position: absolute;
+      bottom: 125px;
+      left: 70px;
+      width: 80px;
+      height: 80px;
+      z-index: 20;
+      transform: translate(-50%, 0);
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: left 0.38s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+    .chicken-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      filter: drop-shadow(0 6px 8px rgba(0,0,0,0.35));
+    }
+
+    /* Parabolic Jump Arc */
+    .jumping .chicken-img {
+      animation: jumpArc 0.38s ease-in-out forwards;
+    }
+    @keyframes jumpArc {
+      0% { transform: translateY(0) scale(1, 0.92); }
+      40% { transform: translateY(-44px) scale(0.95, 1.14); }
+      80% { transform: translateY(-4px) scale(1.08, 0.94); }
+      100% { transform: translateY(0) scale(1, 1); }
+    }
+
+    /* Multiplier Bubble Tooltip */
+    #mult-bubble {
+      position: absolute;
+      bottom: -32px;
+      background: #2b3952;
+      border: 2px solid #3b82f6;
+      border-radius: 7px;
+      padding: 2px 9px;
+      font-size: 0.85rem;
+      font-weight: 900;
+      color: #fff;
+      white-space: nowrap;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+      display: none;
+    }
+    #mult-bubble::before {
+      content: "";
+      position: absolute;
+      top: -6px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-bottom: 6px solid #3b82f6;
+    }
+
+    /* Feather Explosion Particle Container */
+    #feather-blast {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      pointer-events: none;
+      z-index: 25;
+    }
+    .feather {
+      position: absolute;
+      width: 14px;
+      height: 22px;
+      background: #ffffff;
+      border-radius: 50% 50% 10% 50%;
+      opacity: 0.9;
+      transform-origin: center;
+      animation: flyFeather 0.8s ease-out forwards;
+    }
+    @keyframes flyFeather {
+      0% { transform: translate(0, 0) rotate(0deg) scale(1); opacity: 1; }
+      100% { transform: translate(var(--fx), var(--fy)) rotate(var(--fr)) scale(0.4); opacity: 0; }
+    }
+
+    /* Floating Win Banner */
+    #win-pill {
+      position: absolute;
+      top: 25px;
+      left: 50%;
+      transform: translateX(-50%) scale(0.75);
+      background: #276749;
+      border: 2px solid #38a169;
+      border-radius: 20px;
+      padding: 6px 20px 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      z-index: 50;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    #win-pill.show {
+      transform: translateX(-50%) scale(1);
+      opacity: 1;
+    }
+    .win-tag {
+      background: #f6c343;
+      color: #000;
+      font-weight: 900;
+      font-size: 0.65rem;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-bottom: 2px;
+      text-transform: uppercase;
+    }
+    .win-val {
+      font-size: 1.15rem;
+      font-weight: 900;
+      color: #fff;
+    }
+
+    /* Error Toast */
+    #toast {
+      position: absolute;
+      top: 58px;
+      right: 12px;
+      background: #ef4444;
+      color: #fff;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+      z-index: 100;
+      transform: translateY(-20px);
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.25s ease;
+    }
+    #toast.show {
+      transform: translateY(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .toast-icon {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      fill: #ffffff;
+    }
+    .toast-close {
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      margin-left: 4px;
+    }
+
+    /* Settings Menu Modal (Exact match to Screenshot 2) */
+    #settings-modal {
+      position: absolute;
+      top: 58px;
+      right: 12px;
+      width: 250px;
+      background: #2a2d36;
+      border-radius: 16px;
+      border: 1px solid var(--card-border);
+      box-shadow: 0 12px 30px rgba(0,0,0,0.6);
+      z-index: 80;
+      display: none;
+      flex-direction: column;
+      padding: 14px;
+      gap: 12px;
+    }
+    #settings-modal.open {
+      display: flex;
+    }
+    .user-profile-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #383d4a;
+    }
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .user-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #38bdf8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .user-name {
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+    .change-avatar {
+      font-size: 0.72rem;
+      color: var(--text-dim);
+      cursor: pointer;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .switch {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      background: #475569;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .switch.on {
+      background: #10b981;
+    }
+    .switch-knob {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 16px;
+      height: 16px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    .switch.on .switch-knob {
+      transform: translateX(16px);
+    }
+
+    .menu-nav-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding-top: 4px;
+      border-top: 1px solid #383d4a;
+    }
+    .menu-nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #d1d5db;
+      cursor: pointer;
+    }
+    .menu-nav-item:active {
+      color: #f59e0b;
+    }
+
+    .powered-by-box {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding-top: 8px;
+      border-top: 1px solid #383d4a;
+      font-size: 0.72rem;
+      color: var(--text-dim);
+    }
+    .inout-badge {
+      background: #0f172a;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 900;
+      font-size: 0.75rem;
+      letter-spacing: -0.5px;
+    }
+    .inout-in { color: #f59e0b; font-style: italic; }
+    .inout-out { color: #ffffff; }
+
+    /* Bottom Control Panel */
+    #control-panel {
+      background: var(--panel-bg);
+      border-top-left-radius: 20px;
+      border-top-right-radius: 20px;
+      padding: 16px 14px 20px;
+      box-shadow: 0 -6px 20px rgba(0,0,0,0.4);
+      z-index: 40;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .stepper-row {
+      background: var(--card-bg);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 44px;
+      padding: 3px 6px;
+    }
+    .step-btn {
+      background: #2b2e38;
+      border: none;
+      color: var(--text-dim);
+      font-weight: 800;
+      font-size: 0.78rem;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .step-btn:active {
+      background: #393d4a;
+    }
+    .bet-input-box {
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-weight: 800;
+      font-size: 1.15rem;
+      text-align: center;
+      width: 100px;
+      outline: none;
+    }
+
+    .chips-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .chip-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.85rem;
+      padding: 8px 0;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .chip-btn:active {
+      background: #414757;
+    }
+    .chip-sub {
+      background: #4b5263;
+      font-size: 0.6rem;
+      padding: 1px 4px;
+      border-radius: 6px;
+      color: #cbd5e1;
+    }
+
+    .dropdown-container {
+      position: relative;
+    }
+    .dropdown-trigger {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    .dropdown-arrow {
+      width: 12px;
+      height: 12px;
+      fill: var(--text-dim);
+      transition: transform 0.2s ease;
+    }
+    .dropdown-menu {
+      position: absolute;
+      bottom: 50px;
+      left: 0;
+      right: 0;
+      background: #23262f;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      overflow: hidden;
+      display: none;
+      flex-direction: column;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+      z-index: 60;
+    }
+    .dropdown-menu.open {
+      display: flex;
+    }
+    .dropdown-item {
+      padding: 12px 16px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      border-bottom: 1px solid #2d313c;
+    }
+    .dropdown-item:last-child {
+      border-bottom: none;
+    }
+    .dropdown-item:active {
+      background: #313542;
+    }
+    .dropdown-item.active {
+      color: #f59e0b;
+    }
+
+    .actions-row {
+      position: relative;
+      height: 56px;
+    }
+    .big-btn {
+      width: 100%;
+      height: 100%;
+      border-radius: 12px;
+      border: none;
+      font-size: 1.3rem;
+      font-weight: 900;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: transform 0.05s ease;
+    }
+    .big-btn:active {
+      transform: translateY(2px);
+    }
+    .btn-play {
+      background: var(--green-btn);
+      color: #ffffff;
+      box-shadow: 0 5px 0 var(--green-shadow);
+    }
+
+    .ingame-btns {
+      display: none;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      height: 100%;
+    }
+    .btn-cashout {
+      background: var(--yellow-btn);
+      color: #111;
+      box-shadow: 0 5px 0 var(--yellow-shadow);
+      flex-direction: column;
+      font-size: 0.95rem;
+      line-height: 1.15;
+    }
+    .btn-cashout span {
+      font-size: 1.05rem;
+      font-weight: 900;
+    }
+    .btn-go {
+      background: var(--green-btn);
+      color: #ffffff;
+      box-shadow: 0 5px 0 var(--green-shadow);
+      font-size: 1.35rem;
+    }
+
+    .btn-disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="game-app">
+  <!-- Top Bar -->
+  <header>
+    <div class="logo-container">
+      <div class="logo-text">
+        CHICKEN <span class="logo-badge">2</span> R
+        <svg class="logo-star" viewBox="0 0 24 24" fill="#f59e0b">
+          <circle cx="12" cy="12" r="10" stroke="#f59e0b" stroke-width="2" fill="none"/>
+          <path d="M12 2L15 9L22 9L16 14L18 21L12 17L6 21L8 14L2 9L9 9Z"/>
+        </svg>
+        AD
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="balance-pill">
+        <span id="bal-text">0.00</span>
+        <div class="balance-coin">ETB</div>
+      </div>
+
+      <!-- Pure SVG Chat -->
+      <button class="icon-btn" title="Chat">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span class="notif-dot">1</span>
+      </button>
+
+      <!-- Pure SVG Hamburger Menu -->
+      <button class="icon-btn" title="Menu" onclick="toggleSettingsModal()">
+        <svg viewBox="0 0 24 24" width="22" height="22" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Error Toast -->
+  <div id="toast">
+    <svg class="toast-icon" viewBox="0 0 24 24">
+      <path d="M12 2L1 21h22L12 2zm0 3.5L20 19H4L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/>
+    </svg>
+    <span id="toast-msg">Insufficient funds</span>
+    <span class="toast-close" onclick="hideToast()">
+      <svg width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </span>
+  </div>
+
+  <!-- Settings Menu Modal (From Screenshot 2) -->
+  <div id="settings-modal">
+    <div class="user-profile-row">
+      <div class="user-info">
+        <div class="user-avatar">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="#ffffff">
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+          </svg>
+        </div>
+        <span class="user-name">User 019ff...</span>
+      </div>
+      <span class="change-avatar">Change avatar</span>
+    </div>
+
+    <!-- Sound Toggle -->
+    <div class="toggle-row">
+      <div class="toggle-label">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+        </svg>
+        Sound
+      </div>
+      <div class="switch on" id="sound-switch" onclick="toggleSound()">
+        <div class="switch-knob"></div>
+      </div>
+    </div>
+
+    <!-- Music Toggle -->
+    <div class="toggle-row">
+      <div class="toggle-label">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 18V5l12-2v13"/>
+          <circle cx="6" cy="18" r="3"/>
+          <circle cx="18" cy="16" r="3"/>
+        </svg>
+        Music
+      </div>
+      <div class="switch on" id="music-switch" onclick="toggleMusic()">
+        <div class="switch-knob"></div>
+      </div>
+    </div>
+
+    <!-- Navigation List -->
+    <div class="menu-nav-list">
+      <div class="menu-nav-item">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="m9 12 2 2 4-4"/>
+        </svg>
+        Provably fair settings
+      </div>
+      <div class="menu-nav-item">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+        Game rules
+      </div>
+      <div class="menu-nav-item">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        My bet history
+      </div>
+      <div class="menu-nav-item" style="padding-top:4px; border-top:1px solid #383d4a;">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="16" x2="12" y2="12"/>
+          <line x1="12" y1="8" x2="12.01" y2="8"/>
+        </svg>
+        How to play?
+      </div>
+    </div>
+
+    <!-- Powered by InOut -->
+    <div class="powered-by-box">
+      Powered by <span class="inout-badge"><span class="inout-in">iN</span> <span class="inout-out">OUT</span></span>
+    </div>
+  </div>
+
+  <!-- Game Canvas / World Viewport -->
+  <div id="world-viewport">
+    <div id="win-pill">
+      <div class="win-tag">WIN!</div>
+      <div class="win-val" id="win-amount">0.00 ETB</div>
+    </div>
+
+    <!-- Dynamic World Track -->
+    <div id="world-track">
+      <!-- Sidewalk Start Area -->
+      <div class="sidewalk-area">
+        <div class="grass-strip">
+          <div class="bush" style="width:34px; height:34px; top:30px; left:8px;"></div>
+          <div class="bush" style="width:40px; height:40px; top:190px; left:4px;"></div>
+          <div class="bush" style="width:30px; height:30px; top:290px; left:10px;"></div>
+        </div>
+        <div class="lamp-glow"></div>
+        <svg class="lamp-post" width="46" height="120" viewBox="0 0 46 120">
+          <path d="M12,120 L12,30 Q12,6 30,6 L38,6" fill="none" stroke="#6b7280" stroke-width="6" stroke-linecap="round"/>
+          <ellipse cx="12" cy="116" rx="10" ry="4" fill="#4b5563"/>
+          <path d="M30,6 L44,14 L36,18 Z" fill="#9ca3af"/>
+          <polygon points="34,16 44,14 40,24" fill="#fde047" opacity="0.9"/>
+        </svg>
+      </div>
+
+      <!-- Road Lanes -->
+      <div id="lanes-box" style="display:flex;"></div>
+
+      <!-- The Real Chicken (inside track for synchronized tracking) -->
+      <div id="chicken">
+        <img src="https://i.postimg.cc/FzfP0m6N/20260930-163717.png" alt="Chicken" class="chicken-img" id="chicken-sprite">
+        <div id="mult-bubble">1.01x</div>
+        <div id="feather-blast"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Control Panel -->
+  <div id="control-panel">
+    <!-- Stepper Row -->
+    <div class="stepper-row">
+      <button class="step-btn" onclick="setBet('MIN')">MIN</button>
+      <input type="number" id="bet-input" class="bet-input-box" value="2" min="1" max="1000" step="1">
+      <button class="step-btn" onclick="setBet('MAX')">MAX</button>
+    </div>
+
+    <!-- Quick Bet Chips -->
+    <div class="chips-row">
+      <button class="chip-btn" onclick="setQuickBet(4)">4 <span class="chip-sub">ETB</span></button>
+      <button class="chip-btn" onclick="setQuickBet(8)">8 <span class="chip-sub">ETB</span></button>
+      <button class="chip-btn" onclick="setQuickBet(12)">12 <span class="chip-sub">ETB</span></button>
+      <button class="chip-btn" onclick="setQuickBet(20)">20 <span class="chip-sub">ETB</span></button>
+    </div>
+
+    <!-- Difficulty Selector -->
+    <div class="dropdown-container" id="diff-box">
+      <div class="dropdown-trigger" onclick="toggleDropdown()">
+        <span id="diff-label">Easy</span>
+        <svg class="dropdown-arrow" viewBox="0 0 24 24">
+          <path d="M7 10l5 5 5-5z"/>
+        </svg>
+      </div>
+      <div class="dropdown-menu" id="diff-menu">
+        <div class="dropdown-item active" onclick="selectDifficulty('Easy')">
+          <span>Easy</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" stroke="#f59e0b" stroke-width="3" fill="none"><path d="M4 12l5 5L20 6"/></svg>
+        </div>
+        <div class="dropdown-item" onclick="selectDifficulty('Medium')">
+          <span>Medium</span>
+          <span></span>
+        </div>
+        <div class="dropdown-item" onclick="selectDifficulty('Hard')">
+          <span>Hard</span>
+          <span></span>
+        </div>
+        <div class="dropdown-item" onclick="selectDifficulty('Hardcore')">
+          <span>Hardcore</span>
+          <span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="actions-row">
+      <button id="btn-play" class="big-btn btn-play" onclick="handlePlayClick()">Play</button>
+      <div id="ingame-btns" class="ingame-btns">
+        <button id="btn-cashout" class="big-btn btn-cashout" onclick="handleCashOut()">
+          <div>CASH OUT</div>
+          <span id="cashout-val">0.00 ETB</span>
+        </button>
+        <button id="btn-go" class="big-btn btn-go" onclick="handleGoStep()">GO</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ==========================================================================
+   1. MANDATORY INTEGRATION BOILERPLATE
+   ========================================================================== */
+const API = window.location.origin;
+let INIT_DATA = "", serverBalance = 0, ready = false;
+
+async function api(path, opts = {}) {
+  try {
+    const r = await fetch(API + path, {
+      ...opts,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-telegram-init-data': INIT_DATA
+      }
+    });
+    return await r.json();
+  } catch (e) {
+    return { success: false, message: 'Connection problem' };
+  }
+}
+const postParent = m => { try { parent.postMessage(m, '*'); } catch (e) {} };
+
+addEventListener('message', e => {
+  if (e.source !== parent) return;
+  const d = e.data || {};
+  if (d.type === 'INIT' && d.initData) {
+    INIT_DATA = d.initData;
+    if (Number.isFinite(Number(d.balance))) {
+      serverBalance = Number(d.balance);
+      document.getElementById('bal-text').textContent = Number(serverBalance).toFixed(2);
+    }
+    ready = true;
+    refreshBalance();
+  }
+  if (d.type === 'UPDATE_BALANCE') {
+    if (Number.isFinite(Number(d.balance))) {
+      serverBalance = Number(d.balance);
+      document.getElementById('bal-text').textContent = Number(serverBalance).toFixed(2);
+    }
+    refreshBalance();
+  }
+});
+postParent({ type: 'GAME_READY' });
+
+async function refreshBalance() {
+  const d = await api('/api/user/init');
+  if (d.success) {
+    serverBalance = d.balance;
+    showBalance();
+  }
+}
+function showBalance() {
+  document.getElementById('bal-text').textContent = Number(serverBalance).toFixed(2);
+  postParent({ type: 'BALANCE_UPDATE', newBalance: serverBalance });
+}
+
+/* ==========================================================================
+   2. PROCEDURAL WEB AUDIO (HOP, BRAKE, CASH-OUT, SQUAWK)
+   ========================================================================== */
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let soundEnabled = true;
+let musicEnabled = true;
+
+function playTone(freq, type = 'sine', duration = 0.12, gainVal = 0.25) {
+  if (!soundEnabled) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+  gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+}
+
+const soundHop = () => {
+  if (!soundEnabled) return;
+  playTone(460, 'sine', 0.08, 0.25);
+  setTimeout(() => playTone(640, 'sine', 0.1, 0.2), 50);
+};
+
+const soundBrake = () => {
+  if (!soundEnabled) return;
+  playTone(850, 'sawtooth', 0.16, 0.09);
+  setTimeout(() => playTone(740, 'sawtooth', 0.14, 0.07), 60);
+};
+
+const soundWin = () => {
+  if (!soundEnabled) return;
+  [523, 659, 783, 1046].forEach((f, i) => setTimeout(() => playTone(f, 'triangle', 0.22, 0.3), i * 75));
+};
+
+const soundCrashAndSquawk = () => {
+  if (!soundEnabled) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const now = audioCtx.currentTime;
+
+  // Car Horn Blast
+  const horn = audioCtx.createOscillator();
+  const hornGain = audioCtx.createGain();
+  horn.type = 'sawtooth';
+  horn.frequency.setValueAtTime(340, now);
+  hornGain.gain.setValueAtTime(0.4, now);
+  hornGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+  horn.connect(hornGain);
+  hornGain.connect(audioCtx.destination);
+  horn.start(now);
+  horn.stop(now + 0.5);
+
+  // Alarmed Chicken Squawk ("BAWWK!")
+  const squawk = audioCtx.createOscillator();
+  const squawkGain = audioCtx.createGain();
+  squawk.type = 'sawtooth';
+  squawk.frequency.setValueAtTime(1250, now + 0.04);
+  squawk.frequency.exponentialRampToValueAtTime(320, now + 0.45);
+
+  const lfo = audioCtx.createOscillator();
+  const lfoGain = audioCtx.createGain();
+  lfo.frequency.setValueAtTime(35, now);
+  lfoGain.gain.setValueAtTime(140, now);
+  lfo.connect(squawk.frequency);
+  lfo.start(now + 0.04);
+  lfo.stop(now + 0.45);
+
+  squawkGain.gain.setValueAtTime(0.01, now);
+  squawkGain.gain.linearRampToValueAtTime(0.5, now + 0.08);
+  squawkGain.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
+
+  squawk.connect(squawkGain);
+  squawkGain.connect(audioCtx.destination);
+  squawk.start(now + 0.04);
+  squawk.stop(now + 0.48);
+};
+
+/* ==========================================================================
+   3. MULTIPLIERS & SPEED PER DIFFICULTY
+   ========================================================================== */
+const MULTIPLIERS = {
+  Easy:     [1.01, 1.03, 1.06, 1.10, 1.15, 1.22, 1.30, 1.44, 1.62, 1.90, 2.25, 2.80],
+  Medium:   [1.05, 1.15, 1.30, 1.55, 1.95, 2.60, 3.60, 5.20, 8.00, 13.0, 22.0, 40.0],
+  Hard:     [1.18, 1.50, 2.10, 3.20, 5.50, 10.0, 20.0, 45.0, 100.0, 250.0],
+  Hardcore: [1.44, 2.21, 3.60, 6.50, 15.0, 40.0, 120.0, 400.0]
+};
+
+const TRAFFIC_SPEEDS = {
+  Easy: '5.2s',
+  Medium: '3.8s',
+  Hard: '2.5s',
+  Hardcore: '1.4s'
+};
+
+let currentDifficulty = 'Easy';
+let activeRound = null;
+let currentStepIndex = 0; // 0 = start on sidewalk, 1 = lane 0
+
+/* ==========================================================================
+   4. SVG VEHICLES & BARRICADE (BREAKER)
+   ========================================================================== */
+function getYellowTruckSvg() {
+  return `
+    <svg width="80" height="150" viewBox="0 0 80 150">
+      <rect x="6" y="24" width="68" height="120" rx="6" fill="#1e293b"/>
+      <rect x="8" y="26" width="64" height="60" rx="4" fill="#0f172a"/>
+      <text x="40" y="60" fill="#f59e0b" font-weight="900" font-size="12" text-anchor="middle" font-family="sans-serif">iN OUT</text>
+      <rect x="10" y="86" width="60" height="54" rx="8" fill="#f59e0b"/>
+      <rect x="16" y="92" width="48" height="22" rx="4" fill="#38bdf8"/>
+      <circle cx="20" cy="136" r="4" fill="#fef08a"/>
+      <circle cx="60" cy="136" r="4" fill="#fef08a"/>
+      <rect x="4" y="94" width="6" height="10" rx="2" fill="#475569"/>
+      <rect x="70" y="94" width="6" height="10" rx="2" fill="#475569"/>
+    </svg>`;
+}
+
+function getFireEngineSvg() {
+  return `
+    <svg width="76" height="160" viewBox="0 0 76 160">
+      <rect x="8" y="10" width="60" height="140" rx="8" fill="#dc2626"/>
+      <rect x="14" y="112" width="48" height="20" rx="4" fill="#93c5fd"/>
+      <circle cx="18" cy="106" r="4" fill="#3b82f6"/>
+      <circle cx="58" cy="106" r="4" fill="#3b82f6"/>
+      <rect x="24" y="18" width="28" height="80" rx="2" fill="#cbd5e1" stroke="#475569" stroke-width="2"/>
+      <line x1="24" y1="32" x2="52" y2="32" stroke="#475569" stroke-width="2"/>
+      <line x1="24" y1="46" x2="52" y2="46" stroke="#475569" stroke-width="2"/>
+      <line x1="24" y1="60" x2="52" y2="60" stroke="#475569" stroke-width="2"/>
+      <line x1="24" y1="74" x2="52" y2="74" stroke="#475569" stroke-width="2"/>
+      <line x1="24" y1="88" x2="52" y2="88" stroke="#475569" stroke-width="2"/>
+      <rect x="12" y="142" width="52" height="8" rx="2" fill="#e2e8f0"/>
+    </svg>`;
+}
+
+function getIceCreamTruckSvg() {
+  return `
+    <svg width="76" height="150" viewBox="0 0 76 150">
+      <rect x="8" y="16" width="60" height="124" rx="8" fill="#38bdf8"/>
+      <rect x="8" y="16" width="60" height="40" rx="4" fill="#f472b6"/>
+      <rect x="14" y="100" width="48" height="20" rx="4" fill="#bae6fd"/>
+      <rect x="12" y="130" width="52" height="6" rx="2" fill="#cbd5e1"/>
+    </svg>`;
+}
+
+function getBarricadeSvg() {
+  return `
+    <svg width="96" height="50" viewBox="0 0 96 50">
+      <rect x="4" y="6" width="88" height="24" rx="4" fill="#f59e0b"/>
+      <path d="M12,6 L22,30 M32,6 L42,30 M52,6 L62,30 M72,6 L82,30" stroke="#1f2937" stroke-width="6"/>
+      <rect x="16" y="28" width="8" height="18" fill="#9ca3af"/>
+      <rect x="72" y="28" width="8" height="18" fill="#9ca3af"/>
+      <rect x="10" y="44" width="20" height="5" rx="2" fill="#6b7280"/>
+      <rect x="66" y="44" width="20" height="5" rx="2" fill="#6b7280"/>
+    </svg>`;
+}
+
+/* ==========================================================================
+   5. TRACK & LANES GENERATION
+   ========================================================================== */
+function buildTrack() {
+  const lanesBox = document.getElementById('lanes-box');
+  lanesBox.innerHTML = '';
+  const mults = MULTIPLIERS[currentDifficulty];
+
+  document.documentElement.style.setProperty('--traffic-speed', TRAFFIC_SPEEDS[currentDifficulty]);
+
+  mults.forEach((m, idx) => {
+    const laneDiv = document.createElement('div');
+    laneDiv.className = 'lane';
+    laneDiv.id = `lane-${idx}`;
+
+    const carTypes = [getYellowTruckSvg(), getFireEngineSvg(), getIceCreamTruckSvg()];
+    const chosenCar = carTypes[idx % carTypes.length];
+    const animDelay = -(idx * 1.25) % 4;
+
+    laneDiv.innerHTML = `
+      <div class="lane-vehicle driving-active" id="veh-${idx}" style="animation-delay: ${animDelay}s;">
+        ${chosenCar}
+      </div>
+
+      <div class="lane-barricade" id="barricade-${idx}">
+        ${getBarricadeSvg()}
+      </div>
+
+      <div class="manhole" id="manhole-${idx}">
+        <div class="manhole-bars"></div>
+        <div class="manhole-mult">${m.toFixed(2)}x</div>
+      </div>
+    `;
+    lanesBox.appendChild(laneDiv);
+  });
+}
+
+/* ==========================================================================
+   6. CAMERA TRACKING & CHICKEN CENTERING
+   ========================================================================== */
+function updateCameraFollow(targetX) {
+  const viewport = document.getElementById('world-viewport');
+  const track = document.getElementById('world-track');
+  const vpWidth = viewport.clientWidth;
+
+  // Center the chicken perfectly in the viewport
+  const scrollOffset = Math.max(0, targetX - vpWidth / 2);
+  track.style.transform = `translateX(-${scrollOffset}px)`;
+}
+
+function resetChickenPosition() {
+  const chicken = document.getElementById('chicken');
+  const bubble = document.getElementById('mult-bubble');
+  chicken.style.left = '80px';
+  chicken.style.bottom = '125px';
+  chicken.style.transform = 'translate(-50%, 0)';
+  chicken.style.filter = 'none';
+  chicken.classList.remove('jumping');
+  bubble.style.display = 'none';
+
+  updateCameraFollow(80);
+  document.getElementById('win-pill').classList.remove('show');
+
+  // Reset barricades and vehicles
+  document.querySelectorAll('.lane-barricade').forEach(b => b.classList.remove('deployed'));
+  document.querySelectorAll('.lane-vehicle').forEach(v => {
+    v.classList.remove('stopped-at-barrier', 'crash-dive');
+    v.classList.add('driving-active');
+  });
+}
+
+function hopChickenToLane(laneIdx, onComplete) {
+  const chicken = document.getElementById('chicken');
+  const bubble = document.getElementById('mult-bubble');
+  const mults = MULTIPLIERS[currentDifficulty];
+
+  soundHop();
+
+  chicken.classList.remove('jumping');
+  void chicken.offsetWidth; // force reflow
+  chicken.classList.add('jumping');
+
+  // Exact target X within the track
+  const targetX = 140 + laneIdx * 130 + 65;
+  chicken.style.left = targetX + 'px';
+
+  // Smooth camera centering
+  updateCameraFollow(targetX);
+
+  setTimeout(() => {
+    const m = mults[laneIdx] || mults[mults.length - 1];
+    bubble.textContent = `${m.toFixed(2)}x`;
+    bubble.style.display = 'block';
+
+    const mh = document.getElementById(`manhole-${laneIdx}`);
+    if (mh) mh.classList.add('passed');
+
+    if (onComplete) onComplete();
+  }, 360);
+}
+
+/* ==========================================================================
+   7. FEATHER EXPLOSION ON CRASH
+   ========================================================================== */
+function createFeatherBlast() {
+  const container = document.getElementById('feather-blast');
+  container.innerHTML = '';
+  for (let i = 0; i < 9; i++) {
+    const f = document.createElement('div');
+    f.className = 'feather';
+    const angle = (i / 9) * 2 * Math.PI;
+    const distance = 40 + Math.random() * 50;
+    const fx = Math.cos(angle) * distance + 'px';
+    const fy = Math.sin(angle) * distance - 20 + 'px';
+    const fr = (Math.random() * 360) + 'deg';
+
+    f.style.setProperty('--fx', fx);
+    f.style.setProperty('--fy', fy);
+    f.style.setProperty('--fr', fr);
+    container.appendChild(f);
+  }
+}
+
+/* ==========================================================================
+   8. GAME ACTIONS (MATCHING GIF MOTION)
+   ========================================================================== */
+async function handlePlayClick() {
+  if (activeRound) return;
+
+  const bet = parseFloat(document.getElementById('bet-input').value) || 0;
+  if (bet < 1 || bet > 1000) {
+    showToast("Bet must be between 1 and 1000 ETB");
+    return;
+  }
+  if (bet > serverBalance) {
+    showToast("Insufficient funds");
+    postParent({ type: 'OPEN_DEPOSIT' });
+    return;
+  }
+
+  const playBtn = document.getElementById('btn-play');
+  playBtn.classList.add('btn-disabled');
+  playBtn.textContent = "Connecting...";
+
+  const res = await api('/api/bet/play', {
+    method: 'POST',
+    body: JSON.stringify({
+      gameName: "ChickenRoad2",
+      betAmount: bet,
+      clientData: { difficulty: currentDifficulty }
+    })
+  });
+
+  playBtn.classList.remove('btn-disabled');
+  playBtn.textContent = "Play";
+
+  if (!res.success) {
+    showToast(res.message || "Failed to place bet");
+    if (res.message && res.message.toLowerCase().includes("balance")) {
+      postParent({ type: 'OPEN_DEPOSIT' });
+    }
+    return;
+  }
+
+  serverBalance -= bet;
+  showBalance();
+  postParent({ type: 'BET_STARTED' });
+
+  buildTrack();
+  resetChickenPosition();
+
+  activeRound = {
+    betAmount: bet,
+    isWin: res.isWin,
+    payout: res.payout,
+    multiplier: res.multiplier,
+    newBalance: res.newBalance,
+    maxSafeStep: (res.visualOutcome && typeof res.visualOutcome.maxSafeStep === 'number')
+                   ? res.visualOutcome.maxSafeStep
+                   : (res.isWin ? MULTIPLIERS[currentDifficulty].length : 0)
+  };
+
+  currentStepIndex = 0;
+
+  // Switch UI controls
+  document.getElementById('btn-play').style.display = 'none';
+  document.getElementById('ingame-btns').style.display = 'grid';
+  document.getElementById('diff-box').style.pointerEvents = 'none';
+  document.getElementById('diff-box').style.opacity = '0.7';
+
+  // First hop occurs on Play (matching GIF 1 & 2)
+  performStep();
+}
+
+function updateCashOutLabel() {
+  const mults = MULTIPLIERS[currentDifficulty];
+  const curMult = mults[currentStepIndex - 1] || 1.00;
+  const currentPayout = (activeRound.betAmount * curMult).toFixed(2);
+  document.getElementById('cashout-val').textContent = `${currentPayout} ETB`;
+}
+
+function handleGoStep() {
+  if (!activeRound) return;
+  performStep();
+}
+
+function performStep() {
+  const goBtn = document.getElementById('btn-go');
+  const cashBtn = document.getElementById('btn-cashout');
+  goBtn.classList.add('btn-disabled');
+  cashBtn.classList.add('btn-disabled');
+
+  const stepToExecute = currentStepIndex;
+  const mults = MULTIPLIERS[currentDifficulty];
+
+  if (stepToExecute < activeRound.maxSafeStep && stepToExecute < mults.length) {
+    // SAFE STEP
+    hopChickenToLane(stepToExecute, () => {
+      // 1. Barricade drops AFTER safe crossing
+      const barricade = document.getElementById(`barricade-${stepToExecute}`);
+      if (barricade) barricade.classList.add('deployed');
+
+      // 2. Incoming vehicle brakes at the barricade
+      const vehicle = document.getElementById(`veh-${stepToExecute}`);
+      if (vehicle) {
+        setTimeout(() => {
+          vehicle.classList.remove('driving-active');
+          vehicle.classList.add('stopped-at-barrier');
+          soundBrake();
+        }, 80);
+      }
+
+      currentStepIndex++;
+      updateCashOutLabel();
+
+      if (currentStepIndex >= mults.length || (currentStepIndex >= activeRound.maxSafeStep && activeRound.isWin)) {
+        setTimeout(completeWin, 500);
+      } else {
+        goBtn.classList.remove('btn-disabled');
+        cashBtn.classList.remove('btn-disabled');
+      }
+    });
+
+  } else {
+    // LOSS: CAR ACCELERATES & SMASHES INTO CHICKEN
+    hopChickenToLane(stepToExecute, () => {
+      // NO BARRICADE DROPS!
+      const vehicle = document.getElementById(`veh-${stepToExecute}`);
+      if (vehicle) {
+        vehicle.classList.remove('driving-active');
+        vehicle.classList.add('crash-dive');
+      }
+
+      setTimeout(() => {
+        soundCrashAndSquawk();
+        createFeatherBlast();
+
+        const viewport = document.getElementById('world-viewport');
+        viewport.classList.add('shake');
+        setTimeout(() => viewport.classList.remove('shake'), 350);
+
+        const chicken = document.getElementById('chicken');
+        chicken.style.transform = 'translate(-50%, 15px) rotate(90deg) scale(0.8)';
+        chicken.style.filter = 'grayscale(1) brightness(0.6)';
+      }, 100);
+
+      showToast("Hit by car! Round Over");
+
+      setTimeout(() => {
+        endRound(activeRound.newBalance);
+      }, 1800);
+    });
+  }
+}
+
+function handleCashOut() {
+  if (!activeRound) return;
+  if (activeRound.isWin) {
+    completeWin();
+  } else {
+    performStep();
+  }
+}
+
+function completeWin() {
+  soundWin();
+  const winPill = document.getElementById('win-pill');
+  document.getElementById('win-amount').textContent = `${Number(activeRound.payout).toFixed(2)} ETB`;
+  winPill.classList.add('show');
+
+  const chicken = document.getElementById('chicken');
+  chicken.style.bottom = '160px';
+
+  setTimeout(() => {
+    endRound(activeRound.newBalance);
+  }, 2200);
+}
+
+function endRound(authoritativeBalance) {
+  serverBalance = authoritativeBalance;
+  showBalance();
+  postParent({ type: 'BET_ENDED' });
+
+  activeRound = null;
+  currentStepIndex = 0;
+
+  document.getElementById('btn-play').style.display = 'flex';
+  document.getElementById('ingame-btns').style.display = 'none';
+  document.getElementById('btn-go').classList.remove('btn-disabled');
+  document.getElementById('btn-cashout').classList.remove('btn-disabled');
+  document.getElementById('diff-box').style.pointerEvents = 'auto';
+  document.getElementById('diff-box').style.opacity = '1';
+
+  resetChickenPosition();
+}
+
+/* ==========================================================================
+   9. CONTROLS, SETTINGS MODAL & INITIALIZATION
+   ========================================================================== */
+function setBet(type) {
+  const input = document.getElementById('bet-input');
+  if (type === 'MIN') input.value = 1;
+  if (type === 'MAX') input.value = Math.min(1000, Math.floor(serverBalance) || 1000);
+}
+function setQuickBet(val) {
+  document.getElementById('bet-input').value = val;
+}
+
+function toggleDropdown() {
+  if (activeRound) return;
+  document.getElementById('diff-menu').classList.toggle('open');
+}
+
+function selectDifficulty(diff) {
+  currentDifficulty = diff;
+  document.getElementById('diff-label').textContent = diff;
+  document.querySelectorAll('.dropdown-item').forEach(el => {
+    const isTarget = el.textContent.includes(diff);
+    el.classList.toggle('active', isTarget);
+    el.children[1].innerHTML = isTarget 
+      ? `<svg width="14" height="14" viewBox="0 0 24 24" stroke="#f59e0b" stroke-width="3" fill="none"><path d="M4 12l5 5L20 6"/></svg>` 
+      : '';
+  });
+  document.getElementById('diff-menu').classList.remove('open');
+  buildTrack();
+  resetChickenPosition();
+}
+
+function toggleSettingsModal() {
+  document.getElementById('settings-modal').classList.toggle('open');
+}
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  document.getElementById('sound-switch').classList.toggle('on', soundEnabled);
+}
+
+function toggleMusic() {
+  musicEnabled = !musicEnabled;
+  document.getElementById('music-switch').classList.toggle('on', musicEnabled);
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  toast.classList.add('show');
+  setTimeout(hideToast, 4000);
+}
+function hideToast() {
+  document.getElementById('toast').classList.remove('show');
+}
+
+window.addEventListener('load', () => {
+  buildTrack();
+  resetChickenPosition();
+
+  // Close modals on outside tap
+  document.addEventListener('click', e => {
+    const modal = document.getElementById('settings-modal');
+    const menuBtn = e.target.closest('button[title="Menu"]');
+    if (!modal.contains(e.target) && !menuBtn && modal.classList.contains('open')) {
+      modal.classList.remove('open');
+    }
+    if (!document.getElementById('diff-box').contains(e.target)) {
+      document.getElementById('diff-menu').classList.remove('open');
+    }
+  });
+});
+</script>
+</body>
+</html>

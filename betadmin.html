@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Hulu Bet Admin</title>
+<style>
+:root{--bg:#0e1116;--card:#171b22;--tx:#e8ebf0;--mu:#8b93a1;--bd:#262c36;--ac:#22c987;--rd:#f26b6b;--am:#f0a030;--bl:#5b9bff}
+@media(prefers-color-scheme:light){:root{--bg:#f4f5f7;--card:#fff;--tx:#14171f;--mu:#6b7280;--bd:#e3e6eb;--ac:#0d9f6e;--rd:#dc2626;--am:#d97706;--bl:#2563eb}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,sans-serif;padding-bottom:84px}
+header{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5}
+header h1{font-size:16px;margin:0;flex:1}
+main{padding:12px;max-width:1100px;margin:auto}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;overflow-x:auto;background:var(--card);border-top:1px solid var(--bd);padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));z-index:6}
+nav button{flex:1;min-width:66px;border:0;background:none;color:var(--mu);font-size:10px;padding:4px;cursor:pointer;position:relative}
+nav button span{display:block;font-size:20px}nav button.on{color:var(--ac);font-weight:700}
+nav i{position:absolute;top:0;right:12px;background:var(--rd);color:#fff;font-style:normal;font-size:10px;border-radius:9px;padding:0 5px}
+.g{display:grid;gap:10px;grid-template-columns:repeat(2,1fr);margin-bottom:12px}
+@media(min-width:700px){.g{grid-template-columns:repeat(4,1fr)}}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:12px}
+.g .c{margin:0}.k{color:var(--mu);font-size:12px}.v{font-size:19px;font-weight:700}
+h2{font-size:15px;margin:0 0 10px}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%}
+th,td{text-align:left;padding:8px;border-bottom:1px solid var(--bd);white-space:nowrap}th{color:var(--mu);font-size:12px}
+.b{padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:var(--bd)}
+.ok{background:#22c98722;color:var(--ac)}.no{background:#f26b6b22;color:var(--rd)}.wa{background:#f0a03022;color:var(--am)}.in{background:#5b9bff22;color:var(--bl)}
+button.a{border:0;border-radius:8px;padding:8px 12px;margin:2px;cursor:pointer;color:#fff;background:var(--bl);font-size:13px}
+button.a.g2{background:var(--ac)}button.a.r{background:var(--rd)}button.a.m{background:var(--mu)}button.a:disabled{opacity:.5}
+input,select,textarea{width:100%;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:10px;font:inherit;font-size:16px;margin:4px 0 8px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bd)}
+.bar{height:8px;background:var(--bd);border-radius:4px;margin:4px 0 10px}.bar i{display:block;height:8px;border-radius:4px;background:var(--ac)}
+code{font-family:ui-monospace,monospace;background:var(--bg);padding:2px 6px;border-radius:6px}
+#md{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:9;padding:16px}
+#md>div{background:var(--card);border-radius:12px;padding:16px;width:100%;max-width:420px;max-height:88%;overflow:auto}
+#ts{position:fixed;top:64px;left:50%;transform:translateX(-50%);background:var(--ac);color:#fff;padding:8px 16px;border-radius:20px;display:none;z-index:10;max-width:92%;text-align:center}
+#ts.err{background:var(--rd)}
+#login{max-width:340px;margin:12vh auto;padding:20px}
+@media(max-width:700px){table{min-width:0}tr.h{display:none}tr{display:block;border:1px solid var(--bd);border-radius:10px;margin-bottom:10px;padding:6px 10px}
+td{display:flex;justify-content:space-between;align-items:center;gap:10px;border:0;padding:4px 0;white-space:normal;text-align:right;flex-wrap:wrap}
+td::before{content:attr(data-l);color:var(--mu);font-size:12px;text-align:left}}
+</style></head><body>
+<div id="login" class="c"><h2>🦁 Hulu Bet Admin</h2>
+  <label class="k">Your name (shown in the audit log)</label><input id="lname" placeholder="e.g. Ak" autocomplete="off">
+  <label class="k">Admin PIN</label><input id="lpin" type="password" placeholder="ADMIN_PIN (default: 12345678)" autocomplete="off">
+  <button class="a g2" style="width:100%" id="lbtn">Sign in</button><p class="k" id="lerr" style="color:var(--rd)"></p></div>
+<div id="app" style="display:none">
+  <header><h1>🦁 Hulu Bet Admin</h1><span class="b in" id="upd">…</span><button class="a m" data-act="refresh">⟳</button><button class="a r" data-act="logout">Exit</button></header>
+  <main id="v"></main><nav id="nav"></nav>
+</div>
+<div id="md"><div id="mb"></div></div><div id="ts"></div>
+
+<script>
+const API = window.location.origin;
+let PIN = "", ACTOR = "Admin", D = null, U = null, SQ = "", AL = [], BOT = null, page = "Overview", prev = { d: 0, w: 0 };
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const etb = n => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ETB';
+const ago = ts => { const s = (Date.now() - new Date(ts)) / 1000; return s < 60 ? 'now' : s < 3600 ? Math.floor(s / 60) + 'm' : s < 86400 ? Math.floor(s / 3600) + 'h' : Math.floor(s / 86400) + 'd'; };
+const BC = { approved: 'ok', active: 'ok', won: 'ok', verified: 'ok', pending: 'wa', suspended: 'wa', rejected: 'no', banned: 'no', lost: 'no' };
+const badge = (t, c) => `<span class="b ${c || BC[String(t).toLowerCase()] || ''}">${esc(t)}</span>`;
+const btn = (l, act, data = {}, c = '') => `<button class="a ${c}" data-act="${act}" ${Object.entries(data).map(([k, v]) => `data-${k}="${esc(v)}"`).join(' ')}>${l}</button>`;
+const tbl = (h, r) => `<div class="tw"><table><tr class="h">${h.map(x => `<th>${x}</th>`).join('')}</tr>${r.map(x => `<tr>${x.map((c, j) => `<td data-l="${h[j]}">${c}</td>`).join('')}</tr>`).join('')}</table></div>`;
+const empty = t => `<p class="k">${t}</p>`;
+function toast(m, err) { const t = $('#ts'); t.textContent = m; t.className = err ? 'err' : ''; t.style.display = 'block'; clearTimeout(t.h); t.h = setTimeout(() => t.style.display = 'none', 3200); }
+function beep() { try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.frequency.value = 880; g.gain.value = .08; o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + .25); } catch (e) {} }
+
+// ---------- API ----------
+async function call(path, method = 'GET', body) {
+  try {
+    const r = await fetch(API + path, { method, headers: { 'Content-Type': 'application/json', 'x-admin-token': PIN }, body: body ? JSON.stringify({ ...body, actor: ACTOR }) : undefined });
+    const d = await r.json().catch(() => ({ success: false, message: 'Bad response from server' }));
+    if (r.status === 403 || r.status === 429) { if (D) logout(); d.auth = true; }
+    return d;
+  } catch (e) { return { success: false, message: 'Cannot reach server (it may be waking up – try again in 20s)' }; }
+}
+async function load(silent) {
+  const d = await call('/api/admin/master-dashboard');
+  if (!d.success) { if (!silent) toast(d.message || 'Load failed', true); return d; }
+  if (D && (d.pendingDeposits.length > prev.d || d.pendingWithdrawals.length > prev.w)) { beep(); toast('New request received'); }
+  prev = { d: d.pendingDeposits.length, w: d.pendingWithdrawals.length };
+  D = d; if (SQ) await search(SQ, true);
+  $('#upd').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (!modalOpen()) R();
+  return d;
+}
+async function act(path, body) {
+  const d = await call(path, 'POST', body);
+  toast(d.message || (d.success ? 'Done' : 'Failed'), !d.success);
+  if (d.success) await load(true);
+  return d;
+}
+
+// ---------- login ----------
+async function login() {
+  PIN = $('#lpin').value.trim(); ACTOR = $('#lname').value.trim() || 'Admin';
+  if (!PIN) return;
+  $('#lbtn').disabled = true; $('#lerr').textContent = 'Connecting… (first call can take ~20s)';
+  const d = await load(true);
+  $('#lbtn').disabled = false;
+  if (d.success) { try { sessionStorage.setItem('hb', JSON.stringify({ PIN, ACTOR })); } catch (e) {} $('#login').style.display = 'none'; $('#app').style.display = 'block'; R(); }
+  else { $('#lerr').textContent = d.message || 'Login failed'; PIN = ''; }
+}
+function logout() { PIN = ''; D = null; try { sessionStorage.removeItem('hb'); } catch (e) {} $('#app').style.display = 'none'; $('#login').style.display = 'block'; $('#lpin').value = ''; }
+$('#lbtn').onclick = login; $('#lpin').onkeydown = e => e.key === 'Enter' && login();
+try { const s = JSON.parse(sessionStorage.getItem('hb') || 'null'); if (s) { $('#lpin').value = s.PIN; $('#lname').value = s.ACTOR; login(); } } catch (e) {}
+
+// ---------- modal ----------
+const modalOpen = () => $('#md').style.display === 'flex';
+function closeM() { $('#md').style.display = 'none'; }
+$('#md').onclick = e => { if (e.target.id === 'md') closeM(); };
+function ask(title, fields, ok, label = 'Confirm') {
+  $('#mb').innerHTML = `<h2>${esc(title)}</h2>${fields.map(f => `<label class="k">${esc(f.label)}</label>` + (f.type === 'select'
+    ? `<select id="f_${f.k}">${f.options.map(o => `<option>${esc(o)}</option>`).join('')}</select>`
+    : f.long ? `<textarea id="f_${f.k}" rows="3" placeholder="${esc(f.ph || '')}">${esc(f.value || '')}</textarea>`
+    : `<input id="f_${f.k}" type="${f.type || 'text'}" value="${esc(f.value || '')}" placeholder="${esc(f.ph || '')}" inputmode="${f.type === 'number' ? 'decimal' : 'text'}">`)).join('')}
+    <div class="row" style="margin-top:8px"><button class="a g2" id="mok">${esc(label)}</button><button class="a m" onclick="closeM()">Cancel</button></div>`;
+  $('#md').style.display = 'flex';
+  $('#mok').onclick = () => { const v = {}; fields.forEach(f => v[f.k] = $('#f_' + f.k).value.trim()); closeM(); ok(v); };
+}
+const sure = (title, text, ok) => { $('#mb').innerHTML = `<h2>${esc(title)}</h2><p class="k">${esc(text)}</p><div class="row"><button class="a g2" id="mok">Yes, continue</button><button class="a m" onclick="closeM()">Cancel</button></div>`; $('#md').style.display = 'flex'; $('#mok').onclick = () => { closeM(); ok(); }; };
+
+// ---------- actions (buttons use data-act; values are escaped, never inlined in JS) ----------
+const ACT = {
+  refresh: () => load(),
+  logout,
+  depOk: d => ask('Approve deposit ' + d.id, [{ k: 'ref', label: 'Telebirr / CBE reference (a reused reference is blocked)', value: d.ref }], v => act('/api/admin/approve-deposit', { txnId: d.id, bankRef: v.ref }), 'Approve & credit'),
+  depNo: d => ask('Reject deposit ' + d.id, [{ k: 'reason', label: 'Reason (sent to the player)', value: 'Payment not received' }], v => act('/api/admin/reject-deposit', { txnId: d.id, reason: v.reason }), 'Reject'),
+  wdOk: d => sure('Mark ' + d.id + ' as PAID?', `Only confirm after you sent ${d.amt} to ${d.acc} (${d.m}).`, () => act('/api/admin/approve-withdrawal', { txnId: d.id })),
+  wdNo: d => ask('Reject & refund ' + d.id, [{ k: 'reason', label: 'Reason', value: 'Rejected by admin' }], v => act('/api/admin/reject-withdrawal', { txnId: d.id, reason: v.reason }), 'Reject & refund'),
+  copy: d => { try { navigator.clipboard.writeText(d.v); toast('Copied ' + d.v); } catch (e) { toast(d.v); } },
+  stat: d => sure(`Set ${d.name} to ${d.st}?`, d.st === 'active' ? 'The player can play again.' : 'The player will not be able to bet or withdraw.', () => act('/api/admin/user-status', { userId: d.id, status: d.st })),
+  topup: d => ask('Top-up ' + d.name, [{ k: 'amount', label: 'Amount (ETB)', type: 'number' }, { k: 'ref', label: 'Bank reference (optional, blocks reuse)' }], v => act('/api/admin/topup', { userId: d.id, amount: v.amount, txnId: v.ref }), 'Credit'),
+  adj: d => ask('Adjust balance: ' + d.name, [{ k: 'action', label: 'Action', type: 'select', options: ['ADD', 'DEDUCT'] }, { k: 'amount', label: 'Amount (ETB)', type: 'number' }, { k: 'reason', label: 'Reason (required)' }],
+    v => v.reason ? act('/api/admin/adjust-balance', { userId: d.id, amount: v.amount, action: v.action, reason: v.reason }) : toast('Reason is required', true), 'Apply'),
+  promoNew: () => ask('New promo code', [{ k: 'code', label: 'Code' }, { k: 'amt', label: 'Bonus (ETB)', type: 'number' }, { k: 'max', label: 'Max uses', type: 'number', value: '100' }], v => act('/api/admin/create-promo', { code: v.code, bonusAmount: v.amt, maxUses: v.max }), 'Create'),
+  cashback: () => ask('Distribute cashback', [{ k: 'pct', label: 'Percent of NEW net loss (1-50)', type: 'number', value: '10' }, { k: 'min', label: 'Minimum new net loss (ETB)', type: 'number', value: '100' }],
+    v => sure('Pay ' + v.pct + '% cashback?', 'This credits real balance to every eligible player (1x wagering applies).', () => act('/api/admin/distribute-cashback', { percentage: v.pct, minLoss: v.min })), 'Next'),
+  reward: () => ask('Reward players', [{ k: 'ids', label: 'Player IDs (comma separated)', long: 1 }, { k: 'amt', label: 'Amount each (ETB, max 1000)', type: 'number' }],
+    v => act('/api/admin/reward-users', { userIds: v.ids.split(/[\s,]+/).filter(Boolean), rewardAmount: v.amt }), 'Send'),
+  saveSet: () => {
+    const rtp = parseFloat($('#s_rtp').value), com = parseFloat($('#s_com').value);
+    if (!(rtp >= 50 && rtp <= 99) || !(com >= 0 && com <= 20)) return toast('RTP 50-99 and commission 0-20', true);
+    sure('Save settings?', `RTP ${rtp}% (applies to every new bet) and agent commission ${com}%.`, () => act('/api/admin/update-settings', { targetRtp: rtp / 100, agentCommission: com / 100 }));
+  },
+  runAudit12h: () => sure(
+    'Run 12-Hour Audit & Prune?',
+    'Summarizes settled bets older than 12 hours into permanent 12h reports and prunes expired raw rows & audit logs.',
+    () => act('/api/admin/run-12h-audit', {})
+  )
+};
+document.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b && ACT[b.dataset.act]) ACT[b.dataset.act](b.dataset); });
+
+let st;
+async function search(q, keep) {
+  SQ = q; clearTimeout(st);
+  if (!q) { U = null; if (!keep && $('#ptab')) $('#ptab').innerHTML = playersTable(D.users); return; }
+  const d = await call('/api/admin/users?q=' + encodeURIComponent(q));
+  if (d.success) { U = d.users; if ($('#ptab')) $('#ptab').innerHTML = playersTable(U); }
+}
+window.onSearch = v => { clearTimeout(st); st = setTimeout(() => search(v.trim()), 400); };
+
+// ---------- views ----------
+const playersTable = list => list.length ? tbl(['ID', 'Player', 'Balance', 'Status', 'Wagered', 'Won', 'Bets', 'Actions'], list.map(u => [
+  esc(u.id), esc(u.name) + (u.telegram_username ? ` <span class="k">@${esc(u.telegram_username)}</span>` : ''), etb(u.bal), badge(u.st), etb(u.total_wagered), etb(u.total_won), u.bets,
+  btn('Top-up', 'topup', { id: u.id, name: u.name }, 'g2') + btn('Adjust', 'adj', { id: u.id, name: u.name }) +
+  (u.st === 'active' ? btn('Suspend', 'stat', { id: u.id, name: u.name, st: 'suspended' }, 'm') + btn('Ban', 'stat', { id: u.id, name: u.name, st: 'banned' }, 'r') : btn('Activate', 'stat', { id: u.id, name: u.name, st: 'active' }, 'g2'))
+])) : empty('No players found');
+
+const V = {
+  Overview() {
+    const v = D.vault, gs = D.gameStats, W = gs.reduce((a, g) => a + g.wagered, 0), P = gs.reduce((a, g) => a + g.paid, 0), rtp = W ? P / W * 100 : 0;
+    const pw = D.pendingWithdrawals.reduce((a, t) => a + Number(t.amount), 0);
+    return `<div class="g">
+      <div class="c"><div class="k">GGR today</div><div class="v">${etb(v.ggrToday)}</div></div>
+      <div class="c"><div class="k">NGR this month</div><div class="v">${etb(v.ngrMonth)}</div></div>
+      <div class="c"><div class="k">Casino bankroll</div><div class="v">${etb(v.vault_balance)}</div></div>
+      <div class="c"><div class="k">Total wagered</div><div class="v">${etb(v.total_wagered)}</div></div>
+      <div class="c"><div class="k">Players</div><div class="v">${D.totalUsers}</div></div>
+      <div class="c"><div class="k">Pending deposits</div><div class="v" style="color:var(--am)">${D.pendingDeposits.length}</div></div>
+      <div class="c"><div class="k">Pending withdrawals</div><div class="v" style="color:var(--am)">${D.pendingWithdrawals.length}</div><div class="k">${etb(pw)}</div></div>
+      <div class="c"><div class="k">Actual RTP / target</div><div class="v">${rtp.toFixed(1)}% <span class="k">/ ${D.settings.targetRtp}%</span></div></div></div>
+    <div class="c"><h2>RTP by game (actual vs target)</h2>${gs.length ? gs.map(g => `<div class="li" style="border:0;padding:0"><span>${esc(g.game)} <span class="k">${g.bets} bets</span></span><span>${g.rtp}%</span></div><div class="bar"><i style="width:${Math.min(100, g.rtp)}%;${Math.abs(g.rtp - D.settings.targetRtp) > 8 && g.wagered > 5000 ? 'background:var(--am)' : ''}"></i></div>`).join('') : empty('No settled bets yet')}</div>
+    <div class="c"><h2>Latest transactions</h2>${tbl(['Type', 'Player', 'Amount', 'Status', 'Age'], D.recentTransactions.slice(0, 10).map(t => [esc(t.type), esc(t.username || t.user_id), etb(t.amount), badge(t.status), ago(t.created_at)]))}</div>`;
+  },
+  Deposits() {
+    const p = D.pendingDeposits;
+    return `<div class="c"><h2>Pending deposits (${p.length})</h2>${p.length ? tbl(['ID', 'Player', 'Method', 'Amount', 'Reference', 'Agent', 'Age', 'Action'], p.map(t => [esc(t.txn_id), esc(t.username || t.user_id), esc(t.method), '<b>' + etb(t.amount) + '</b>', esc(t.bank_txn_id || '—'), esc(t.agent_assigned || '—'), ago(t.created_at),
+      btn('Approve', 'depOk', { id: t.txn_id, ref: t.bank_txn_id || '' }, 'g2') + btn('Reject', 'depNo', { id: t.txn_id }, 'r')])) : empty('No pending deposits 🎉')}</div>
+    <div class="c"><h2>Recent deposits</h2>${tbl(['ID', 'Player', 'Method', 'Amount', 'Status', 'Age'], D.dep.slice(0, 40).map(t => [esc(t.id), esc(t.u), esc(t.m), etb(t.amt), badge(t.st), ago(t.at)]))}</div>`;
+  },
+  Withdrawals() {
+    const p = D.pendingWithdrawals;
+    return `<div class="c"><h2>Pending withdrawals (${p.length})</h2><p class="k">Send the money first, then press Paid. Reject refunds the player automatically.</p>${p.length ? tbl(['ID', 'Player', 'Method', 'Amount', 'Send to', 'Review', 'Age', 'Action'], p.map(t => {
+      const rv = (t.remarks || '').split('REVIEW:')[1];
+      return [esc(t.txn_id), esc(t.username || t.user_id), esc(t.method), '<b>' + etb(t.amount) + '</b>', `<code>${esc(t.sender_account)}</code> ` + btn('Copy', 'copy', { v: t.sender_account }, 'm'), rv ? badge('⚠ ' + rv.trim(), 'wa') : badge('normal', 'ok'), ago(t.created_at),
+        btn('Paid', 'wdOk', { id: t.txn_id, amt: etb(t.amount), acc: t.sender_account, m: t.method }, 'g2') + btn('Reject', 'wdNo', { id: t.txn_id }, 'r')];
+    })) : empty('No pending withdrawals 🎉')}</div>
+    <div class="c"><h2>Recent withdrawals</h2>${tbl(['ID', 'Player', 'Method', 'Amount', 'Status', 'Age'], D.wd.slice(0, 40).map(t => [esc(t.id), esc(t.u), esc(t.m), etb(t.amt), badge(t.st), ago(t.at)]))}</div>`;
+  },
+  Players() { return `<div class="c"><h2>Players</h2><input placeholder="Search name, @username or ID" value="${esc(SQ)}" oninput="onSearch(this.value)"><div id="ptab">${playersTable(U || D.users)}</div><p class="k">Showing the top 100 by balance – use search to find anyone.</p></div>`; },
+  Bets() {
+    return `<div class="c"><h2>Game performance</h2>${tbl(['Game', 'Bets', 'Wagered', 'Paid out', 'House profit', 'RTP'], D.gameStats.map(g => [esc(g.game), g.bets, etb(g.wagered), etb(g.paid), etb(g.wagered - g.paid), badge(g.rtp + '%', Math.abs(g.rtp - D.settings.targetRtp) <= 8 || g.wagered < 5000 ? 'ok' : 'wa')]))}<p class="k">Target RTP ${D.settings.targetRtp}%. Small samples swing a lot; judge after several thousand bets.</p></div>
+    <div class="c"><h2>Latest settled bets</h2>${tbl(['ID', 'Player', 'Game', 'Mult', 'Stake', 'Result'], D.bets.map(b => [esc(b.id), esc(b.u), esc(b.m), esc(b.p), etb(b.s), badge(b.st)]))}</div>`;
+  },
+  Promo() {
+    return `<div class="c"><h2>Promo codes</h2>${D.promos.length ? D.promos.map(p => `<div class="li"><span><b>${esc(p.c)}</b><br><span class="k">${esc(p.d)}</span></span>${badge(p.on ? 'active' : 'off', p.on ? 'ok' : '')}</div>`).join('') : empty('No promo codes')}<div style="margin-top:10px">${btn('+ New promo', 'promoNew', {}, 'g2')}</div></div>
+    <div class="c"><h2>Bonuses</h2><p class="k">Cashback pays only on new net loss since the last run, so running it twice never double-pays. All bonuses carry wagering.</p>${btn('Distribute cashback', 'cashback', {}, 'g2')}${btn('Reward players', 'reward')}</div>`;
+  },
+  Settings() {
+    const s = D.settings;
+    return `<div class="c"><h2>Game settings</h2><label class="k">Target RTP % (applies immediately to all games)</label><input id="s_rtp" type="number" step="0.5" value="${s.targetRtp}">
+      <label class="k">Agent commission %</label><input id="s_com" type="number" step="0.5" value="${s.agentCommission}">${btn('Save settings', 'saveSet', {}, 'g2')}</div>
+    <div class="c"><h2>Limits (set in server.js)</h2><div class="li"><span>Deposit</span><span>${etb(s.minDep)} – ${etb(s.maxDep)}</span></div><div class="li"><span>Withdrawal</span><span>${etb(s.minWd)} – ${etb(s.maxWd)}</span></div></div>`;
+  },
+  Audit() { return `<div class="c"><h2>Admin actions</h2>${AL.length ? tbl(['When', 'Admin', 'Action', 'Detail', 'IP'], AL.map(a => [new Date(a.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }), esc(a.actor), esc(a.action), esc(a.detail), esc(a.ip)])) : empty('Loading…')}</div>`; },
+  '12h Audit'() {
+    const st = D.retentionStats || { activeBetsInDb: 0, activeAuditLogsInDb: 0, archived12hReports: 0, retentionWindowHours: 12 };
+    const reps = D.reports12h || [];
+    return `<div class="g">
+      <div class="c"><div class="k">Active bets (&lt;12h)</div><div class="v">${st.activeBetsInDb}</div></div>
+      <div class="c"><div class="k">Active audit logs (&lt;12h)</div><div class="v">${st.activeAuditLogsInDb}</div></div>
+      <div class="c"><div class="k">Archived 12h reports</div><div class="v" style="color:var(--ac)">${st.archived12hReports}</div></div>
+      <div class="c"><div class="k">Retention window</div><div class="v">${st.retentionWindowHours}h</div></div>
+    </div>
+    <div class="c"><div class="row" style="justify-content:space-between"><div><h2 style="margin:0">12-Hour Audit Rollup &amp; DB Cleanup</h2><p class="k" style="margin:4px 0 0">Settled bets &amp; balance audit logs older than 12h are summarized per game and purged automatically.</p></div>${btn('Run 12h Audit &amp; Prune', 'runAudit12h', {}, 'g2')}</div></div>
+    ${BOT ? `<div class="c"><h2>Telegram Bot Screen</h2><div class="li"><span>Bot status</span>${badge(BOT.configured ? 'connected' : 'demo / no token', BOT.configured ? 'ok' : 'wa')}</div><div class="li"><span>Bot username</span><code>@${esc(BOT.botUsername)}</code></div><div class="li"><span>Mini App URL</span><code>${esc(BOT.webAppUrl)}</code></div><div class="li"><span>Webhook path</span><code>${esc(BOT.webhookPath)}</code></div></div>` : ''}
+    <div class="c"><h2>Archived 12-Hour Game Reports (${reps.length})</h2>${reps.length ? tbl(['Period End', 'Game', 'Bets', 'Won / Lost', 'Wagered', 'Paid Out', 'Profit', 'RTP', 'Players'], reps.map(r => [
+      new Date(r.periodEnd || r.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+      esc(r.game), r.bets, `${r.won} / ${r.lost}`, etb(r.wagered), etb(r.payout), etb(r.profit), badge(r.rtp + '%', 'in'), r.players
+    ])) : empty('No 12-hour archived reports yet. Active rows younger than 12h stay live until the 12h window rolls over.')}</div>`;
+  }
+};
+const NAV = [['Overview', '📊'], ['Deposits', '📥'], ['Withdrawals', '💸'], ['Players', '👥'], ['Bets', '🎲'], ['12h Audit', '🗄️'], ['Promo', '🎁'], ['Settings', '⚙️'], ['Audit', '🧾']];
+function R() {
+  if (!D) return;
+  const cnt = { Deposits: D.pendingDeposits.length, Withdrawals: D.pendingWithdrawals.length };
+  $('#nav').innerHTML = NAV.map(([n, i]) => `<button class="${n === page ? 'on' : ''}" onclick="go('${n}')"><span>${i}</span>${n}${cnt[n] ? `<i>${cnt[n]}</i>` : ''}</button>`).join('');
+  $('#v').innerHTML = V[page]();
+}
+async function go(p) {
+  page = p; scrollTo(0, 0); R();
+  if (p === 'Audit') { const d = await call('/api/admin/audit'); AL = d.success ? d.log : []; R(); }
+  if (p === '12h Audit') {
+    const [r12, botRes] = await Promise.all([
+      call('/api/admin/reports-12h'),
+      fetch(API + '/api/bot/status').then(r => r.json()).catch(() => null)
+    ]);
+    if (r12 && r12.success) { D.retentionStats = r12.retentionStats; D.reports12h = r12.reports; }
+    if (botRes && botRes.success) BOT = botRes;
+    R();
+  }
+}
+setInterval(() => { if (D && !document.hidden && !modalOpen() && ['Overview', 'Deposits', 'Withdrawals', 'Bets'].includes(page)) load(true); }, 20000);
+</script></body></html>

@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>FAST KENO</title>
+<script src="/game-bridge.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700;800;900&display=swap');
+
+/* TimerFont for 60s and 20/20 draw only */
+@font-face {
+  font-family: 'TimerFont';
+  src: url('./timerfont.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root{
+  --bg-dark:#171d1d;--bg-surface:#191f1f;--bg-panel:#263133;--border-panel:#202a2c;
+  --accent-green:#347c55;--accent-green-bright:#69c99a;--accent-cyan:#69c99a;
+  --accent-gold:#f2df4b;--text-muted:#8b9997;--dot-red:#ff626b;--dot-blue:#8bdcff;
+}
+
+*{box-sizing:border-box;margin:0;padding:0;font-family:Roboto,"Arial Narrow",Arial,-apple-system,BlinkMacSystemFont,sans-serif;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{width:100%;min-height:100vh;background:var(--bg-dark);color:#e8eded;overflow-x:hidden}
+.keno-wrapper{width:100%;min-height:100vh;background:radial-gradient(ellipse at 50% 16%,rgba(36,76,59,.14),transparent 45%),var(--bg-dark);display:flex;flex-direction:column;padding-bottom:max(24px,env(safe-area-inset-bottom))}
+.main-content-limiter{width:100%;max-width:100%;margin:0 auto;display:flex;flex-direction:column}
+
+/* HEADER — NO ARROW */
+header.brand-bar{display:flex;justify-content:space-between;align-items:center;min-height:48px;padding:5px 10px;gap:8px;background:linear-gradient(180deg,#080b0a,#121716);border-bottom:1px solid #1e3027;box-shadow:0 4px 14px #0005;position:sticky;top:0;z-index:50}
+.brand-group{display:flex;align-items:center}
+.brand-logo{width:clamp(76px,15vw,118px);min-width:clamp(76px,15vw,118px);height:clamp(35px,6vw,56px);display:flex;align-items:center;justify-content:flex-start;flex:none}
+.brand-logo>img{display:block;width:100%;height:100%;object-fit:contain;object-position:left center}
+.brand-logo .logo-fallback{display:none;font-size:clamp(20px,3.6vw,30px);font-weight:900;font-style:italic;line-height:.78;letter-spacing:-1.1px}
+.brand-logo .logo-fallback>span{display:block}.brand-logo .logo-fallback .keno{color:#63c98f;margin-top:3px}
+
+.header-pill{flex:1;min-width:0;max-width:530px;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(180deg,#121b16,#111714);border:1px solid #294936;border-radius:28px;padding:6px 10px;gap:8px;box-shadow:inset 0 0 0 1px #1a2d21,0 1px 3px #0005}
+.balance-val{font-size:clamp(12px,2.5vw,18px);font-weight:500;color:#e7ca68;white-space:nowrap}
+.pill-divider{height:28px;width:1px;background:#2b4836}
+.round-id{font-size:clamp(10px,2.2vw,15px);color:#edf1ef;white-space:nowrap;display:flex;align-items:center;gap:4px}
+.verified-icon{width:clamp(17px,3vw,24px);height:clamp(17px,3vw,24px);fill:#69c99a;flex:none}
+.header-actions{display:flex;align-items:center;gap:clamp(8px,2.2vw,18px)}
+.icon-btn{background:transparent;border:none;color:#79d5a5;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:4px}
+.icon-btn svg{width:clamp(18px,4vw,25px);height:clamp(18px,4vw,25px);fill:currentColor}
+
+/* RADAR ARENA */
+.radar-arena{background:radial-gradient(ellipse at 50% 58%,rgba(19,88,70,.52) 0%,rgba(17,43,38,.36) 30%,rgba(17,29,29,.94) 70%,#171d1d 100%);min-height:clamp(170px,35vw,285px);padding:26px 10px 12px;position:relative;border:0;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;width:100%;isolation:isolate}
+.radar-rings-box{position:absolute;inset:-24%;display:flex;align-items:center;justify-content:center;pointer-events:none;overflow:hidden}
+.sonar-ring{position:absolute;border-radius:50%;border:0;background:repeating-conic-gradient(from 0deg,rgba(100,204,151,.11) 0deg 5deg,transparent 5deg 29deg);-webkit-mask:radial-gradient(circle,transparent 0 47%,#000 48% 49%,transparent 50% 59%,#000 60% 61%,transparent 62% 70%,#000 71% 72%,transparent 73%);mask:radial-gradient(circle,transparent 0 47%,#000 48% 49%,transparent 50% 59%,#000 60% 61%,transparent 62% 70%,#000 71% 72%,transparent 73%);opacity:.48}
+.r1{width:clamp(130px,34vw,240px);height:clamp(130px,34vw,240px)}
+.r2{width:clamp(220px,57vw,390px);height:clamp(220px,57vw,390px)}
+.r3{width:clamp(310px,80vw,550px);height:clamp(310px,80vw,550px)}
+.radar-arena:not(.drawing) .r1{animation:radarSpin 32s linear infinite}
+.radar-arena:not(.drawing) .r2{animation:radarSpinRev 43s linear infinite}
+.radar-arena:not(.drawing) .r3{animation:radarSpin 55s linear infinite}
+.radar-arena.drawing .r1{animation:radarSpin 8s linear infinite}
+.radar-arena.drawing .r2{animation:radarSpinRev 13s linear infinite}
+.radar-arena.drawing .r3{animation:radarSpin 19s linear infinite}
+@keyframes radarSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes radarSpinRev{from{transform:rotate(360deg)}to{transform:rotate(0deg)}}
+
+.radar-top-row{width:100%;display:flex;justify-content:space-between;align-items:center;position:absolute;top:8px;padding:0 10px;z-index:6;color:#a8b8b1}
+.radar-timer{
+  font-family:'TimerFont',monospace!important;
+  font-size:clamp(18px,3.7vw,25px)!important;
+  font-weight:400!important;
+  letter-spacing:.045em!important;
+  color:#fff!important;
+  font-variant-numeric:tabular-nums;
+  text-shadow:none!important;
+  line-height:1.25;
+}
+.radar-timer .timer-slash{color:#43f3a4!important;padding:0 .08em}
+
+/* SELECTION VIEW & SWIPE SLIDE */
+.selection-view{
+  position:relative;
+  isolation:isolate;
+  min-height:clamp(154px,35vw,280px);
+  width:100%;
+  margin:clamp(9px,1.8vw,14px) 0 clamp(8px,1.5vw,12px);
+  padding:clamp(16px,3.2vw,26px) clamp(12px,2.8vw,22px);
+  border-radius:9px;
+  background:#263133;
+  border:1px solid #222e2e;
+  overflow:hidden;
+  display:flex;
+  align-items:center;
+}
+.selection-view:before{content:"";position:absolute;inset:-25%;z-index:-1;pointer-events:none;opacity:.42;background:repeating-conic-gradient(from 10deg at 38% 52%,transparent 0deg 24deg,rgba(85,171,127,.095) 24deg 26deg,transparent 26deg 42deg);-webkit-mask:radial-gradient(ellipse at 38% 52%,transparent 0 20%,#000 21% 22%,transparent 23% 37%,#000 38% 39%,transparent 40% 53%,#000 54% 55%,transparent 56%);mask:radial-gradient(ellipse at 38% 52%,transparent 0 20%,#000 21% 22%,transparent 23% 37%,#000 38% 39%,transparent 40% 53%,#000 54% 55%,transparent 56%)}
+
+.banner-slide-wrap{width:100%;position:relative;overflow:hidden;min-height:120px;display:flex;align-items:center}
+.slide-panel{width:100%;transition:transform .32s cubic-bezier(.2,.8,.3,1), opacity .32s ease}
+.slide-panel.default-panel{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;text-align:left;gap:clamp(10px,2.4vw,22px)}
+.slide-panel.default-panel.slide-out{transform:translateX(-105%);opacity:0;pointer-events:none;position:absolute}
+.slide-panel.win-panel{display:none;opacity:0;transform:translateX(105%)}
+.slide-panel.win-panel.slide-in{display:block;opacity:1;transform:translateX(0)}
+
+.choose-illustration{order:0;flex:0 0 clamp(88px,22vw,112px);width:clamp(88px,22vw,112px);height:clamp(88px,22vw,112px);object-fit:contain;filter:drop-shadow(0 3px 4px rgba(0,0,0,.32))}
+.choose-copy{order:1;flex:1 1 auto;min-width:0;text-align:left}
+.choose-title{font-size:clamp(20px,4.5vw,34px);line-height:1.16;letter-spacing:-.025em;font-weight:800;color:#f0f3f2}
+.choose-sub{font-size:clamp(15px,3.25vw,25px);line-height:1.22;color:#69c99a;font-weight:800;margin-top:6px}
+
+/* POSSIBLE WIN VIEW */
+.win-top-line{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.possible-win-header{font-size:clamp(16px,3.4vw,24px);color:#e2e9e5;font-weight:700}
+.possible-win-header span{color:#63c78f;font-weight:900}
+.rule-q-btn{width:22px;height:22px;border-radius:50%;background:#1d2729;border:1px solid #334347;color:#8ba09c;font-size:12px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.odds-row{display:block;margin-bottom:clamp(9px,2vw,16px);font-size:clamp(11px,2.2vw,15px);color:#aab7b3}
+.odds-row>div{display:flex;align-items:center;gap:8px;line-height:1.6}
+.odds-row .hl{color:#fff;font-weight:700;min-width:28px;text-align:center}
+.selected-rack{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:clamp(3px,.8vw,7px);width:100%}
+.rack-slot{width:100%;height:clamp(32px,7.5vw,54px);border:0;border-radius:4px;background:#1d2729;font-size:clamp(12px,2.8vw,20px);font-weight:800;color:#e5e9e9;display:flex;align-items:center;justify-content:center}
+.rack-slot.filled{background:#1e2a2a;color:#fff}
+
+/* DRAW VIEW — EXACTLY 2 ROWS (NO DUPLICATE) */
+.draw-view{display:none;width:100%;flex-direction:column;align-items:center;z-index:2;padding:12px 0 6px}
+.big-3d-ball{
+  width:clamp(74px,16vw,108px);
+  height:clamp(74px,16vw,108px);
+  border-radius:50%;
+  border:2px solid rgba(111,152,169,.4);
+  background:radial-gradient(ellipse at 34% 19%,#657b8d 0%,#29445b 24%,#0d293e 58%,#061522 82%,#02090f 100%);
+  box-shadow:inset 0 3px 7px #ffffff65,inset 0 -8px 13px #0009,0 4px 16px #000b;
+  font-size:clamp(32px,7.5vw,52px);
+  font-weight:900;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  margin-bottom:8px;
+}
+.draw-result{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0}
+.draw-result-title{font-size:clamp(22px,5vw,34px);font-weight:900;letter-spacing:1px;text-transform:uppercase}
+.draw-result-title.win{color:#fff}
+.draw-result-title.try-again{color:#69c99a;margin-bottom:12px}
+.draw-result-amt{font-size:clamp(44px,10vw,72px);font-weight:900;color:#63c98f;line-height:1;margin:4px 0 8px;text-shadow:0 0 20px rgba(99,201,143,0.5)}
+
+/* Tray always holds the 20 balls in 2 rows of 10 */
+.drawn-tray{width:100%;max-width:760px;display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:clamp(4px,1vw,8px);padding:0 5px}
+.mini-ball{
+  width:100%;
+  aspect-ratio:1;
+  border:1px solid #405c6d;
+  border-radius:50%;
+  background:radial-gradient(ellipse at 34% 18%,#647a8c 0%,#29465c 24%,#0d2a41 61%,#041321 100%);
+  font-size:clamp(12px,3vw,21px);
+  font-weight:800;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow:inset 0 2px 4px #ffffff70,inset 0 -4px 6px #0009,0 2px 5px #0007;
+  color:#e9f0f3;
+  animation:popIn .3s ease;
+}
+.mini-ball.hit{
+  background:radial-gradient(circle at 35% 25%,#76edb2 0%,#159866 44%,#063b2a 88%)!important;
+  border-color:#6ce0a4!important;
+  box-shadow:inset 0 2px 4px #ffffff8a,0 0 14px #50d9939c!important;
+  color:#dffff0!important;
+}
+
+/* GRID & CONTROLS */
+.grid-section{padding:clamp(7px,1.4vw,11px) 10px;width:100%}
+.keno-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:clamp(3px,.55vw,5px);width:100%}
+.grid-cell{
+  height:clamp(37px,10.8vw,64px);
+  border-radius:5px;
+  border:1px solid #202a2e;
+  background:linear-gradient(180deg,#303a40 0%,#252e33 100%);
+  color:#aeb5ba;
+  font-size:clamp(14px,3.55vw,26px);
+  font-weight:800;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  position:relative;
+  transition:background .2s,color .2s;
+}
+.grid-cell.selected{background:linear-gradient(180deg,#2b684a,#4d9870);color:#f5fff9;border-color:#3b865f}
+.cell-dot{position:absolute;width:9px;height:9px;border-radius:50%;top:3px}
+.dot-hot{right:3px;background:var(--dot-red)}.dot-cold{left:3px;background:var(--dot-blue)}
+
+.controls-wrapper{padding:0 10px;width:100%}
+.bet-stepper{display:flex;align-items:center;background:linear-gradient(180deg,#303a40,#252f34);border-radius:4px;margin-bottom:clamp(8px,1.4vw,11px);gap:clamp(3px,.7vw,6px)}
+.ctrl-step-btn{width:clamp(32px,8vw,56px);height:clamp(44px,9vw,58px);font-size:clamp(24px,5vw,35px);color:#b8c0c3;background:transparent;border:none;cursor:pointer}
+.bet-amt-val{flex:1;text-align:center;font-size:clamp(23px,4.8vw,35px);color:#f0f2f2;font-weight:800}
+.quick-chips{display:flex;gap:4px}
+.quick-chip{height:clamp(44px,9vw,58px);padding:0 clamp(8px,2vw,18px);border:0;border-radius:4px;background:linear-gradient(180deg,#2d383e,#222b30);font-size:clamp(13px,3.1vw,22px);color:#65c995;font-weight:800;cursor:pointer}
+.main-bet-btn{width:100%;height:clamp(62px,12vw,88px);border:1px solid #2d714b;border-radius:4px;background:linear-gradient(180deg,#477f60 0%,#28563e 100%);font-size:clamp(22px,4.5vw,34px);font-weight:900;color:#fff;cursor:pointer}
+.main-bet-btn:disabled{opacity:.62}
+.main-bet-btn.accepted{background:#17422b;border-color:#27a863}
+
+/* ALL 5 TABS RESTORED - Mobile Edge-to-Edge Safe */
+.tabs-bar{display:flex;gap:2px;background:transparent;margin-top:clamp(14px,3vw,24px);padding:0 6px;width:100%;max-width:100%;overflow:hidden}
+.tab-item{flex:1 1 0;min-width:0;padding:9px 2px 10px;gap:3px;font-size:clamp(9.5px,2.4vw,15px);font-weight:700;color:#70c99b;border-bottom:3px solid transparent;background:transparent;white-space:nowrap;overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.tab-item .ic{width:clamp(12px,2.8vw,18px);height:clamp(12px,2.8vw,18px);flex-shrink:0;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tab-item span{overflow:hidden;text-overflow:ellipsis}
+.tab-item.active{color:#78d7a5;border-bottom-color:#78d7a5}
+.subview{display:none;padding:10px 12px;width:100%}.subview.active{display:block}
+
+/* GAME TICKETS */
+.feed-counts-line{display:flex;justify-content:space-between;font-size:clamp(12px,2.4vw,17px);color:#899995;margin-bottom:8px}
+.feed-counts-line strong{color:#62c790}
+.ticket-list{display:flex;flex-direction:column;gap:8px;width:100%}
+.ticket-row{background:#263133;border:1px solid #202a2c;border-radius:9px;padding:8px;display:flex;flex-direction:column;gap:7px}
+.ticket-row.user-ticket{border-color:#3d8d63;background:#203b2d}
+.ticket-user-line{font-size:clamp(14px,2.6vw,20px);color:#65c994;font-weight:800;display:flex;justify-content:space-between}
+.ticket-numbers-grid{display:flex;gap:4px}
+.ticket-slot{flex:1;min-width:0;height:clamp(34px,6.2vw,50px);border-radius:4px;background:#1e282a;color:#e5e9e9;font-size:clamp(13px,2.8vw,20px);font-weight:700;display:flex;align-items:center;justify-content:center}
+.ticket-slot.hit{background:#50b783!important;color:#fff!important;font-weight:900}
+.ticket-bottom-line{display:flex;justify-content:space-between;align-items:center;font-size:clamp(13px,2.6vw,19px);color:#c7cecc}
+.ticket-win-val{color:#69c99a!important;font-size:clamp(15px,3vw,22px)!important;font-weight:900!important}
+
+/* HISTORY VIEW (ምስል 1) */
+.hist-round-header{display:flex;align-items:center;justify-content:center;gap:12px;margin:12px 0 8px;width:100%}
+.hist-divider-line{flex:1;height:1px;background:#324140}
+.hist-center-info{display:flex;align-items:center;gap:8px}
+.hist-shield-icon{width:22px;height:22px;fill:#69c99a;flex:none}
+.hist-meta-text{display:flex;flex-direction:column;align-items:center}
+.hist-id-title{color:#69c99a;font-size:clamp(13px,2.6vw,17px);font-weight:800}
+.hist-time-title{color:#8b9997;font-size:clamp(11px,2.2vw,14px);font-weight:600}
+
+.atlas-fairness-box{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:26px 15px;width:100%}
+.atlas-shield{width:42px;height:42px;fill:#69c99a;margin-bottom:8px}
+.atlas-fairness-txt{font-size:16px;font-weight:900;letter-spacing:2px;color:#fff;margin-bottom:6px}
+.atlas-logo-main{font-size:24px;font-weight:900;letter-spacing:3px;color:#cbd5e1}
+.atlas-sub{font-size:11px;font-weight:700;letter-spacing:5px;color:#8397a4;margin-top:2px}
+
+/* RESULTS TAB (ምስል 2) */
+.res-table-wrap{width:100%;display:flex;flex-direction:column;gap:6px}
+.res-header-row{display:flex;justify-content:space-between;font-size:clamp(11px,2.4vw,15px);color:#8397a4;font-weight:700;padding:2px 8px}
+.res-card-row{display:flex;align-items:stretch;justify-content:space-between;background:#263133;border:1px solid #202a2c;border-radius:8px;padding:6px 8px;gap:8px}
+.res-card-left{display:flex;flex-direction:column;justify-content:center;gap:3px;min-width:clamp(74px,20vw,110px);border-right:1px solid #36413f;padding-right:6px}
+.res-id-badge{display:flex;align-items:center;gap:4px;color:#69c99a;font-weight:800;font-size:clamp(11px,2.4vw,15px)}
+.res-id-badge svg{width:clamp(14px,2.8vw,18px);height:clamp(14px,2.8vw,18px);fill:#69c99a;flex:none}
+.res-time-txt{font-size:clamp(9px,2vw,13px);color:#8b9997;font-weight:600;padding-left:18px}
+.res-wait-badge{background:#1d2729;color:#8397a4;font-size:clamp(11px,2.4vw,15px);font-weight:800;border-radius:6px;flex:1;display:flex;align-items:center;justify-content:center;letter-spacing:2px}
+.res-grid-20{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:3px;flex:1;align-content:center}
+.res-grid-cell{background:#34434a;border:1px solid #2b373b;color:#c7cece;font-size:clamp(9px,2vw,14px);font-weight:700;display:flex;align-items:center;justify-content:center;height:clamp(22px,4.5vw,30px);border-radius:3px}
+
+/* STATISTICS VIEW */
+.stat-row{background:#263133;border:1px solid #202a2c;border-radius:8px;padding:5px 8px;margin-bottom:6px;display:flex;align-items:center;gap:10px;font-size:clamp(13px,2.7vw,21px);min-height:43px}
+.stat-num{width:36px;height:36px;display:grid;place-items:center;border-radius:5px;background:#3b484e;color:#dbe1e2;font-size:clamp(15px,3vw,24px);font-weight:800}
+.stat-bar-outer{flex:1;height:3px;background:#1e2929;overflow:hidden}
+.stat-bar-fill{height:100%;background:#63bd8d}
+.stat-count{width:28px;text-align:right;color:#e3e9e6;font-size:clamp(12px,2.4vw,18px);font-weight:700}
+
+/* LEADERS TAB */
+.table-leaders{width:100%;border-collapse:separate;border-spacing:0 7px;font-size:clamp(13px,2.7vw,21px)}
+.table-leaders th{padding:8px 6px;border:0;color:#8f9d98;font-weight:500;text-align:left}
+.table-leaders td{padding:clamp(12px,2.7vw,21px) 7px;border:0;background:#263133;color:#e3e9e6}
+.table-leaders td:first-child{border-radius:7px 0 0 7px;color:#66c995}
+.table-leaders td:last-child{border-radius:0 7px 7px 0;color:#f2df4b!important;font-weight:800}
+
+/* TOAST */
+.toast-overlay{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:calc(100% - 38px);max-width:440px;z-index:1200;display:none}
+.toast-box{position:relative;display:flex;align-items:center;justify-content:center;gap:10px;min-height:70px;padding:16px 20px;border-radius:12px;font-size:clamp(18px,4.5vw,26px);font-weight:900;letter-spacing:.3px;text-transform:uppercase}
+.toast-box.success{background:linear-gradient(145deg,#347f57,#1b5138);border:1px solid #69d99c;color:#f4fff8}
+.toast-box.error{background:linear-gradient(145deg,#562c2e,#351b1c);border:1px solid #a74f52;color:#ffe5e5}
+.toast-close{position:absolute;right:8px;top:8px;background:none;border:none;color:inherit;cursor:pointer}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(3,7,6,.85);backdrop-filter:blur(6px);z-index:999;display:none;align-items:center;justify-content:center;padding:14px}
+.modal-container{width:100%;max-width:500px;background:#202a2a;border:1px solid #365b46;border-radius:12px;display:flex;flex-direction:column;overflow:hidden}
+.modal-header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #34433d}
+.modal-nav{display:flex;gap:6px}
+.modal-nav-btn{background:#293535;border:none;color:#aab8b2;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer}
+.modal-nav-btn.active{background:linear-gradient(180deg,#4a916a,#286044);color:#fff}
+.modal-body{padding:14px;overflow:auto;font-size:13px;color:#d3ddda;line-height:1.5}
+.paytable-grid-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:10px;text-align:center}
+.paytable-grid-table th,.paytable-grid-table td{border:1px solid #2f3e37;padding:5px 2px}
+.paytable-grid-table th{background:#172221;color:#69c99a}
+@keyframes popIn{0%{transform:scale(.3);opacity:0}100%{transform:scale(1);opacity:1}}
+</style>
+</head>
+<body>
+<div class="keno-wrapper">
+  <!-- TOAST -->
+  <div class="toast-overlay" id="toast-overlay">
+    <div class="toast-box" id="toast-box">
+      <span id="toast-message"></span>
+      <button class="toast-close" onclick="hideToast()"><svg style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+  </div>
+
+  <!-- HEADER (NO ARROW) -->
+  <header class="brand-bar">
+    <div class="brand-group">
+      <div class="brand-logo"><img src="https://i.postimg.cc/BvftYkXb/20261019-184611.png" alt="FAST KENO" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><span class="logo-fallback"><span>FAST</span><span class="keno">KENO</span></span></div>
+    </div>
+    <div class="header-pill">
+      <span class="balance-val"><span id="lbl-balance">0.00</span> ETB</span>
+      <div class="pill-divider"></div>
+      <span class="round-id">
+        <span>ID:</span><strong id="lbl-round-id" style="color:#fff;">893718411</strong>
+        <svg class="verified-icon" viewBox="0 0 24 24" aria-label="Verified"><path d="M12 1.4 3.2 4.7v6.1c0 5.5 3.7 9.7 8.8 11.8 5.1-2.1 8.8-6.3 8.8-11.8V4.7L12 1.4Z"/><path d="m7.2 11.9 3.1 3.1 6.7-7" fill="none" stroke="#e9fff3" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+    </div>
+    <div class="header-actions">
+      <button class="icon-btn" onclick="openRulesModal()" title="Menu" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></button>
+      <button class="icon-btn" onclick="openSupport()" title="Chat" aria-label="Chat"><svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8A8.5 8.5 0 0 1 8.7 3.9a8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+  </header>
+
+  <div class="main-content-limiter">
+    <!-- RADAR ARENA -->
+    <section class="radar-arena" id="radar-arena">
+      <div class="radar-rings-box">
+        <div class="sonar-ring r1"></div>
+        <div class="sonar-ring r2"></div>
+        <div class="sonar-ring r3"></div>
+      </div>
+      <div class="radar-top-row">
+        <div></div>
+        <div class="radar-timer" id="stage-timer">00:54</div>
+        <div class="rule-q-btn" onclick="openRulesModal()">?</div>
+      </div>
+
+      <!-- SELECTION VIEW WITH SWIPE SLIDE PANELS -->
+      <div class="selection-view" id="selection-view">
+        <div class="banner-slide-wrap">
+          <!-- PANEL 1: CHOOSE 10 NUMBERS -->
+          <div class="slide-panel default-panel" id="default-banner">
+            <img class="choose-illustration" src="https://i.postimg.cc/8ccCfV0p/20261019-184700.png" alt="Keno balls">
+            <div class="choose-copy">
+              <div class="choose-title">Choose 10 numbers</div>
+              <div class="choose-sub">From 1 to 80</div>
+            </div>
+          </div>
+
+          <!-- PANEL 2: POSSIBLE WIN & RACK -->
+          <div class="slide-panel win-panel" id="possible-win-view">
+            <div class="win-top-line">
+              <div class="possible-win-header"><span id="lbl-stake-indicator">2</span> Possible win <span id="lbl-possible-win">100</span></div>
+              <div class="rule-q-btn" onclick="openRulesModal()">?</div>
+            </div>
+            <div class="odds-row" id="odds-row-container"></div>
+            <div class="selected-rack" id="selected-rack"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DRAW VIEW — EXACTLY 20 BALLS (NO DUPLICATE) -->
+      <div class="draw-view" id="draw-view">
+        <div class="big-3d-ball" id="current-drawn-ball">?</div>
+        <div class="draw-result" id="draw-result"></div>
+        <div class="drawn-tray" id="drawn-tray"></div>
+      </div>
+    </section>
+
+    <!-- GRID SECTION -->
+    <section class="grid-section" id="grid-container-section"><div class="keno-grid" id="keno-grid"></div></section>
+
+    <!-- CONTROLS SECTION (MIN BET = 2) -->
+    <section class="controls-wrapper" id="controls-section">
+      <div class="bet-stepper">
+        <button class="ctrl-step-btn" onclick="adjustBet(-1)">−</button>
+        <div class="bet-amt-val" id="lbl-bet-amount">2</div>
+        <button class="ctrl-step-btn" onclick="adjustBet(1)">+</button>
+        <div class="quick-chips">
+          <button class="quick-chip" onclick="multiplyBet(2)">X2</button>
+          <button class="quick-chip" onclick="setMaxBet()">MAX</button>
+        </div>
+      </div>
+      <button class="main-bet-btn" id="btn-bet" onclick="placeKenoTicket()"><span id="btn-bet-label">BET</span></button>
+    </section>
+
+    <!-- ALL 5 TABS RESTORED -->
+    <nav class="tabs-bar">
+      <div class="tab-item active" onclick="switchTab('game',this)"><svg class="ic" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg><span>GAME</span></div>
+      <div class="tab-item" onclick="switchTab('history',this)"><svg class="ic" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 2.6-6.4L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg><span>HISTORY</span></div>
+      <div class="tab-item" onclick="switchTab('results',this)"><svg class="ic" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span>RESULTS</span></div>
+      <div class="tab-item" onclick="switchTab('statistics',this)"><svg class="ic" viewBox="0 0 24 24"><path d="M3 21V13h4v8M10 21V8h4v13M17 21V3h4v18"/><path d="m2 9 6-5 5 3 8-5"/></svg><span>STATISTICS</span></div>
+      <div class="tab-item" onclick="switchTab('leaders',this)"><svg class="ic" viewBox="0 0 24 24"><path d="M3 7h4l5 6 5-6h4l-2 12H5L3 7Z"/><path d="M7 7 5 3M17 7l2-4M12 13V3"/></svg><span>LEADERS</span></div>
+    </nav>
+
+    <!-- VIEW 1: GAME -->
+    <section class="subview active" id="view-game">
+      <div class="feed-counts-line">
+        <span>All <strong id="lbl-all-count">121</strong></span>
+        <span>My Tickets <strong id="lbl-my-tickets-count">0</strong></span>
+        <span>My Bets <strong id="lbl-my-bets-total">0</strong></span>
+      </div>
+      <div class="ticket-list" id="my-tickets-container"></div>
+      <div class="ticket-list" id="live-dynamic-tickets-container" style="margin-top:6px;"></div>
+    </section>
+
+    <!-- VIEW 2: HISTORY -->
+    <section class="subview" id="view-history">
+      <div class="ticket-list" id="history-container"></div>
+      <div class="atlas-fairness-box">
+        <svg class="atlas-shield" viewBox="0 0 24 24"><path d="M12 1.4 3.2 4.7v6.1c0 5.5 3.7 9.7 8.8 11.8 5.1-2.1 8.8-6.3 8.8-11.8V4.7L12 1.4Z"/><path d="m7.2 11.9 3.1 3.1 6.7-7" fill="none" stroke="#e9fff3" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div class="atlas-fairness-txt">FAIRNESS</div>
+        <div class="atlas-logo-main">ATLAS-V</div>
+        <div class="atlas-sub">GAMING</div>
+      </div>
+    </section>
+
+    <!-- VIEW 3: RESULTS -->
+    <section class="subview" id="view-results">
+      <div class="ticket-list" id="results-container"></div>
+    </section>
+
+    <!-- VIEW 4: STATISTICS -->
+    <section class="subview" id="view-statistics">
+      <div class="stats-scroll-list" id="stats-bars-container"></div>
+    </section>
+
+    <!-- VIEW 5: LEADERS (RESTORED) -->
+    <section class="subview" id="view-leaders">
+      <table class="table-leaders"><thead><tr><th>#</th><th>Player</th><th>Game</th><th>Win</th></tr></thead><tbody id="leaders-tbody"></tbody></table>
+    </section>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="rules-modal">
+  <div class="modal-container">
+    <div class="modal-header">
+      <div class="modal-nav">
+        <button class="modal-nav-btn active" id="modal-nav-rules" onclick="switchModalTab('rules')">RULES</button>
+        <button class="modal-nav-btn" id="modal-nav-paytable" onclick="switchModalTab('paytable')">PAYTABLE</button>
+      </div>
+      <button class="icon-btn" onclick="closeRulesModal()"><svg style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-body" id="modal-content"></div>
+  </div>
+</div>
+
+<script>
+/**
+ * FAST KENO — Production Engine (Exact Sync with server.js)
+ * MIN_BET = 2, No Duplicate Balls, Clean Try Again, Restored Leaders
+ */
+const API = window.location.origin;
+let INIT_DATA = "";
+let serverBalance = 0, shownBalance = 0, ready = false;
+let serverOffsetMs = 0;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) {
+  INIT_DATA = window.Telegram.WebApp.initData;
+}
+
+// ---------------- 1. API Helper ----------------
+async function api(path, opts = {}) {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+    const r = await fetch(API + path, {
+      ...opts,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-telegram-init-data': INIT_DATA,
+        ...(opts.headers || {})
+      }
+    });
+    clearTimeout(timeoutId);
+    return await r.json();
+  } catch (e) {
+    return { success: false, message: 'Connection problem' };
+  }
+}
+
+const postParent = m => { try { parent.postMessage(m, '*'); } catch (e) {} };
+
+addEventListener('message', e => {
+  if (e.source !== parent) return;
+  const d = e.data || {};
+  if (d.type === 'INIT' && d.initData) {
+    INIT_DATA = d.initData;
+    if (Number.isFinite(Number(d.balance))) {
+      serverBalance = Number(d.balance);
+      if (!isDrawingPhase) {
+        shownBalance = serverBalance;
+        const bEl = $('lbl-balance');
+        if (bEl) bEl.textContent = Number(shownBalance).toFixed(2);
+      }
+    }
+    ready = true;
+    syncServerClock();
+    refreshBalance();
+    initPaytable();
+  }
+  if (d.type === 'UPDATE_BALANCE') {
+    if (Number.isFinite(Number(d.balance))) {
+      serverBalance = Number(d.balance);
+      if (!isDrawingPhase) {
+        shownBalance = serverBalance;
+        const bEl = $('lbl-balance');
+        if (bEl) bEl.textContent = Number(shownBalance).toFixed(2);
+      }
+    }
+    refreshBalance();
+  }
+});
+postParent({ type: 'GAME_READY' });
+
+// ---------------- 2. Server Clock Sync ----------------
+async function syncServerClock() {
+  try {
+    const d = await api('/api/keno/round/current');
+    if (d && d.serverTime) {
+      serverOffsetMs = d.serverTime - Date.now();
+    }
+  } catch (e) {}
+}
+setInterval(syncServerClock, 30000);
+
+// ---------------- 3. Global Round & Cycle (Matching server.js MIN_BET = 2) ----------------
+const BET_WINDOW = 60;   
+const DRAW_WINDOW = 20;  
+const TOTAL_CYCLE = 80;  
+const MIN_BET = 2, MAX_BET = 1000, MAX_PICKS = 10;
+const MAX_PAYOUT = 30000;
+const ROUND_ID_BASE = 893718000;
+
+function getGlobalRound() {
+  const nowMs = Date.now() + serverOffsetMs;
+  const nowSec = Math.floor(nowMs / 1000);
+  const roundId = ROUND_ID_BASE + (Math.floor(nowSec / TOTAL_CYCLE) % 10000);
+  const cycleSec = nowSec % TOTAL_CYCLE;
+  const isDrawing = cycleSec >= BET_WINDOW;
+  const remainingSec = isDrawing ? (TOTAL_CYCLE - cycleSec) : (BET_WINDOW - cycleSec);
+  const roundStartSec = Math.floor(nowSec / TOTAL_CYCLE) * TOTAL_CYCLE;
+  const betClosesAtMs = (roundStartSec + BET_WINDOW) * 1000;
+
+  return { roundId, cycleSec, isDrawing, remainingSec, nowMs, betClosesAtMs };
+}
+
+// ---------------- 4. Paytable ----------------
+let paytable = {
+  "1": { 1: 3.0 },
+  "2": { 2: 11.5 },
+  "3": { 2: 2.0, 3: 50.0 },
+  "4": { 2: 1.0, 3: 6.0, 4: 62.0 },
+  "5": { 2: 0.5, 3: 2.0, 4: 16.5, 5: 233.0 },
+  "6": { 3: 1.5, 4: 8.0, 5: 49.0, 6: 814.0 },
+  "7": { 3: 1.5, 4: 3.5, 5: 18.5, 6: 91.0, 7: 1828.0 },
+  "8": { 4: 3.5, 5: 11.5, 6: 57.0, 7: 341.0, 8: 5684.0 },
+  "9": { 4: 2.0, 5: 5.5, 6: 26.0, 7: 158.0, 8: 1056.0, 9: 10561.0 },
+  "10": { 0: 1.0, 5: 3.5, 6: 18.5, 7: 98.0, 8: 490.0, 9: 3061.0, 10: 12243.0 }
+};
+
+async function initPaytable() {
+  const d = await api('/api/keno/paytable');
+  if (d && d.success && d.paytable) paytable = d.paytable;
+}
+
+function safePicks(val) {
+  if (Array.isArray(val)) return val.map(Number);
+  if (typeof val === 'string') {
+    const cleaned = val.replace(/[\{\}\[\]\s"']/g, '');
+    if (!cleaned) return [];
+    return cleaned.split(',').map(Number).filter(n => Number.isInteger(n) && n >= 1 && n <= 80);
+  }
+  return [];
+}
+
+// ---------------- 5. State Variables ----------------
+let currentBetAmount = 2, selectedNumbers = new Set();
+let isDrawingPhase = false, isRequestInFlight = false;
+let myActiveTickets = [], fullHistory = [];
+let drawStatsHistory = [];
+let lastExecutedRoundId = 0;
+let currentRoundDrawnBalls = [];
+let isSettledThisRound = false;
+
+let dynamicAllCount = 121;
+let dynamicLiveTickets = [], simTicketSeq = 100;
+const PLAYER_NAMES = ["c***3", "5***a", "7***7", "b***h", "d***k", "j***v", "y***o"];
+const STAKE_AMOUNTS = [2, 4, 10, 20, 50, 100];
+
+function computeBaseRoundBets(rId) {
+  return 120 + ((rId * 37) % 1500);
+}
+
+function createPlayerTicket() {
+  simTicketSeq++;
+  const name = PLAYER_NAMES[Math.floor(Math.random() * PLAYER_NAMES.length)];
+  const pickCount = Math.floor(Math.random() * 3) + 2;
+  const pool = Array.from({ length: 80 }, (_, i) => i + 1).sort(() => Math.random() - .5);
+  return {
+    id: `sim_${simTicketSeq}`,
+    user: name,
+    picks: pool.slice(0, pickCount),
+    amount: STAKE_AMOUNTS[Math.floor(Math.random() * STAKE_AMOUNTS.length)],
+    status: 'Waiting'
+  };
+}
+
+function initPlayerFeed() {
+  dynamicLiveTickets = [
+    { id: 'sim_1', user: 'c***3', picks: [7, 8, 9], amount: 100, status: 'Waiting' },
+    { id: 'sim_2', user: '5***a', picks: [44, 17, 58], amount: 100, status: 'Waiting' },
+    { id: 'sim_3', user: 'c***3', picks: [6, 15, 5], amount: 100, status: 'Waiting' }
+  ];
+  renderPlayerFeed();
+}
+
+function renderPlayerFeed() {
+  const c = $('live-dynamic-tickets-container');
+  if (!c) return;
+  c.innerHTML = dynamicLiveTickets.map(t => {
+    const slots = Array.from({ length: 10 }, (_, i) => {
+      const p = t.picks[i];
+      return p !== undefined ? `<div class="ticket-slot" id="dslot_${t.id}_${p}">${p}</div>` : '<div class="ticket-slot empty"></div>';
+    }).join('');
+    return `
+      <div class="ticket-row" id="prow_${t.id}">
+        <div class="ticket-user-line"><span>${t.user}</span></div>
+        <div class="ticket-numbers-grid">${slots}</div>
+        <div class="ticket-bottom-line"><span>Bet ${t.amount}</span><span class="status-waiting" id="dstatus_${t.id}">${t.status}</span></div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ---------------- 6. Balance Management ----------------
+async function refreshBalance() {
+  const d = await api('/api/user/init');
+  if (d && d.success) {
+    serverBalance = d.balance;
+    if (!isDrawingPhase) {
+      shownBalance = d.balance;
+      renderBalanceDisplay();
+    }
+    if (Array.isArray(d.myTickets) && d.myTickets.length > 0 && myActiveTickets.length === 0) {
+      myActiveTickets = d.myTickets.map((t, idx) => ({
+        id: t.id,
+        num: idx + 1,
+        picks: safePicks(t.picks),
+        amount: t.amount,
+        status: t.status === 'PENDING' ? 'Waiting' : t.status,
+        payout: t.payout || 0
+      }));
+      renderActiveUserTickets();
+    }
+  }
+}
+
+function renderBalanceDisplay() {
+  const bEl = $('lbl-balance');
+  if (bEl) bEl.textContent = Number(shownBalance).toFixed(2);
+  postParent({ type: 'BALANCE_UPDATE', newBalance: serverBalance });
+}
+
+// ---------------- 7. Selection Grid & Swipe Animation ----------------
+function buildGrid() {
+  const g = $('keno-grid');
+  if (!g) return;
+  g.innerHTML = '';
+  for (let i = 1; i <= 80; i++) {
+    const c = document.createElement('div');
+    c.className = 'grid-cell'; c.id = 'cell-' + i; c.textContent = i;
+    c.onclick = () => togglePick(i);
+    g.appendChild(c);
+  }
+}
+
+function syncGridSelections() {
+  for (let i = 1; i <= 80; i++) {
+    const el = $('cell-' + i);
+    if (el) el.classList.toggle('selected', selectedNumbers.has(i));
+  }
+}
+
+function togglePick(n) {
+  if (isDrawingPhase) return;
+  if (selectedNumbers.has(n)) selectedNumbers.delete(n);
+  else {
+    if (selectedNumbers.size >= MAX_PICKS) return showToast('Maximum 10 numbers allowed', 'error');
+    selectedNumbers.add(n);
+  }
+  syncGridSelections();
+  updatePossibleWin();
+}
+
+function clearPicks() {
+  if (isDrawingPhase) return;
+  selectedNumbers.clear();
+  syncGridSelections();
+  updatePossibleWin();
+}
+
+function updatePossibleWin() {
+  const def = $('default-banner'), win = $('possible-win-view'), count = selectedNumbers.size;
+  if (!def || !win) return;
+
+  if (count === 0 || !paytable) {
+    def.classList.remove('slide-out');
+    win.classList.remove('slide-in');
+    return;
+  }
+
+  def.classList.add('slide-out');
+  win.classList.add('slide-in');
+
+  $('lbl-stake-indicator').textContent = currentBetAmount;
+
+  const t = paytable[String(count)] || {};
+  const mults = Object.values(t);
+  const maxM = mults.length ? Math.max(...mults) : 0;
+  const calcWin = Math.min(MAX_PAYOUT, Math.round(maxM * currentBetAmount));
+  $('lbl-possible-win').textContent = calcWin;
+
+  let match = '<span>Match</span>', pays = '<span>Pays</span>';
+  const hitKeys = Object.keys(t).map(Number).sort((a,b)=>a-b);
+  for (const h of hitKeys) {
+    match += `<span class="hl">${h}</span>`;
+    pays += `<span class="hl">x${t[h]}</span>`;
+  }
+  $('odds-row-container').innerHTML = `<div>${match}</div><div>${pays}</div>`;
+
+  const rack = $('selected-rack'); rack.innerHTML = '';
+  const arr = [...selectedNumbers];
+  for (let i = 0; i < MAX_PICKS; i++) {
+    const s = document.createElement('div'); s.className = 'rack-slot';
+    if (arr[i] !== undefined) { s.classList.add('filled'); s.textContent = arr[i]; }
+    rack.appendChild(s);
+  }
+}
+
+function setBet(v) {
+  v = Math.round(v * 100) / 100;
+  currentBetAmount = Math.min(MAX_BET, Math.max(MIN_BET, v));
+  $('lbl-bet-amount').textContent = currentBetAmount.toFixed(0);
+  updatePossibleWin();
+}
+function adjustBet(d) { if (isDrawingPhase) return; setBet(currentBetAmount + d); }
+function multiplyBet(m) { if (isDrawingPhase) return; setBet(currentBetAmount * m); }
+function setMaxBet() { if (isDrawingPhase) return; setBet(Math.min(MAX_BET, Math.floor(serverBalance) || MIN_BET)); }
+
+// ---------------- 8. Bet Placement (Strict MIN_BET = 2) ----------------
+async function placeKenoTicket() {
+  if (isDrawingPhase || isRequestInFlight) return;
+  if (selectedNumbers.size === 0) return showToast('Choose at least 1 number', 'error');
+
+  const stake = Math.max(MIN_BET, currentBetAmount);
+  if (serverBalance < stake) {
+    showToast('Not enough balance for this bet', 'error');
+    postParent({ type: 'OPEN_DEPOSIT' });
+    return;
+  }
+
+  const { roundId, cycleSec } = getGlobalRound();
+  if (cycleSec >= BET_WINDOW) {
+    return showToast('Betting closed for this round. Please wait.', 'error');
+  }
+
+  isRequestInFlight = true;
+  const btn = $('btn-bet');
+  btn.disabled = true; btn.classList.add('accepted');
+  $('btn-bet-label').textContent = 'BET ACCEPTED';
+  postParent({ type: 'BET_STARTED' });
+
+  const picks = [...selectedNumbers];
+  const idempotencyKey = 'idemp_' + Date.now() + '_' + Math.random().toString(36).substring(2);
+
+  const res = await api('/api/bet/play', {
+    method: 'POST',
+    body: JSON.stringify({
+      gameName: 'KenoFast',
+      betAmount: stake,
+      clientData: { picks },
+      idempotencyKey
+    })
+  });
+
+  if (!res || !res.success) {
+    isRequestInFlight = false;
+    btn.disabled = false; btn.classList.remove('accepted');
+    $('btn-bet-label').textContent = 'BET';
+    postParent({ type: 'BET_ENDED' });
+    showToast(res && res.message ? res.message : 'Bet failed', 'error');
+    return;
+  }
+
+  serverBalance = res.newBalance;
+  shownBalance = res.newBalance;
+  renderBalanceDisplay();
+
+  const tIndex = myActiveTickets.length + 1;
+  const ticketObj = {
+    id: res.ticketId || `tkt_${Date.now()}`,
+    num: tIndex,
+    picks: picks,
+    amount: stake,
+    roundId: roundId,
+    status: 'Waiting',
+    payout: 0
+  };
+  myActiveTickets.push(ticketObj);
+  renderActiveUserTickets();
+
+  dynamicAllCount += Math.floor(Math.random() * 4) + 1;
+  if ($('lbl-all-count')) $('lbl-all-count').textContent = dynamicAllCount.toLocaleString();
+
+  isRequestInFlight = false;
+  btn.disabled = false; btn.classList.remove('accepted');
+  $('btn-bet-label').textContent = 'BET';
+  clearPicks();
+}
+
+function renderActiveUserTickets() {
+  const container = $('my-tickets-container');
+  if (!container) return;
+  container.innerHTML = '';
+  
+  if ($('lbl-my-tickets-count')) $('lbl-my-tickets-count').textContent = myActiveTickets.length;
+  const tot = myActiveTickets.reduce((s, t) => s + t.amount, 0);
+  if ($('lbl-my-bets-total')) $('lbl-my-bets-total').textContent = tot.toFixed(0);
+
+  myActiveTickets.slice().reverse().forEach(t => {
+    const picksArr = safePicks(t.picks);
+    const slots = Array.from({ length: 10 }, (_, i) => {
+      const p = picksArr[i];
+      const isHit = currentRoundDrawnBalls.includes(p);
+      return p !== undefined 
+        ? `<div class="ticket-slot ${isHit ? 'hit' : ''}" id="uslot_${t.id}_${p}">${p}</div>` 
+        : '<div class="ticket-slot empty"></div>';
+    }).join('');
+
+    const card = document.createElement('div');
+    card.className = 'ticket-row user-ticket';
+    card.id = 'trow_' + t.id;
+
+    let rightText = `<span class="status-waiting" id="uwin_${t.id}">Waiting</span>`;
+    if (t.status === 'WON' && t.payout > 0) {
+      rightText = `<span class="ticket-win-val" id="uwin_${t.id}">${t.payout}</span>`;
+    } else if (t.status === 'LOST') {
+      rightText = `<span></span>`;
+    }
+
+    card.innerHTML = `
+      <div class="ticket-user-line"><span>${t.num} My Ticket</span></div>
+      <div class="ticket-numbers-grid">${slots}</div>
+      <div class="ticket-bottom-line"><span>Bet ${t.amount.toFixed(0)}</span>${rightText}</div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+// ---------------- 9. Deterministic Balls Generator ----------------
+function generateDeterministicBalls(roundId) {
+  let seed = (Math.abs(Number(roundId)) * 9301 + 49297) % 233280;
+  const pool = Array.from({ length: 80 }, (_, i) => i + 1);
+  for (let i = pool.length - 1; i > 0; i--) {
+    seed = (seed * 9301 + 49297) % 233280;
+    const j = Math.floor((seed / 233280) * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, 20);
+}
+
+// ---------------- 10. 24/7 Clock Orchestrator ----------------
+setInterval(async () => {
+  const round = getGlobalRound();
+  if ($('lbl-round-id')) $('lbl-round-id').textContent = round.roundId;
+
+  // 1. BETTING STAGE (0s to 59s)
+  if (!round.isDrawing) {
+    isDrawingPhase = false;
+    isSettledThisRound = false;
+
+    $('grid-container-section').style.display = 'block';
+    $('controls-section').style.display = 'block';
+    $('draw-view').style.display = 'none';
+    $('selection-view').style.display = 'flex';
+    $('radar-arena').classList.remove('drawing');
+
+    const remSec = round.remainingSec;
+    const tEl = $('stage-timer');
+    tEl.innerHTML = `00<span class="timer-slash">:</span>${remSec < 10 ? '0' : ''}${remSec}`;
+
+    if (lastExecutedRoundId !== round.roundId) {
+      lastExecutedRoundId = round.roundId;
+      dynamicAllCount = computeBaseRoundBets(round.roundId);
+      if ($('lbl-all-count')) $('lbl-all-count').textContent = dynamicAllCount.toLocaleString();
+      myActiveTickets = [];
+      renderActiveUserTickets();
+      initPlayerFeed();
+      $('btn-bet').disabled = false;
+      refreshBalance();
+
+      // Reset draw view
+      if ($('current-drawn-ball')) {
+        $('current-drawn-ball').style.display = 'flex';
+        $('current-drawn-ball').textContent = '?';
+      }
+      if ($('draw-result')) $('draw-result').innerHTML = '';
+      if ($('drawn-tray')) $('drawn-tray').innerHTML = '';
+      currentRoundDrawnBalls = [];
+    }
+
+    if (remSec % 2 === 0) {
+      dynamicAllCount += Math.floor(Math.random() * 25) + 6;
+      if ($('lbl-all-count')) $('lbl-all-count').textContent = dynamicAllCount.toLocaleString();
+      if (dynamicLiveTickets.length < 8 && Math.random() < 0.55) {
+        dynamicLiveTickets.unshift(createPlayerTicket());
+        renderPlayerFeed();
+      }
+    }
+  } 
+  // 2. DRAW STAGE (60s to 80s)
+  else {
+    isDrawingPhase = true;
+
+    $('grid-container-section').style.display = 'none';
+    $('controls-section').style.display = 'none';
+    $('selection-view').style.display = 'none';
+    $('draw-view').style.display = 'flex';
+    $('radar-arena').classList.add('drawing');
+
+    const drawSec = round.cycleSec - BET_WINDOW;
+    const currentBallNum = Math.min(20, drawSec + 1);
+
+    const tEl = $('stage-timer');
+    tEl.innerHTML = `${currentBallNum < 10 ? '0' + currentBallNum : currentBallNum}<span class="timer-slash"> / </span>20`;
+
+    if (currentRoundDrawnBalls.length !== 20) {
+      try {
+        const cur = await api('/api/keno/round/current');
+        if (cur && Array.isArray(cur.drawnNumbers) && cur.drawnNumbers.length === 20) {
+          currentRoundDrawnBalls = safePicks(cur.drawnNumbers);
+        }
+      } catch (e) {}
+
+      if (currentRoundDrawnBalls.length !== 20) {
+        currentRoundDrawnBalls = generateDeterministicBalls(round.roundId);
+      }
+    }
+
+    // 🌟 ኳሶቹ ወደ #drawn-tray ብቻ ይገባሉ (ከ 20 በላይ አይደገሙም)
+    const big = $('current-drawn-ball');
+    if (drawSec < 20 && currentRoundDrawnBalls[drawSec]) {
+      const b = currentRoundDrawnBalls[drawSec];
+      if (big) {
+        big.textContent = b;
+        big.style.animation = 'none'; void big.offsetWidth;
+        big.style.animation = 'popIn .35s cubic-bezier(.175,.885,.32,1.275)';
+      }
+
+      const tray = $('drawn-tray');
+      if (tray && tray.children.length <= drawSec) {
+        const isUserHit = myActiveTickets.some(t => safePicks(t.picks).includes(b));
+        const m = document.createElement('div');
+        m.id = 'ball_slot_' + b;
+        m.className = 'mini-ball' + (isUserHit ? ' hit' : '');
+        m.textContent = b;
+        tray.appendChild(m);
+
+        myActiveTickets.forEach(t => {
+          if (safePicks(t.picks).includes(b)) {
+            const s = $(`uslot_${t.id}_${b}`);
+            if (s) s.classList.add('hit');
+          }
+        });
+
+        dynamicLiveTickets.forEach(t => {
+          if (safePicks(t.picks).includes(b)) {
+            const ds = $(`dslot_${t.id}_${b}`);
+            if (ds) ds.classList.add('hit');
+          }
+        });
+      }
+    }
+
+    // 3. 20ኛው ኳስ ሲወድቅ ማጠቃለያ
+    if (drawSec >= 19 && !isSettledThisRound) {
+      isSettledThisRound = true;
+      settleRoundLive(round.roundId, currentRoundDrawnBalls);
+    }
+  }
+}, 1000);
+
+// ---------------- 11. 🏆 Settlement (NO DUPLICATE BALLS & SILENT NON-BETTOR) ----------------
+async function settleRoundLive(roundId, drawn) {
+  $('stage-timer').innerHTML = `20<span class="timer-slash"> / </span>20`;
+  $('radar-arena').classList.remove('drawing');
+
+  drawStatsHistory.unshift(drawn);
+  if (drawStatsHistory.length > 50) drawStatsHistory.pop();
+  updateLiveStatistics();
+
+  let totalWin = 0;
+  const hasUserPlayed = myActiveTickets.length > 0;
+
+  if (hasUserPlayed) {
+    myActiveTickets.forEach(t => {
+      const picksArr = safePicks(t.picks);
+      const hits = picksArr.filter(p => drawn.includes(p)).length;
+      const mult = (paytable[String(picksArr.length)] || {})[hits] || 0;
+      const win = Math.min(MAX_PAYOUT, Math.round((t.amount || 2) * mult * 100) / 100);
+
+      t.hits = hits;
+      t.payout = win;
+      t.status = win > 0 ? 'WON' : 'LOST';
+      totalWin += win;
+
+      fullHistory.unshift({
+        roundId: roundId,
+        picks: picksArr,
+        amount: t.amount || 2,
+        hits: hits,
+        win: win,
+        status: t.status,
+        time: Date.now()
+      });
+    });
+
+    renderActiveUserTickets();
+
+    try {
+      const userRes = await api('/api/user/init');
+      if (userRes && userRes.success) {
+        serverBalance = userRes.balance;
+        shownBalance = userRes.balance;
+        renderBalanceDisplay();
+      }
+    } catch (e) {}
+  }
+
+  // Hide big ball
+  const bigBall = $('current-drawn-ball');
+  if (bigBall) bigBall.style.display = 'none';
+
+  // Highlight hit balls in tray
+  const userPickedAll = new Set();
+  myActiveTickets.forEach(t => safePicks(t.picks).forEach(p => userPickedAll.add(p)));
+  drawn.forEach(b => {
+    const el = $('ball_slot_' + b);
+    if (el && userPickedAll.has(b)) el.classList.add('hit');
+  });
+
+  // 🌟 #draw-result receives ONLY title (balls remain in #drawn-tray, NO DUPLICATION!)
+  const resContainer = $('draw-result');
+  if (resContainer) {
+    if (!hasUserPlayed) {
+      // ሰውዬው ካልተጫወተ ምንም ጽሁፍም ሆነ toast የለም
+      resContainer.innerHTML = '';
+    } else if (totalWin > 0) {
+      resContainer.innerHTML = `
+        <div class="draw-result-title win">YOU WIN</div>
+        <div class="draw-result-amt">${totalWin}</div>
+      `;
+      showToast(`YOU WIN +${totalWin} ETB`, 'success');
+    } else {
+      resContainer.innerHTML = `
+        <div class="draw-result-title try-again">TRY AGAIN</div>
+      `;
+      showToast('Try Again', 'error');
+    }
+  }
+
+  // Update demo tickets
+  dynamicLiveTickets.forEach(t => {
+    const picksArr = safePicks(t.picks);
+    const hits = picksArr.filter(n => drawn.includes(n)).length;
+    const tableP = paytable[String(picksArr.length)] || {};
+    const win = t.amount * (tableP[hits] || 0);
+    const dst = $('dstatus_' + t.id);
+    if (win > 0 && dst) {
+      dst.textContent = `WON +${win.toFixed(0)} ETB`;
+      dst.className = 'status-won';
+    } else if (dst) {
+      dst.textContent = 'Settled';
+      dst.className = 'status-lost';
+    }
+  });
+
+  initPrePopulatedResults();
+  renderHistoryView();
+  postParent({ type: 'BET_ENDED' });
+}
+
+// ---------------- 12. 📊 STATISTICS ----------------
+function updateLiveStatistics() {
+  const counts = {};
+  for (let i = 1; i <= 80; i++) counts[i] = 0;
+  drawStatsHistory.forEach(dr => dr.forEach(n => { if (counts[n] !== undefined) counts[n]++; }));
+
+  const maxC = Math.max(...Object.values(counts), 1);
+  const container = $('stats-bars-container');
+  if (container) {
+    container.innerHTML = Array.from({ length: 80 }, (_, i) => i + 1).map(num => `
+      <div class="stat-row">
+        <div class="stat-num">${num}</div>
+        <div class="stat-bar-outer"><div class="stat-bar-fill" style="width:${Math.round((counts[num] || 1) / (maxC + 5) * 100)}%;"></div></div>
+        <div class="stat-count">${counts[num] || Math.floor(Math.random() * 12) + 18}</div>
+      </div>
+    `).join('');
+  }
+}
+
+// ---------------- 13. 📜 RESULTS TAB (ምስል 2) ----------------
+async function initPrePopulatedResults() {
+  const c = $('results-container');
+  if (!c) return;
+
+  const { roundId } = getGlobalRound();
+  let serverResults = [];
+
+  try {
+    const res = await api('/api/keno/results?limit=40');
+    if (res && res.success && Array.isArray(res.results)) {
+      serverResults = res.results;
+    }
+  } catch (e) {}
+
+  let html = `
+    <div class="res-table-wrap">
+      <div class="res-header-row">
+        <span>Draw ID</span>
+        <span>Combination</span>
+      </div>
+  `;
+
+  html += `
+    <div class="res-card-row">
+      <div class="res-card-left">
+        <div class="res-id-badge">
+          <svg viewBox="0 0 24 24"><path d="M12 1.4 3.2 4.7v6.1c0 5.5 3.7 9.7 8.8 11.8 5.1-2.1 8.8-6.3 8.8-11.8V4.7L12 1.4Z"/><path d="m7.2 11.9 3.1 3.1 6.7-7" fill="none" stroke="#e9fff3" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          ${roundId}
+        </div>
+      </div>
+      <div class="res-wait-badge">WAIT</div>
+    </div>
+  `;
+
+  drawStatsHistory = [];
+
+  for (let i = 1; i <= 35; i++) {
+    const pastId = roundId - i;
+    const sFound = serverResults.find(r => Number(r.id) === pastId);
+    const pastBalls = (sFound && sFound.numbers && sFound.numbers.length === 20) 
+      ? sFound.numbers 
+      : generateDeterministicBalls(pastId);
+
+    drawStatsHistory.push(pastBalls);
+
+    const timeStr = sFound && sFound.time 
+      ? new Date(sFound.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      : new Date(Date.now() - (i * TOTAL_CYCLE * 1000)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    html += `
+      <div class="res-card-row">
+        <div class="res-card-left">
+          <div class="res-id-badge">
+            <svg viewBox="0 0 24 24"><path d="M12 1.4 3.2 4.7v6.1c0 5.5 3.7 9.7 8.8 11.8 5.1-2.1 8.8-6.3 8.8-11.8V4.7L12 1.4Z"/><path d="m7.2 11.9 3.1 3.1 6.7-7" fill="none" stroke="#e9fff3" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            ${pastId}
+          </div>
+          <div class="res-time-txt">${timeStr}</div>
+        </div>
+        <div class="res-grid-20">
+          ${pastBalls.map(n => `<div class="res-grid-cell">${n}</div>`).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  html += '</div>';
+  c.innerHTML = html;
+  updateLiveStatistics();
+}
+
+// ---------------- 14. 🏆 LEADERS BOARD (RESTORED FROM DATABASE) ----------------
+async function loadPublicLeaders() {
+  const tbody = $('leaders-tbody');
+  if (!tbody) return;
+
+  const demoFallback = [
+    { user: 'b***w', game: 'Keno', win: 30000 },
+    { user: 'y***o', game: 'Keno', win: 24500 },
+    { user: 'i***s', game: 'Keno', win: 18000 },
+    { user: 'w***j', game: 'Keno', win: 12000 },
+    { user: 'k***e', game: 'Keno', win: 8500 },
+    { user: 'a***m', game: 'Keno', win: 6200 },
+    { user: 'd***k', game: 'Keno', win: 4800 },
+    { user: '09***1', game: 'Keno', win: 3500 },
+    { user: 'm***e', game: 'Keno', win: 2400 },
+    { user: 's***k', game: 'Keno', win: 1800 }
+  ];
+
+  try {
+    const d = await api('/api/public/feed');
+    const realWins = (d && d.success && Array.isArray(d.wins)) ? d.wins : [];
+    const merged = [...realWins, ...demoFallback].slice(0, 10);
+
+    tbody.innerHTML = merged.map((w, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${esc(w.user)}</td>
+        <td>${esc(w.game || 'Keno')}</td>
+        <td style="color:#f2df4b;font-weight:bold;">+${Number(w.win).toLocaleString()} ETB</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    tbody.innerHTML = demoFallback.map((w, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${esc(w.user)}</td>
+        <td>${esc(w.game)}</td>
+        <td style="color:#f2df4b;font-weight:bold;">+${Number(w.win).toLocaleString()} ETB</td>
+      </tr>
+    `).join('');
+  }
+}
+
+// ---------------- 15. 📜 HISTORY VIEW (ምስል 1) ----------------
+async function renderHistoryView() {
+  const c = $('history-container');
+  if (!c) return;
+
+  try {
+    const sHist = await api('/api/user/history');
+    if (sHist && sHist.success && Array.isArray(sHist.history) && sHist.history.length > 0) {
+      const kenoHist = sHist.history.filter(h => Array.isArray(h?.picks) && h.picks.length > 0);
+      if (kenoHist.length > 0) fullHistory = kenoHist;
+    }
+  } catch (e) {}
+
+  const validHistory = (Array.isArray(fullHistory) ? fullHistory : []).filter(h => Array.isArray(h?.picks));
+  if (!validHistory.length) {
+    c.innerHTML = `<div style="text-align:center;color:#8b9997;padding:12px;font-size:13px;">No bets recorded yet.</div>`;
+    return;
+  }
+
+  const groups = new Map();
+  validHistory.forEach(h => {
+    const key = String(h.roundId || h.time || 'draw');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(h);
+  });
+  
+  c.innerHTML = [...groups.entries()].map(([roundId, tickets]) => {
+    const d = new Date(Math.max(...tickets.map(t=>Number(t.time)||Date.now())));
+    const dateFormatted = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getFullYear()).slice(-2)} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+
+    return `
+      <div class="hist-round-header">
+        <div class="hist-divider-line"></div>
+        <div class="hist-center-info">
+          <svg class="hist-shield-icon" viewBox="0 0 24 24"><path d="M12 1.4 3.2 4.7v6.1c0 5.5 3.7 9.7 8.8 11.8 5.1-2.1 8.8-6.3 8.8-11.8V4.7L12 1.4Z"/><path d="m7.2 11.9 3.1 3.1 6.7-7" fill="none" stroke="#e9fff3" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div class="hist-meta-text">
+            <div class="hist-id-title">Draw ID: ${esc(roundId)}</div>
+            <div class="hist-time-title">${dateFormatted}</div>
+          </div>
+        </div>
+        <div class="hist-divider-line"></div>
+      </div>
+      ${tickets.map(h => {
+        const picks = Array.isArray(h.picks) ? h.picks : [];
+        return `
+        <div class="history-ticket">
+          <div class="ticket-numbers-grid">${Array.from({length:10}, (_,i) => picks[i] !== undefined ? `<div class="ticket-slot ${h.win > 0 && picks[i] ? 'hit' : ''}">${picks[i]}</div>` : '<div class="ticket-slot empty"></div>').join('')}</div>
+          <div class="ticket-bottom-line">
+            <span>Bet ${Number(h.amount || 0).toFixed(0)}</span>
+            <span class="${h.win > 0 ? 'status-won' : ''}">${h.win > 0 ? '+' + Number(h.win).toFixed(0) + ' ETB' : ''}</span>
+          </div>
+        </div>
+      `;
+      }).join('')}
+    `;
+  }).join('');
+}
+
+// ---------------- 16. Toast & Tab Helpers ----------------
+let toastTimeout = null;
+function showToast(msg, type = 'error') {
+  const box = $('toast-box');
+  if (!box) return;
+  box.className = 'toast-box ' + (type === 'success' ? 'success' : 'error');
+  $('toast-message').textContent = msg;
+  $('toast-overlay').style.display = 'block';
+  if (toastTimeout) clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => { $('toast-overlay').style.display = 'none'; }, 3000);
+}
+function hideToast() { $('toast-overlay').style.display = 'none'; }
+
+function switchTab(id, el) {
+  document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.subview').forEach(s => s.classList.remove('active'));
+  if (el) el.classList.add('active');
+  const v = $('view-' + id);
+  if (v) v.classList.add('active');
+  if (id === 'history') renderHistoryView();
+  if (id === 'results') initPrePopulatedResults();
+  if (id === 'statistics') updateLiveStatistics();
+  if (id === 'leaders') loadPublicLeaders();
+}
+
+function exitToLobby() { postParent({ type: 'EXIT_GAME' }); }
+function openSupport() { postParent({ type: 'OPEN_SUPPORT' }); }
+function openRulesModal() { $('rules-modal').style.display = 'flex'; switchModalTab('rules'); }
+function closeRulesModal() { $('rules-modal').style.display = 'none'; }
+
+function switchModalTab(tab) {
+  $('modal-nav-rules').classList.toggle('active', tab === 'rules');
+  $('modal-nav-paytable').classList.toggle('active', tab === 'paytable');
+  const c = $('modal-content');
+  if (tab === 'rules') {
+    c.innerHTML = `
+      <h4 style="color:#fff;margin-bottom:4px;">How to play</h4>
+      <p style="margin-bottom:8px;">Choose 1 to 10 numbers from 1 to 80. Each round runs 24/7 on an 80-second continuous cycle (60s betting + 20s draw). 20 numbers are drawn by certified provably fair server RNG.</p>
+      <h4 style="color:#fff;margin-bottom:4px;">Limits</h4>
+      <p style="margin-bottom:8px;">Bet ${MIN_BET} – ${MAX_BET} ETB. Maximum payout per bet ${MAX_PAYOUT.toLocaleString()} ETB.</p>
+    `;
+  } else {
+    let t = '<table class="paytable-grid-table"><thead><tr><th>Hits</th>' + Array.from({ length: 10 }, (_, i) => `<th>${i + 1}</th>`).join('') + '</tr></thead><tbody>';
+    for (let h = 0; h <= 10; h++) {
+      t += `<tr><td style="font-weight:bold;color:#fff">${h}</td>`;
+      for (let p = 1; p <= 10; p++) {
+        const tableP = paytable[String(p)] || {};
+        const m = tableP[h];
+        t += `<td>${m !== undefined && m > 0 ? m + 'x' : '-'}</td>`;
+      }
+      t += '</tr>';
+    }
+    t += '</tbody></table>';
+    c.innerHTML = t;
+  }
+}
+
+// ---------------- 17. Startup (MIN_BET = 2) ----------------
+window.addEventListener('DOMContentLoaded', () => {
+  const round = getGlobalRound();
+  if ($('lbl-round-id')) $('lbl-round-id').textContent = round.roundId;
+
+  syncServerClock();
+  buildGrid();
+  setBet(2);
+  initPlayerFeed();
+  initPrePopulatedResults();
+  loadPublicLeaders();
+  renderHistoryView();
+});
+</script>
+</body>
+</html>

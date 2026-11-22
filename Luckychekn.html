@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Lucky Chicken Crossing</title>
+  <script src="/game-bridge.js"></script>
+  <style>
+    :root {
+      --bg-dark: #0e1017;
+      --panel-bg: #151722;
+      --card-bg: #1b1e2e;
+      --border-color: #272a3e;
+      --accent-yellow: #f59e0b;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+      --text-main: #ffffff;
+      --text-muted: #8c90a4;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      overflow-x: hidden;
+    }
+
+    .game-wrapper {
+      width: 100%;
+      max-width: 100%;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      background: #11131c;
+      position: relative;
+      box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+    }
+
+    /* Top Bar */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: #141622;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .balance-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #0a0b10;
+      border: 1px solid #282a3d;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .balance-badge span.currency {
+      color: var(--accent-yellow);
+      font-size: 12px;
+    }
+
+    .top-icons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #1d2030;
+      border: 1px solid #2f334a;
+      border-radius: 6px;
+      color: #a6abbf;
+      cursor: pointer;
+    }
+
+    .icon-btn svg {
+      width: 18px;
+      height: 18px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* Limits Sub-Header */
+    .limits-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: #13141f;
+    }
+
+    .game-logo {
+      display: flex;
+      flex-direction: column;
+      font-weight: 900;
+      font-size: 18px;
+      line-height: 1.05;
+      font-style: italic;
+      color: #ff3b4e;
+      text-shadow: 2px 2px 0px #ffe600, -1px -1px 0px #000;
+    }
+
+    .limits-info {
+      display: flex;
+      gap: 12px;
+      text-align: right;
+    }
+
+    .limit-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .limit-title {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .limit-val {
+      font-size: 11px;
+      font-weight: 700;
+      color: #e4e7f5;
+    }
+
+    /* Road Field Viewport */
+    .viewport-container {
+      position: relative;
+      width: 100%;
+      height: 320px;
+      background: #3e414c;
+      overflow: hidden;
+      border-top: 1px solid #252838;
+      border-bottom: 1px solid #252838;
+      cursor: pointer;
+    }
+
+    #gameCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Insufficient Balance Modal */
+    .modal-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(3px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+      padding: 20px;
+    }
+
+    .modal-box {
+      background: #161824;
+      border: 1px solid #373b54;
+      border-radius: 12px;
+      padding: 20px;
+      width: 100%;
+      max-width: 320px;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85);
+      animation: popIn 0.2s ease-out;
+    }
+
+    @keyframes popIn {
+      from { transform: scale(0.9); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .modal-title {
+      color: var(--accent-yellow);
+      font-weight: 800;
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+
+    .modal-desc {
+      color: #cbd5e1;
+      font-size: 13px;
+      margin-bottom: 18px;
+    }
+
+    .modal-action-btn {
+      background: var(--accent-yellow);
+      color: #000;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    /* Controls Panel */
+    .controls-panel {
+      padding: 10px 12px;
+      background: #13141f;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .bet-bar-row {
+      display: flex;
+      align-items: center;
+      background: #0b0c13;
+      border: 1px solid #232536;
+      border-radius: 8px;
+      padding: 3px;
+    }
+
+    .bet-btn-adjust {
+      background: #1e202e;
+      border: none;
+      color: #ffffff;
+      width: 44px;
+      height: 40px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .bet-amount-display {
+      flex: 1;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 800;
+      color: #f59e0b;
+      letter-spacing: 0.5px;
+    }
+
+    /* Action Buttons (Dual Cashout / Step state) */
+    .action-row {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .btn-action {
+      flex: 1;
+      height: 46px;
+      border: none;
+      border-radius: 8px;
+      color: #ffffff;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .btn-action:active {
+      transform: scale(0.98);
+    }
+
+    .btn-play-start {
+      background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-step {
+      background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+      display: none;
+    }
+
+    .btn-cashout {
+      background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%);
+      color: #000;
+      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+      display: none;
+    }
+
+    .btn-action:disabled {
+      background: #374151 !important;
+      color: #9ca3af !important;
+      cursor: not-allowed;
+      box-shadow: none;
+      opacity: 0.6;
+    }
+
+    /* Difficulty Selectors */
+    .difficulty-group {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      background: #0b0c13;
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid #232536;
+    }
+
+    .diff-btn {
+      background: #181926;
+      border: 1px solid transparent;
+      color: #8c90a4;
+      padding: 9px 0;
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .diff-btn.active {
+      background: #25283a;
+      color: var(--accent-yellow);
+      border-color: #4b4e69;
+    }
+
+    .difficulty-subtext {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--text-muted);
+      padding: 0 4px;
+    }
+
+    /* History Table */
+    .history-card {
+      margin-top: 6px;
+      background: #13141f;
+      border-top: 1px solid #232536;
+      flex: 1;
+      padding: 10px 12px 20px;
+    }
+
+    .history-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 8px;
+      color: #d1d5db;
+    }
+
+    .history-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+
+    .history-table th {
+      color: var(--text-muted);
+      padding: 6px 4px;
+      font-weight: 600;
+      text-align: left;
+      border-bottom: 1px solid #232536;
+    }
+
+    .history-table th:last-child,
+    .history-table td:last-child {
+      text-align: right;
+    }
+
+    .history-table td {
+      padding: 7px 4px;
+      color: #c9cddb;
+      border-bottom: 1px solid #1a1b29;
+    }
+
+    .win-text {
+      color: var(--accent-green);
+      font-weight: 700;
+    }
+
+    .lose-text {
+      color: var(--accent-red);
+      font-weight: 600;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-100px);
+      background: #232535;
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 100;
+      border: 1px solid #3d4158;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+      transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+      pointer-events: none;
+      max-width: 90%;
+      text-align: center;
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <div class="game-wrapper">
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <div class="balance-badge">
+        <span id="uiBalance">0.00</span>
+        <span class="currency">ETB</span>
+      </div>
+      <div class="top-icons">
+        <div class="icon-btn" id="btnDeposit" title="Deposit">
+          <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        </div>
+        <div class="icon-btn" id="btnSound" title="Sound">
+          <svg id="soundIcon" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+        </div>
+        <div class="icon-btn" id="btnRules" title="Info">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Limits Header -->
+    <div class="limits-header">
+      <div class="game-logo">
+        <span>LUCKY</span>
+        <span>CHICKEN</span>
+      </div>
+      <div class="limits-info">
+        <div class="limit-item">
+          <span class="limit-title">Min Play</span>
+          <span class="limit-val">1 ETB</span>
+        </div>
+        <div class="limit-item">
+          <span class="limit-title">Max Play</span>
+          <span class="limit-val">1,000 ETB</span>
+        </div>
+        <div class="limit-item">
+          <span class="limit-title">Max Reward</span>
+          <span class="limit-val">20,000 ETB</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Road Viewport -->
+    <div class="viewport-container" id="viewport">
+      <canvas id="gameCanvas"></canvas>
+
+      <!-- Insufficient Balance Modal -->
+      <div class="modal-overlay" id="balanceModal">
+        <div class="modal-box">
+          <div class="modal-title">INSUFFICIENT BALANCE</div>
+          <div class="modal-desc">Your balance is too low to play.</div>
+          <button class="modal-action-btn" id="modalDepositBtn">Deposit Now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controls Panel -->
+    <div class="controls-panel">
+      <!-- Bet Adjustment -->
+      <div class="bet-bar-row" id="betBar">
+        <button class="bet-btn-adjust" id="btnMin">Min</button>
+        <button class="bet-btn-adjust" id="btnMinus">-</button>
+        <div class="bet-amount-display"><span id="betDisplay">2</span> ETB</div>
+        <button class="bet-btn-adjust" id="btnPlus">+</button>
+        <button class="bet-btn-adjust" id="btnMax">Max</button>
+      </div>
+
+      <!-- Action Row: Start or Step + Cashout -->
+      <div class="action-row">
+        <button class="btn-action btn-play-start" id="btnStart">Play</button>
+        <button class="btn-action btn-step" id="btnStep">Step</button>
+        <button class="btn-action btn-cashout" id="btnCashout">Cash Out</button>
+      </div>
+
+      <!-- Difficulty Selectors -->
+      <div class="difficulty-group" id="diffGroup">
+        <button class="diff-btn active" data-diff="easy">Easy</button>
+        <button class="diff-btn" data-diff="medium">Medium</button>
+        <button class="diff-btn" data-diff="hard">Hard</button>
+        <button class="diff-btn" data-diff="hardcore">Hardcore</button>
+      </div>
+      <div class="difficulty-subtext">
+        <span>Game Chance</span>
+        <span>Difficulty</span>
+      </div>
+    </div>
+
+    <!-- History Panel -->
+    <div class="history-card">
+      <div class="history-title">My plays</div>
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Play</th>
+            <th>Coef.</th>
+            <th>Win (ETB)</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    /* ==========================================================================
+       HULU BET INTEGRATION BOILERPLATE
+       ========================================================================== */
+    const API = window.location.origin;
+    let INIT_DATA = "", serverBalance = 0, ready = false;
+
+    async function api(path, opts = {}) {
+      try {
+        const r = await fetch(API + path, {
+          ...opts,
+          headers: {
+            'Content-Type': 'application/json',
+            'x-telegram-init-data': INIT_DATA
+          }
+        });
+        return await r.json();
+      } catch (e) {
+        return { success: false, message: 'Connection problem' };
+      }
+    }
+
+    const postParent = m => {
+      try { parent.postMessage(m, '*'); } catch (e) {}
+    };
+
+    addEventListener('message', e => {
+      if (e.source !== parent) return;
+      const d = e.data || {};
+      if (d.type === 'INIT' && d.initData) {
+        INIT_DATA = d.initData;
+        window.__init = true;
+        if (Number.isFinite(Number(d.balance))) {
+          serverBalance = Number(d.balance);
+          document.getElementById('uiBalance').textContent = Number(serverBalance).toFixed(2);
+        }
+        ready = true;
+        refreshBalance();
+        resumeOpenRound();
+      }
+      if (d.type === 'UPDATE_BALANCE') {
+        if (Number.isFinite(Number(d.balance))) {
+          serverBalance = Number(d.balance);
+          document.getElementById('uiBalance').textContent = Number(serverBalance).toFixed(2);
+        }
+        refreshBalance();
+      }
+    });
+
+    postParent({ type: 'GAME_READY' });
+
+    async function refreshBalance() {
+      const d = await api('/api/user/init');
+      if (d.success) {
+        serverBalance = d.balance;
+        showBalance();
+      }
+    }
+
+    function showBalance() {
+      document.getElementById('uiBalance').textContent = Number(serverBalance).toFixed(2);
+      postParent({ type: 'BALANCE_UPDATE', newBalance: serverBalance });
+    }
+
+    /* ==========================================================================
+       SOUND SYNTHESIS (Zero External Audio Files)
+       ========================================================================== */
+    let audioCtx = null;
+    let soundEnabled = true;
+
+    function initAudio() {
+      if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (AudioContext) audioCtx = new AudioContext();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    }
+
+    function playTone(freq, type = 'sine', duration = 0.1, gainVal = 0.15) {
+      if (!soundEnabled || !audioCtx) return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {}
+    }
+
+    const soundHop = () => playTone(420, 'triangle', 0.08, 0.2);
+    const soundCrash = () => {
+      playTone(160, 'sawtooth', 0.35, 0.3);
+      setTimeout(() => playTone(100, 'square', 0.25, 0.25), 60);
+    };
+    const soundWin = () => {
+      [440, 554, 659, 880].forEach((f, i) => {
+        setTimeout(() => playTone(f, 'sine', 0.15, 0.2), i * 80);
+      });
+    };
+
+    /* ==========================================================================
+       CONFIG & MULTIPLIER TABLES
+       ========================================================================== */
+    const MIN_BET = 1;
+    const MAX_BET = 1000;
+    const NUM_LANES = 5;
+
+    const DIFFICULTY_TABLE = {
+      easy:     [1.01, 1.04, 1.07, 1.11, 1.16],
+      medium:   [1.15, 1.35, 1.62, 1.98, 2.45],
+      hard:     [1.32, 1.85, 2.70, 4.10, 6.50],
+      hardcore: [1.68, 2.86, 5.10, 8.28, 14.08]
+    };
+
+    let currentBet = 2;
+    let currentDifficulty = 'easy';
+    let roundActive = false;
+    let serverRoundData = null;
+    let currentStep = -1; // -1 is sidewalk, 0..4 lanes, 5 is goal
+    let isProcessingStep = false;
+
+    /* ==========================================================================
+       CANVAS GRAPHICS & VEHICLE ENGINE
+       ========================================================================== */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const sidewalkWidth = 55;
+    let laneWidth = 0;
+
+    const chickenImg = new Image();
+    chickenImg.crossOrigin = "anonymous";
+    chickenImg.src = "https://i.postimg.cc/FzfP0m6N/20260930-163717.png";
+
+    const chicken = {
+      x: 25,
+      y: 160,
+      targetX: 25,
+      targetY: 160,
+      squash: 1,
+      isHit: false,
+      visible: true
+    };
+
+    const CAR_TYPES = [
+      { color: '#ef4444', length: 50, width: 26 },                     // Red car
+      { color: '#1e3a8a', length: 52, width: 28, isPolice: true },      // Police
+      { color: '#eab308', length: 94, width: 32, isBus: true },         // School Bus
+      { color: '#2563eb', length: 48, width: 26 },                     // Blue sedan
+      { color: '#9ca3af', length: 58, width: 30 }                      // SUV
+    ];
+
+    let traffic = [];
+
+    function resizeCanvas() {
+      const container = document.getElementById('viewport');
+      canvas.width = container.clientWidth * window.devicePixelRatio;
+      canvas.height = container.clientHeight * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+      laneWidth = (container.clientWidth - sidewalkWidth * 2) / NUM_LANES;
+      resetChickenToSidewalk();
+      initTraffic();
+    }
+
+    function initTraffic() {
+      traffic = [];
+      const h = document.getElementById('viewport').clientHeight;
+      for (let i = 0; i < NUM_LANES; i++) {
+        const type = CAR_TYPES[i % CAR_TYPES.length];
+        const dir = (i % 2 === 0) ? 1 : -1;
+        traffic.push({
+          lane: i,
+          type: type,
+          y: Math.random() * h,
+          speed: (1.3 + Math.random() * 1.5) * dir,
+          flash: 0
+        });
+      }
+    }
+
+    function resetChickenToSidewalk() {
+      currentStep = -1;
+      chicken.x = sidewalkWidth / 2;
+      chicken.targetX = sidewalkWidth / 2;
+      const h = document.getElementById('viewport').clientHeight;
+      chicken.y = h / 2;
+      chicken.targetY = h / 2;
+      chicken.isHit = false;
+      chicken.squash = 1;
+      chicken.visible = true;
+    }
+
+    function getLaneCenterX(step) {
+      if (step === -1) return sidewalkWidth / 2;
+      if (step >= NUM_LANES) return sidewalkWidth + (NUM_LANES * laneWidth) + (sidewalkWidth / 2);
+      return sidewalkWidth + (step * laneWidth) + (laneWidth / 2);
+    }
+
+    function drawCar(v, x, y) {
+      ctx.save();
+      ctx.translate(x, y);
+      if (v.speed < 0) ctx.scale(1, -1);
+
+      const w = v.type.width;
+      const l = v.type.length;
+
+      // Shadow
+      ctx.fillStyle = "rgba(0,0,0,0.35)";
+      ctx.fillRect(-w/2 + 3, -l/2 + 4, w, l);
+
+      // Body
+      ctx.fillStyle = v.type.color;
+      ctx.beginPath();
+      ctx.roundRect(-w/2, -l/2, w, l, 6);
+      ctx.fill();
+
+      // Cabin
+      ctx.fillStyle = "#1e2129";
+      ctx.beginPath();
+      ctx.roundRect(-w/2 + 3, -l/2 + 10, w - 6, l - 22, 4);
+      ctx.fill();
+
+      // Windshields
+      ctx.fillStyle = "#60a5fa";
+      ctx.fillRect(-w/2 + 4, -l/2 + 11, w - 8, 7);
+      ctx.fillRect(-w/2 + 4, l/2 - 18, w - 8, 6);
+
+      // Police emergency flashers
+      if (v.type.isPolice) {
+        v.flash = (v.flash + 0.2) % 2;
+        ctx.fillStyle = v.flash > 1 ? "#ef4444" : "#3b82f6";
+        ctx.fillRect(-w/2 + 5, -2, 6, 4);
+        ctx.fillStyle = v.flash > 1 ? "#3b82f6" : "#ef4444";
+        ctx.fillRect(w/2 - 11, -2, 6, 4);
+      }
+      ctx.restore();
+    }
+
+    let lastTime = performance.now();
+    function render(now) {
+      const dt = (now - lastTime) / 1000;
+      lastTime = now;
+
+      const w = canvas.width / window.devicePixelRatio;
+      const h = canvas.height / window.devicePixelRatio;
+      ctx.clearRect(0, 0, w, h);
+
+      // Road background
+      ctx.fillStyle = "#454854";
+      ctx.fillRect(sidewalkWidth, 0, w - sidewalkWidth * 2, h);
+
+      // Left grass sidewalk
+      ctx.fillStyle = "#2d7032";
+      ctx.fillRect(0, 0, sidewalkWidth, h);
+      ctx.fillStyle = "#6b7280";
+      ctx.fillRect(sidewalkWidth - 6, 0, 6, h);
+
+      // Right finish sidewalk
+      ctx.fillStyle = "#15803d";
+      ctx.fillRect(w - sidewalkWidth, 0, sidewalkWidth, h);
+      ctx.fillStyle = "#6b7280";
+      ctx.fillRect(w - sidewalkWidth, 0, 6, h);
+
+      // Checkered goal line
+      for (let y = 0; y < h; y += 12) {
+        ctx.fillStyle = ((y / 12) % 2 === 0) ? "#ffffff" : "#000000";
+        ctx.fillRect(w - sidewalkWidth + 1, y, 5, 12);
+      }
+
+      // Lanes & Multipliers
+      const mults = DIFFICULTY_TABLE[currentDifficulty];
+      for (let i = 0; i < NUM_LANES; i++) {
+        const laneX = sidewalkWidth + (i * laneWidth);
+
+        // Dashed lines
+        if (i > 0) {
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
+          ctx.lineWidth = 3;
+          ctx.setLineDash([12, 14]);
+          ctx.beginPath();
+          ctx.moveTo(laneX, 0);
+          ctx.lineTo(laneX, h);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        // Multiplier badge
+        const centerX = laneX + laneWidth / 2;
+        const boxW = Math.min(laneWidth - 6, 52);
+        const boxH = 24;
+        const boxY = h / 2 - boxH / 2;
+
+        const isCleared = currentStep >= i;
+        ctx.fillStyle = isCleared ? "rgba(16, 185, 129, 0.45)" : "rgba(18, 20, 30, 0.65)";
+        ctx.beginPath();
+        ctx.roundRect(centerX - boxW/2, boxY, boxW, boxH, 4);
+        ctx.fill();
+
+        ctx.strokeStyle = isCleared ? "#10b981" : "rgba(255,255,255,0.15)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = isCleared ? "#ffffff" : "#4ade80";
+        ctx.font = "bold 12px " + getComputedStyle(document.body).fontFamily;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(`x${mults[i].toFixed(2)}`, centerX, boxY + boxH / 2 + 1);
+      }
+
+      // Update cars
+      traffic.forEach(v => {
+        v.y += v.speed * 60 * dt;
+        if (v.speed > 0 && v.y > h + 70) v.y = -70;
+        if (v.speed < 0 && v.y < -70) v.y = h + 70;
+        const vx = sidewalkWidth + (v.lane * laneWidth) + (laneWidth / 2);
+        drawCar(v, vx, v.y);
+      });
+
+      // Chicken Movement
+      chicken.x += (chicken.targetX - chicken.x) * 0.22;
+      chicken.y += (chicken.targetY - chicken.y) * 0.22;
+
+      if (chicken.visible) {
+        ctx.save();
+        ctx.translate(chicken.x, chicken.y);
+
+        if (chicken.isHit) {
+          ctx.fillStyle = "rgba(239, 68, 68, 0.85)";
+          ctx.beginPath();
+          ctx.arc(0, 0, 18, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "#ffffff";
+          ctx.font = "bold 11px sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText("CRASH", 0, -22);
+        } else {
+          const s = chicken.squash;
+          ctx.scale(s, 2 - s);
+          const size = 36;
+          if (chickenImg.complete && chickenImg.naturalWidth > 0) {
+            ctx.drawImage(chickenImg, -size / 2, -size / 2, size, size);
+          } else {
+            ctx.fillStyle = "#facc15";
+            ctx.beginPath();
+            ctx.arc(0, 0, 14, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        ctx.restore();
+      }
+
+      requestAnimationFrame(render);
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('load', () => {
+      resizeCanvas();
+      requestAnimationFrame(render);
+    });
+
+    /* ==========================================================================
+       GAMEPLAY WORKFLOW: START -> STEP -> CASHOUT
+       ========================================================================== */
+    const btnStart = document.getElementById('btnStart');
+    const btnStep = document.getElementById('btnStep');
+    const btnCashout = document.getElementById('btnCashout');
+    const betBar = document.getElementById('betBar');
+    const diffGroup = document.getElementById('diffGroup');
+
+    function setPhase(phase) {
+      if (phase === 'betting') {
+        roundActive = false;
+        btnStart.style.display = 'block';
+        btnStep.style.display = 'none';
+        btnCashout.style.display = 'none';
+        btnStart.disabled = false;
+        btnStart.textContent = 'Play';
+        betBar.style.opacity = '1';
+        diffGroup.style.pointerEvents = 'auto';
+        postParent({ type: 'BET_ENDED' });
+      } else if (phase === 'crossing') {
+        roundActive = true;
+        btnStart.style.display = 'none';
+        btnStep.style.display = 'block';
+        btnCashout.style.display = 'block';
+        btnStep.disabled = false;
+        btnCashout.disabled = true; // Enabled once at least step 0 is cleared
+        btnCashout.textContent = 'Cash Out';
+        betBar.style.opacity = '0.5';
+        diffGroup.style.pointerEvents = 'none';
+        postParent({ type: 'BET_STARTED' });
+      }
+    }
+
+    // 1. START ROUND
+    async function startRound() {
+      initAudio();
+      if (roundActive) return;
+
+      if (serverBalance < currentBet) {
+        document.getElementById('balanceModal').style.display = 'flex';
+        postParent({ type: 'OPEN_DEPOSIT' });
+        return;
+      }
+
+      btnStart.disabled = true;
+      btnStart.textContent = 'Starting...';
+
+      // The server owns the round: it hides where the traffic hits until you step there
+      const res = await api('/api/chicken/start', {
+        method: 'POST',
+        body: JSON.stringify({ betAmount: currentBet, difficulty: currentDifficulty })
+      });
+
+      if (!res.success) {
+        showToast(res.message || 'Could not place bet');
+        btnStart.disabled = false;
+        btnStart.textContent = 'Play';
+        if (/current chicken round/i.test(res.message || '')) resumeOpenRound();
+        return;
+      }
+
+      if (typeof res.newBalance === 'number') {
+        serverBalance = res.newBalance;
+        showBalance();
+      }
+      if (Array.isArray(res.mults)) DIFFICULTY_TABLE[currentDifficulty] = res.mults;
+
+      serverRoundData = res;
+      resetChickenToSidewalk();
+      setPhase('crossing');
+      showToast('Tap Step to advance across the road!');
+    }
+
+    async function resumeOpenRound() {
+      if (roundActive) return;
+      const d = await api('/api/chicken/active');
+      if (!d || !d.success || !d.active) return;
+      const a = d.active;
+      currentDifficulty = a.difficulty; currentBet = a.betAmount;
+      if (Array.isArray(a.mults)) DIFFICULTY_TABLE[a.difficulty] = a.mults;
+      document.querySelectorAll('[data-diff]').forEach(el => el.classList.toggle('active', el.dataset.diff === a.difficulty));
+      updateBetDisplay();
+      serverRoundData = { betId: a.betId };
+      resetChickenToSidewalk();
+      setPhase('crossing');
+      if (a.step > 0) {
+        currentStep = a.step - 1;
+        chicken.x = chicken.targetX = getLaneCenterX(currentStep);
+        const m = DIFFICULTY_TABLE[a.difficulty][currentStep];
+        btnCashout.disabled = false;
+        btnCashout.textContent = `Cash Out (${(Math.floor(currentBet * m * 100) / 100).toFixed(2)} ETB)`;
+      }
+      showToast('Your round was still open. Continue crossing.');
+    }
+
+    (async () => { const c = await api('/api/chicken/config'); if (c && c.success && c.tables) Object.assign(DIFFICULTY_TABLE, c.tables); })();
+
+    // 2. STEP FORWARD
+    async function stepForward() {
+      initAudio();
+      if (!roundActive || isProcessingStep) return;
+      isProcessingStep = true;
+      btnStep.disabled = true;
+
+      const nextStep = currentStep + 1;
+      const mults = DIFFICULTY_TABLE[currentDifficulty];
+
+      const stepRes = await api('/api/chicken/step', { method: 'POST', body: JSON.stringify({ betId: serverRoundData.betId }) });
+      if (!stepRes.success) {
+        showToast(stepRes.message || 'Step failed, try again');
+        isProcessingStep = false;
+        btnStep.disabled = false;
+        btnCashout.disabled = currentStep < 0;
+        return;
+      }
+      const isSafe = stepRes.state === 'SAFE' || stepRes.state === 'GOAL';
+
+      if (stepRes.state === 'SAFE') {
+        // Safe Lane Crossing
+        currentStep = nextStep;
+        chicken.targetX = getLaneCenterX(currentStep);
+        chicken.squash = 0.8;
+        setTimeout(() => { chicken.squash = 1; }, 120);
+        soundHop();
+
+        // Update Cash Out button
+        const currentMult = mults[currentStep];
+        const currentWin = Math.floor(currentBet * currentMult * 100) / 100;
+        btnCashout.disabled = false;
+        btnCashout.textContent = `Cash Out (${currentWin.toFixed(2)} ETB)`;
+
+        await new Promise(r => setTimeout(r, 250));
+        isProcessingStep = false;
+        btnStep.disabled = false;
+
+      } else if (stepRes.state === 'GOAL') {
+        // Crossed the last lane: the server paid the top multiplier
+        chicken.targetX = getLaneCenterX(NUM_LANES - 1);
+        await new Promise(r => setTimeout(r, 250));
+        currentStep = NUM_LANES;
+        chicken.targetX = getLaneCenterX(NUM_LANES);
+        soundHop();
+        await new Promise(r => setTimeout(r, 300));
+        soundWin();
+
+        const finalPayout = stepRes.payout;
+        showToast(`GOAL! Won ${finalPayout.toFixed(2)} ETB!`);
+        serverBalance = stepRes.newBalance;
+        showBalance();
+
+        appendHistory({
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          bet: currentBet,
+          multiplier: stepRes.multiplier,
+          payout: finalPayout,
+          isWin: true
+        });
+
+        await new Promise(r => setTimeout(r, 1200));
+        isProcessingStep = false;
+        setPhase('betting');
+
+      } else {
+        // Step on Trap / Collision Lane!
+        currentStep = nextStep;
+        chicken.targetX = getLaneCenterX(Math.min(nextStep, NUM_LANES - 1));
+        chicken.isHit = true;
+        soundCrash();
+        showToast('CRASHED! Chicken got hit');
+        if (typeof stepRes.newBalance === 'number') { serverBalance = stepRes.newBalance; showBalance(); }
+
+        appendHistory({
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          bet: currentBet,
+          multiplier: 0,
+          payout: 0,
+          isWin: false
+        });
+
+        await new Promise(r => setTimeout(r, 1400));
+        isProcessingStep = false;
+        setPhase('betting');
+      }
+    }
+
+    // 3. CASH OUT PHASE
+    async function cashOut() {
+      initAudio();
+      if (!roundActive || currentStep < 0 || isProcessingStep) return;
+      isProcessingStep = true;
+      btnStep.disabled = true;
+      btnCashout.disabled = true;
+
+      const coRes = await api('/api/chicken/cashout', { method: 'POST', body: JSON.stringify({ betId: serverRoundData.betId }) });
+      if (!coRes.success) {
+        showToast(coRes.message || 'Cash out failed, try again');
+        isProcessingStep = false;
+        btnStep.disabled = false;
+        btnCashout.disabled = false;
+        return;
+      }
+      const winMult = coRes.multiplier;
+      const winAmount = coRes.payout;
+
+      soundWin();
+      showToast(`Cashed out at x${winMult.toFixed(2)}! (+${winAmount.toFixed(2)} ETB)`);
+
+      serverBalance = coRes.newBalance;
+      showBalance();
+
+      appendHistory({
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        bet: currentBet,
+        multiplier: winMult,
+        payout: winAmount,
+        isWin: true
+      });
+
+      await new Promise(r => setTimeout(r, 1000));
+      isProcessingStep = false;
+      setPhase('betting');
+    }
+
+    /* ==========================================================================
+       USER INTERACTION & EVENT LISTENERS
+       ========================================================================== */
+    btnStart.addEventListener('click', startRound);
+    btnStep.addEventListener('click', stepForward);
+    btnCashout.addEventListener('click', cashOut);
+
+    // Clicking on viewport advances if round active
+    document.getElementById('viewport').addEventListener('click', (e) => {
+      if (e.target.id === 'modalDepositBtn' || e.target.closest('#balanceModal')) return;
+      if (roundActive && !isProcessingStep) stepForward();
+    });
+
+    // Bet controls
+    function updateBetDisplay() {
+      document.getElementById('betDisplay').textContent = currentBet;
+    }
+
+    document.getElementById('btnMinus').addEventListener('click', () => {
+      initAudio();
+      if (!roundActive && currentBet > MIN_BET) {
+        currentBet = Math.max(MIN_BET, currentBet - 1);
+        updateBetDisplay();
+      }
+    });
+
+    document.getElementById('btnPlus').addEventListener('click', () => {
+      initAudio();
+      if (!roundActive && currentBet < MAX_BET) {
+        currentBet = Math.min(MAX_BET, currentBet + 1);
+        updateBetDisplay();
+      }
+    });
+
+    document.getElementById('btnMin').addEventListener('click', () => {
+      initAudio();
+      if (!roundActive) {
+        currentBet = MIN_BET;
+        updateBetDisplay();
+      }
+    });
+
+    document.getElementById('btnMax').addEventListener('click', () => {
+      initAudio();
+      if (!roundActive) {
+        currentBet = Math.min(MAX_BET, Math.max(MIN_BET, Math.floor(serverBalance) || MAX_BET));
+        updateBetDisplay();
+      }
+    });
+
+    // Difficulty switcher
+    document.querySelectorAll('.diff-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        initAudio();
+        if (roundActive) return;
+        document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        currentDifficulty = e.target.getAttribute('data-diff');
+      });
+    });
+
+    // Deposit handlers
+    const triggerDeposit = () => {
+      initAudio();
+      document.getElementById('balanceModal').style.display = 'none';
+      postParent({ type: 'OPEN_DEPOSIT' });
+    };
+    document.getElementById('btnDeposit').addEventListener('click', triggerDeposit);
+    document.getElementById('modalDepositBtn').addEventListener('click', triggerDeposit);
+
+    document.getElementById('balanceModal').addEventListener('click', (e) => {
+      if (e.target.id === 'balanceModal') {
+        document.getElementById('balanceModal').style.display = 'none';
+      }
+    });
+
+    // Sound toggle
+    document.getElementById('btnSound').addEventListener('click', () => {
+      initAudio();
+      soundEnabled = !soundEnabled;
+      document.getElementById('soundIcon').style.opacity = soundEnabled ? '1.0' : '0.35';
+    });
+
+    document.getElementById('btnRules').addEventListener('click', () => {
+      showToast('Step across lanes to raise your multiplier or Cash Out safely!');
+    });
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2600);
+    }
+
+    function appendHistory(item) {
+      const tbody = document.getElementById('historyBody');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${item.time}</td>
+        <td>${item.bet} ETB</td>
+        <td>x${Number(item.multiplier).toFixed(2)}</td>
+        <td class="${item.isWin ? 'win-text' : 'lose-text'}">
+          ${item.isWin ? '+' + item.payout.toFixed(2) : '0.00'} ETB
+        </td>
+      `;
+      tbody.insertBefore(tr, tbody.firstChild);
+      if (tbody.children.length > 8) tbody.removeChild(tbody.lastChild);
+    }
+  </script>
+</body>
+</html>
