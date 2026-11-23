@@ -197,8 +197,9 @@ addEventListener('message', e => {
     if (Number.isFinite(Number(d.balance))) {
       serverBalance = Number(d.balance);
       renderBalanceUI();
+    } else {
+      refreshBalance();
     }
-    refreshBalance();
   }
 });
 postParent({ type: 'GAME_READY' });
@@ -211,8 +212,19 @@ async function refreshBalance() {
     showBalance();
   }
 }
+const _jetxToastSeenAt = new Map();
 function toast(message, type = 'info') {
-  const box = document.createElement('div'); box.className = 'toast-box ' + type; box.innerText = message; $('toast-container').appendChild(box);
+  const key = String(message || '').trim();
+  if (!key) return;
+  const now = Date.now();
+  const prev = _jetxToastSeenAt.get(key) || 0;
+  if (now - prev < 2500) return;
+  _jetxToastSeenAt.set(key, now);
+  const cont = $('toast-container');
+  while (cont.children.length >= 2) {
+    cont.firstElementChild.remove();
+  }
+  const box = document.createElement('div'); box.className = 'toast-box ' + type; box.innerText = key; cont.appendChild(box);
   setTimeout(() => { box.style.opacity = '0'; box.style.transition = 'all .2s'; setTimeout(() => box.remove(), 250); }, 3500);
 }
 $('balance-pill').addEventListener('click', () => postParent({ type: 'OPEN_DEPOSIT' }));
@@ -260,7 +272,7 @@ updateSoundIcon();
 
 // ---------------- Dual Panels ----------------
 const MINUS = '<svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>', PLUS = '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>';
-const P = [0, 1].map(id => ({ id, bet: 2, stake: 0, auto: false, autoCollect: false, collectAt: 2, betId: null, queued: false, next: false, busy: false, settled: false, result: null }));
+const P = [0, 1].map(id => ({ id, bet: 2, stake: 0, auto: false, autoCollect: false, collectAt: 2, betId: null, queued: false, next: false, busy: false, settled: false, result: null, betAttemptedRoundId: '' }));
 $('panels').innerHTML = P.map(({ id }) => `
   <div class="bet-panel" id="panel-${id}">
     <div class="panel-header-row"><span class="multiplier-tag">X2</span>
@@ -343,6 +355,7 @@ async function placePanelBet(p) {
   }
   p.busy = true;
   p.next = false;
+  p.betAttemptedRoundId = currentRoundId;
   refreshBtn(p.id);
   postParent({ type: 'BET_STARTED' });
 
@@ -364,10 +377,17 @@ async function placePanelBet(p) {
     p.settled = false;
     p.result = null;
   } else {
-    if (res && String(res.message || '').includes('flying')) {
+    const msg = String((res && res.message) || '');
+    if (msg.includes('flying')) {
       p.next = true;
     } else {
-      toast((res && res.message) || 'Bet failed', 'error');
+      if (p.auto) {
+        p.auto = false;
+        setToggle('autobet', p.id, false);
+      }
+      if (!msg.toLowerCase().includes('too many requests')) {
+        toast(msg || 'Bet failed', 'error');
+      }
     }
     if (!P.some(x => x.betId)) postParent({ type: 'BET_ENDED' });
   }
@@ -524,8 +544,10 @@ function applyCrashVisuals(cp, roundId) {
     }
     refreshBtn(p.id);
   });
-  if (hadBet) postParent({ type: 'BET_ENDED' });
-  refreshBalance();
+  if (hadBet) {
+    postParent({ type: 'BET_ENDED' });
+    refreshBalance();
+  }
 }
 
 function applyRoomSnapshot(s, isInitial) {
@@ -565,11 +587,11 @@ function applyRoomSnapshot(s, isInitial) {
 
   if (s.phase === 'WAITING') {
     if (roundChanged) {
-      P.forEach(p => { p.betId = null; p.settled = false; p.busy = false; p.result = null; p.stake = 0; });
+      P.forEach(p => { p.betId = null; p.settled = false; p.busy = false; p.result = null; p.stake = 0; p.betAttemptedRoundId = ''; });
     }
     startReceivingVisuals(s.waitEndsAt);
     P.forEach(p => {
-      if ((p.next || p.auto) && !p.betId && !p.busy) {
+      if ((p.next || p.auto) && !p.betId && !p.busy && p.betAttemptedRoundId !== currentRoundId) {
         placePanelBet(p);
       }
     });
@@ -732,7 +754,7 @@ async function loadFeed() {
     if (tab !== 'players') renderTab();
   }
 }
-setInterval(loadFeed, 10000);
+setInterval(() => { if (!document.hidden) loadFeed(); }, 30000);
 
 const MKEY = () => 'hulu_jetx_v2_' + USER_ID;
 function loadMyBets() { try { const a = JSON.parse(localStorage.getItem(MKEY()) || '[]'); myBets = Array.isArray(a) ? a : []; } catch (e) { myBets = []; } if (tab === 'mybets') renderTab(); }

@@ -967,8 +967,9 @@
       if (Number.isFinite(Number(d.balance))) {
         serverBalance = Number(d.balance);
         renderBalanceUI();
+      } else {
+        refreshBalance();
       }
-      refreshBalance();
     }
   });
   postParent({ type: 'GAME_READY' });

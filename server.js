@@ -14,6 +14,7 @@
 'use strict';
 const path = require('path');
 const express = require('express');
+const compression = require('compression');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
@@ -22,6 +23,7 @@ const crypto = require('crypto');
 require('dotenv').config();
 const { createMockPool } = require('./mock-db');
 const { r2, num, cashbackDue } = require('./lib/game-math');
+const { createTtlCache, createRateTracker, createChatBuffer } = require('./lib/cache');
 const { SPIN_SLICES, rollSpinPrize, getSpinAvailability, computeClaimableCashback } = require('./lib/bonus-engine');
 const { runTwelveHourAuditAndPrune, getRetentionStats, getReports12h } = require('./lib/audit-rollup');
 const { registerTelegramBot } = require('./lib/telegram-bot');
@@ -39,18 +41,26 @@ if (!ENV.ADMIN_PIN || ENV.ADMIN_PIN.length < 8) console.warn('[AI Studio] ADMIN_
 const app = express();
 app.set('trust proxy', 1);
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+const io = new Server(server, { cors: { origin: '*' }, perMessageDeflate: false });
 app.use(cors());
+app.use(compression({ threshold: 1024 }));
 app.use(express.json({ limit: '100kb' }));
 
 const pool = HAS_DB
   ? new Pool({
       connectionString: ENV.DATABASE_URL.replace(/[?&]channel_binding=require/, ''),
       ssl: { rejectUnauthorized: false },
-      max: 20, idleTimeoutMillis: 30000, connectionTimeoutMillis: 8000
+      max: 20, idleTimeoutMillis: 30000, connectionTimeoutMillis: 8000, statement_timeout: 15000
     })
   : createMockPool();
 if (HAS_DB) pool.on('error', e => console.error('pg idle client error:', e.message));
+
+const cache = createTtlCache({ maxEntries: 300 });
+const cacheInvalidate = p => cache.invalidate(p);
+const rateTracker = createRateTracker({ maxKeys: 10000 });
+const chatBuffer = createChatBuffer(30);
+let schemaReady = false;
+let chatSendCount = 0;
 
 const CONFIG = {
   TARGET_RTP: 0.85, AGENT_COMMISSION: 0.02, WELCOME_BONUS: 20, REFERRAL_BONUS: 50,
@@ -111,32 +121,38 @@ const parseJson = v => (typeof v === 'string' ? JSON.parse(v) : (v || {}));
 // Call vaultAdd() only AFTER the bet's transaction has committed.
 const vaultPending = { bal: 0, wagered: 0, payouts: 0, profit: 0, bonus: 0 };
 const vaultAdd = d => { for (const k in d) vaultPending[k] += d[k] || 0; };
+let vaultBalanceCache = 0;   // used only for the "is the bankroll healthy" check (SAFETY_BUFFER)
 async function flushVault() {
   const p = { ...vaultPending };
   if (!Object.values(p).some(v => v)) return;
   for (const k in vaultPending) vaultPending[k] = 0;
   try {
-    await pool.query(`UPDATE casino_vault SET vault_balance=vault_balance+$1,total_wagered=total_wagered+$2,total_payouts=total_payouts+$3,
-      gross_profit=gross_profit+$4,total_bonus_awarded=total_bonus_awarded+$5,updated_at=NOW() WHERE id=1`, [p.bal, p.wagered, p.payouts, p.profit, p.bonus]);
+    const r = await pool.query(`UPDATE casino_vault SET vault_balance=vault_balance+$1,total_wagered=total_wagered+$2,total_payouts=total_payouts+$3,
+      gross_profit=gross_profit+$4,total_bonus_awarded=total_bonus_awarded+$5,updated_at=NOW() WHERE id=1 RETURNING vault_balance`, [p.bal, p.wagered, p.payouts, p.profit, p.bonus]);
+    if (r.rows && r.rows[0] && r.rows[0].vault_balance !== undefined) {
+      vaultBalanceCache = num(r.rows[0].vault_balance);
+    }
   } catch (e) { for (const k in p) vaultPending[k] += p[k]; console.error('vault flush failed, will retry:', e.message); }
 }
 setInterval(flushVault, 3000).unref();
-let vaultBalanceCache = 0;   // used only for the "is the bankroll healthy" check (SAFETY_BUFFER)
 async function refreshVaultCache() { try { const r = await pool.query('SELECT vault_balance FROM casino_vault WHERE id=1'); vaultBalanceCache = num(r.rows[0]?.vault_balance); } catch (e) {} }
-setInterval(refreshVaultCache, 10e3).unref();
+setInterval(refreshVaultCache, 60e3).unref();
 const bankrollSafe = () => vaultBalanceCache + vaultPending.bal >= CONFIG.SAFETY_BUFFER;
 
 // Active crash bets kept in memory: status polling (4/s per player) no longer touches the database.
 // The database stays the source of truth; after a restart the cache refills itself on the first poll.
 const flights = new Map();   // betId -> { uid, cp, auto, start(ms) }
 
-const hits = new Map();
 const limit = (name, max, ms) => (req, res, next) => {
-  const k = name + ':' + (req.tg ? 'u' + req.tg.id : req.ip), now = Date.now(), a = (hits.get(k) || []).filter(t => now - t < ms);
-  if (a.length >= max) return res.status(429).json({ success: false, message: 'Too many requests, slow down' });
-  a.push(now); hits.set(k, a); next();
+  const k = name + ':' + (req.tg ? 'u' + req.tg.id : req.ip);
+  if (!rateTracker.hit(k, max, ms).allowed) return res.status(429).json({ success: false, message: 'Too many requests, slow down' });
+  next();
 };
-setInterval(() => { const n = Date.now(); for (const [k, a] of hits) if (!a.length || n - a[a.length - 1] > 3600e3) hits.delete(k); }, 600e3).unref();
+setInterval(() => {
+  const n = Date.now();
+  rateTracker.cleanup(n);
+  for (const [ip, f] of adminFails) if (n - f.t >= 15 * 60e3) adminFails.delete(ip);
+}, 600e3).unref();
 
 // ---- Telegram initData verification (fail closed on bad signatures and in production) ----
 const ALLOW_DEMO = !HAS_BOT_TOKEN || ENV.ALLOW_DEMO_SESSION === '1' || ENV.NODE_ENV !== 'production';
@@ -160,9 +176,8 @@ function parseInitData(initData) {
 function userAuth(req, res, next) {
   const u = parseInitData(req.headers['x-telegram-init-data'] || req.body?.initData || req.query?.initData);
   if (!u || !u.id) {   // only FAILED logins count against an IP (many players can share one mobile-carrier IP)
-    const k = 'authfail:' + req.ip, now = Date.now(), a = (hits.get(k) || []).filter(t => now - t < 60e3);
-    a.push(now); hits.set(k, a);
-    return res.status(a.length > 60 ? 429 : 401).json({ success: false, message: a.length > 60 ? 'Too many failed attempts' : 'Session expired. Please reopen the app from Telegram.' });
+    const r = rateTracker.hit('authfail:' + req.ip, 60, 60e3);
+    return res.status(r.allowed ? 401 : 429).json({ success: false, message: r.allowed ? 'Session expired. Please reopen the app from Telegram.' : 'Too many failed attempts' });
   }
   req.tg = { id: String(u.id), username: u.username || '', name: [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Player' };
   next();
@@ -239,7 +254,13 @@ async function ensureSchema() {
     `CREATE INDEX IF NOT EXISTS idx_audit_created ON balance_audit_logs (created_at DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_reports12h_created ON game_12h_reports (created_at DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_sports_user ON sports_bets (user_id, created_at DESC)`,
-    `CREATE INDEX IF NOT EXISTS idx_tx_status ON transactions (type, status, created_at DESC)`
+    `CREATE INDEX IF NOT EXISTS idx_tx_status ON transactions (type, status, created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_users_referrer ON users (referrer_id) WHERE referrer_id <> ''`,
+    `CREATE INDEX IF NOT EXISTS idx_bets_game_status_created ON universal_bets (game_name, status, created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_bets_won_payout ON universal_bets (created_at DESC) WHERE status='WON' AND payout>=100`,
+    `CREATE INDEX IF NOT EXISTS idx_bets_inflight_start ON universal_bets (user_id, flight_start) WHERE status='IN_FLIGHT'`,
+    `CREATE INDEX IF NOT EXISTS idx_sports_status_match ON sports_bets (status, match_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_tx_user_created ON transactions (user_id, created_at DESC)`
   ];
   for (const s of S) { try { await pool.query(s); } catch (e) { console.warn('schema step skipped:', e.message.slice(0, 120), '|', s.slice(0, 60)); } }
   if (HAS_DB) {
@@ -300,10 +321,10 @@ const gatewayVerified = b => !!b && (String(b.status || '').toLowerCase() === 'v
 const gatewayAmount = b => { const n = Number(b && (b.amount ?? (b.data && b.data.amount))); return Number.isFinite(n) && n > 0 ? n : null; };
 
 // ---------------------------------------------------------------- static frontend + modular games + sportsbook + telegram bot
-app.get('/', (_q, res) => res.sendFile(path.join(__dirname, 'homepage.html')));
-app.get(['/admin', '/betadmin.html'], (_q, res) => res.sendFile(path.join(__dirname, 'betadmin.html')));
-app.get('/homepage.html', (_q, res) => res.sendFile(path.join(__dirname, 'homepage.html')));
-app.get('/game-bridge.js', (_q, res) => res.sendFile(path.join(__dirname, 'game-bridge.js')));
+app.get('/', (_q, res) => res.sendFile(path.join(__dirname, 'homepage.html'), { maxAge: 60 * 1000 }));
+app.get(['/admin', '/betadmin.html'], (_q, res) => res.sendFile(path.join(__dirname, 'betadmin.html'), { maxAge: 60 * 1000 }));
+app.get('/homepage.html', (_q, res) => res.sendFile(path.join(__dirname, 'homepage.html'), { maxAge: 60 * 1000 }));
+app.get('/game-bridge.js', (_q, res) => res.sendFile(path.join(__dirname, 'game-bridge.js'), { maxAge: 300 * 1000 }));
 
 // ---------------------------------------------------------------- public
 app.get('/api/ping', (_q, res) => res.json({ status: 'OK', timestamp: Date.now() }));
@@ -321,8 +342,11 @@ app.get('/api/public/config', (_q, res) => res.json({
   botUsername: ENV.BOT_USERNAME || 'Hulubetethbot'
 }));
 app.get('/api/agents', h(async (_q, res) => {
-  const r = await pool.query('SELECT telegram_username FROM agents');
-  res.json({ success: true, agents: r.rows });
+  const agents = await cache.getOrLoad('agents:list', 60000, async () => {
+    const r = await pool.query('SELECT telegram_username FROM agents');
+    return r.rows;
+  });
+  res.json({ success: true, agents });
 }));
 app.get('/api/user/history', userAuth, h(async (req, res) => {
   const r = await pool.query(
@@ -356,12 +380,14 @@ app.get('/api/user/history', userAuth, h(async (req, res) => {
 }));
 
 // ---- Bonuses & Live Chat ----
-app.get('/api/bonus/status', userAuth, limit('bonusstat', 60, 60e3), h(async (req, res) => {
+app.get('/api/bonus/status', userAuth, limit('bonusstat', 240, 60e3), h(async (req, res) => {
   const uid = req.tg.id;
-  const [ur, rr] = await Promise.all([
-    pool.query('SELECT balance,bonus_balance,wager_requirement_left,total_wagered,total_won,cashback_settled_loss,last_spin_at FROM users WHERE user_id=$1', [uid]),
-    pool.query('SELECT COUNT(*) n FROM users WHERE referrer_id=$1', [uid]).catch(() => ({ rows: [{ n: 0 }] }))
-  ]);
+  const ur = await pool.query(
+    `SELECT balance,bonus_balance,wager_requirement_left,total_wagered,total_won,cashback_settled_loss,last_spin_at,
+            (SELECT COUNT(*)::int FROM users r WHERE r.referrer_id=$1) AS referral_count
+     FROM users WHERE user_id=$1`,
+    [uid]
+  );
   if (!ur.rows.length) throw new Biz('User not found', 404);
   const u = ur.rows[0];
   res.json({
@@ -371,7 +397,7 @@ app.get('/api/bonus/status', userAuth, limit('bonusstat', 60, 60e3), h(async (re
     wagerRequirementLeft: num(u.wager_requirement_left),
     welcomeBonus: CONFIG.WELCOME_BONUS,
     referralBonus: CONFIG.REFERRAL_BONUS,
-    referralCount: Number(rr.rows[0]?.n || 0),
+    referralCount: Number(u.referral_count || 0),
     cashback: computeClaimableCashback({
       totalWagered: u.total_wagered,
       totalWon: u.total_won,
@@ -469,18 +495,22 @@ app.post('/api/bonus/claim-cashback', userAuth, limit('claimcb', 15, 60e3), h(as
   });
 }));
 
-app.get('/api/chat/messages', limit('chatread', 120, 60e3), h(async (_req, res) => {
-  const r = await pool.query(`SELECT id,user_id,username,message,created_at FROM chat_messages ORDER BY id DESC LIMIT 30`).catch(() => ({ rows: [] }));
-  res.json({
-    success: true,
-    messages: r.rows.reverse().map(m => ({
+async function hydrateChatBuffer() {
+  try {
+    const r = await pool.query(`SELECT id,user_id,username,message,created_at FROM chat_messages ORDER BY id DESC LIMIT 30`);
+    chatBuffer.seed(r.rows.reverse().map(m => ({
       id: m.id,
       userId: m.user_id,
       username: m.username || 'Player',
       message: m.message,
       createdAt: m.created_at
-    }))
-  });
+    })));
+  } catch (_) {}
+}
+
+app.get('/api/chat/messages', limit('chatread', 120, 60e3), h(async (_req, res) => {
+  if (!chatBuffer.isHydrated()) await hydrateChatBuffer();
+  res.json({ success: true, messages: chatBuffer.list() });
 }));
 
 app.post('/api/chat/send', userAuth, limit('chat', 15, 60e3), h(async (req, res) => {
@@ -491,7 +521,10 @@ app.post('/api/chat/send', userAuth, limit('chat', 15, 60e3), h(async (req, res)
     `INSERT INTO chat_messages (user_id,username,message) VALUES ($1,$2,$3) RETURNING id,user_id,username,message,created_at`,
     [req.tg.id, uname.slice(0, 48), clean]
   );
-  await pool.query(`DELETE FROM chat_messages WHERE id NOT IN (SELECT id FROM chat_messages ORDER BY id DESC LIMIT 100)`).catch(() => {});
+  chatSendCount += 1;
+  if (chatSendCount % 25 === 0) {
+    pool.query(`DELETE FROM chat_messages WHERE id NOT IN (SELECT id FROM chat_messages ORDER BY id DESC LIMIT 100)`).catch(() => {});
+  }
   const row = r.rows[0] || { id: Date.now(), user_id: req.tg.id, username: uname, message: clean, created_at: new Date() };
   const msgObj = {
     id: row.id,
@@ -500,24 +533,34 @@ app.post('/api/chat/send', userAuth, limit('chat', 15, 60e3), h(async (req, res)
     message: row.message,
     createdAt: row.created_at
   };
+  chatBuffer.push(msgObj);
   io.emit('chat:msg', msgObj);
   res.json({ success: true, msg: msgObj });
 }));
 
-app.get('/api/public/feed', limit('feed', 60, 60e3), h(async (req, res) => {
+app.get('/api/public/feed', limit('feed', 240, 60e3), h(async (req, res) => {
   const game = CRASH_GAMES.includes(req.query.game) ? req.query.game : 'JetX';
-  const [w, c] = await Promise.all([
-    pool.query(`SELECT username,game_name,payout,multiplier FROM universal_bets WHERE status='WON' AND payout>=100 ORDER BY created_at DESC LIMIT 15`),
-    pool.query(`SELECT game_data FROM universal_bets WHERE game_name=$1 AND status IN ('WON','LOST') ORDER BY created_at DESC LIMIT 30`, [game])
-  ]);
-  const seen = new Set(), crashes = [];
-  for (const r of c.rows) { const g = parseJson(r.game_data); if (g.roundId && !seen.has(g.roundId)) { seen.add(g.roundId); crashes.push(g.crashPoint); } if (crashes.length >= 15) break; }
-  res.json({ success: true, wins: w.rows.map(r => ({ user: mask(r.username), game: r.game_name, win: num(r.payout), mult: num(r.multiplier) })), crashes });
+  const payload = await cache.getOrLoad(`feed:${game}`, 5000, async () => {
+    const [w, c] = await Promise.all([
+      pool.query(`SELECT username,game_name,payout,multiplier FROM universal_bets WHERE status='WON' AND payout>=100 ORDER BY created_at DESC LIMIT 15`),
+      pool.query(`SELECT game_data FROM universal_bets WHERE game_name=$1 AND status IN ('WON','LOST') ORDER BY created_at DESC LIMIT 30`, [game])
+    ]);
+    const seen = new Set(), crashes = [];
+    for (const r of c.rows) { const g = parseJson(r.game_data); if (g.roundId && !seen.has(g.roundId)) { seen.add(g.roundId); crashes.push(g.crashPoint); } if (crashes.length >= 15) break; }
+    return { success: true, wins: w.rows.map(r => ({ user: mask(r.username), game: r.game_name, win: num(r.payout), mult: num(r.multiplier) })), crashes };
+  });
+  res.json(payload);
 }));
 
-// ---------------------------------------------------------------- 1. user init
+// ---------------------------------------------------------------- 1. user init (1 pooled SELECT fast-path for existing users; TX only on registration)
 const initHandler = h(async (req, res) => {
-  const { id, username, name } = req.tg, refRaw = String(req.query.refId || req.body?.refId || '').trim().slice(0, 64);
+  const { id, username, name } = req.tg;
+  const existing = await pool.query('SELECT * FROM users WHERE user_id=$1', [id]);
+  if (existing.rows.length) {
+    return res.json(userView(existing.rows[0], false));
+  }
+
+  const refRaw = String(req.query.refId || req.body?.refId || '').trim().slice(0, 64);
   const out = await tx(async c => {
     let ref = '';
     if (refRaw && refRaw !== id) { const r = await c.query('SELECT 1 FROM users WHERE user_id=$1', [refRaw]); if (r.rows.length) ref = refRaw; }
@@ -532,19 +575,23 @@ const initHandler = h(async (req, res) => {
     }
     return { u: (await c.query('SELECT * FROM users WHERE user_id=$1', [id])).rows[0], isNew: false };
   });
-  if (out.isNew) vaultAdd({ bonus: CONFIG.WELCOME_BONUS });
+  if (out.isNew) {
+    vaultAdd({ bonus: CONFIG.WELCOME_BONUS });
+    cacheInvalidate('admin:dashboard');
+  }
   res.json(userView(out.u, out.isNew));
 });
-app.get('/api/user/init', userAuth, limit('init', 60, 60e3), initHandler);
-app.post('/api/user/init', userAuth, limit('init', 60, 60e3), initHandler);
+app.get('/api/user/init', userAuth, limit('init', 300, 60e3), initHandler);
+app.post('/api/user/init', userAuth, limit('init', 300, 60e3), initHandler);
 
 // Shared context passed into every game module, Sportsbook & Telegram Bot
 const appCtx = {
   pool, io, CONFIG, Biz, h, tx, audit, lockUser, validWager,
-  newId, mask, parseJson, vaultAdd, userAuth, admin, alog, notify, limit, flights, r2, num, parseInitData
+  newId, mask, parseJson, vaultAdd, userAuth, admin, alog, notify, limit, flights, r2, num, parseInitData,
+  cache, cacheInvalidate
 };
 const { shared: gameShared, chickenMod } = mountAllGames(app, appCtx, __dirname);
-registerSportsbook(app, appCtx);
+const sportsbook = registerSportsbook(app, appCtx);
 registerTelegramBot(app, { pool, env: ENV, config: CONFIG, notify });
 
 // Safety net: settle rounds whose player disappeared + enforce 12-hour audit & retention cleanup
@@ -558,8 +605,8 @@ async function closeLegacyRounds() {
   if (r.rowCount) console.log(`Closed ${r.rowCount} legacy stuck rounds`);
 }
 setInterval(async () => {
+  if (!schemaReady) return;
   try {
-    await closeLegacyRounds();
     await expireDeposits();
     await chickenMod.settleStale();
     const r = await pool.query(`SELECT bet_id,user_id FROM universal_bets WHERE status='IN_FLIGHT' AND game_name=ANY($1) AND flight_start < NOW() - INTERVAL '5 minutes' LIMIT 100`, [CRASH_GAMES]);
@@ -569,10 +616,11 @@ setInterval(async () => {
     }
     for (const [k, f] of flights) if (Date.now() - f.start > 600e3) flights.delete(k);
   } catch (e) { console.error('sweeper:', e.message); }
-}, 60e3).unref();
+}, 120e3).unref();
 
 // Periodic 12-hour audit & purge every 30 minutes (guarantees no raw game/audit rows stay past 12h)
 setInterval(() => {
+  if (!schemaReady) return;
   runTwelveHourAuditAndPrune(pool).then(res => {
     if (res.purgedBets || res.purgedAuditLogs) {
       console.log(`12h Audit Rollup: ${res.reportsCreated} game summaries, purged ${res.purgedBets} bets & ${res.purgedAuditLogs} audit logs`);
@@ -595,6 +643,7 @@ app.post('/api/cashier/deposit', userAuth, limit('dep', 20, 60e3), h(async (req,
   const id = newId('DEP');
   await pool.query(`INSERT INTO transactions (txn_id,user_id,username,type,method,amount,net_amount,agent_assigned,bank_txn_id,status,remarks)
     VALUES ($1,$2,$3,'DEPOSIT',$4,$5,$5,$6,$7,'PENDING','Pending cashier verification')`, [id, req.tg.id, req.tg.username || 'player', method, amt, agent, ref]); // reused reference -> 409
+  cacheInvalidate('admin:dashboard');
   notifyAdmins(`NEW DEPOSIT ${id}\n${fmt(amt)} ETB via ${method}\nPlayer: @${req.tg.username || '-'} (${req.tg.id})${ref ? '\nRef: ' + ref : ''}`);
   res.json({ success: true, txnId: id, agent });
 }));
@@ -649,6 +698,7 @@ app.post('/api/cashier/verify-deposit', userAuth, limit('verify', 12, 600e3), h(
     if (first && amt >= CONFIG.MIN_FIRST_DEP) await creditReferral(c, uid);
     return { after };
   });
+  cacheInvalidate('admin:dashboard');
   res.json({ success: true, txnId: id, credited: amt, newBalance: out.after, message: `Deposit of ${fmt(amt)} ETB verified and added to your balance.` });
 }));
 
@@ -668,10 +718,11 @@ app.post('/api/cashier/cancel', userAuth, limit('cancel', 20, 60e3), h(async (re
     await c.query(`UPDATE transactions SET status='CANCELLED',remarks='Cancelled by player',updated_at=NOW() WHERE txn_id=$1`, [id]);
     return { type: t.type, newBal };
   });
+  cacheInvalidate('admin:dashboard');
   res.json({ success: true, type: out.type, newBalance: out.newBal, message: out.type === 'WITHDRAWAL' ? 'Withdrawal cancelled and refunded' : 'Deposit request cancelled' });
 }));
 
-app.get('/api/cashier/history', userAuth, limit('hist', 60, 60e3), h(async (req, res) => {
+app.get('/api/cashier/history', userAuth, limit('hist', 180, 60e3), h(async (req, res) => {
   const r = await pool.query(`SELECT txn_id,type,method,amount,status,remarks,created_at FROM transactions
     WHERE user_id=$1 AND type IN ('DEPOSIT','WITHDRAWAL') ORDER BY created_at DESC LIMIT 30`, [req.tg.id]);
   res.json({ success: true, items: r.rows.map(t => ({ id: t.txn_id, type: t.type, method: t.method, amount: num(t.amount),
@@ -704,6 +755,7 @@ app.post('/api/cashier/withdraw', userAuth, limit('wd', 10, 60e3), h(async (req,
     await audit(c, req.tg.id, 'WITHDRAWAL_HOLD', amt, bal, newBal, id);
     return { id, newBal, note, uname: u.telegram_username };
   });
+  cacheInvalidate('admin:dashboard');
   notifyAdmins(`NEW WITHDRAWAL ${out.id}\n${fmt(amt)} ETB via ${method} to ${acc}\nPlayer: @${out.uname || '-'} (${req.tg.id})${out.note.includes('REVIEW') ? '\n' + out.note.split('| ')[1] : ''}`);
   res.json({ success: true, txnId: out.id, newBalance: out.newBal });
 }));
@@ -745,77 +797,80 @@ const payAgent = (c, agent, amt) => opt(c,
 const fmtTx = t => ({ id: t.txn_id, u: t.username || t.user_id, uid: t.user_id, m: t.method || 'Telebirr', amt: num(t.amount), st: String(t.status).toLowerCase(), acc: t.sender_account, at: t.created_at });
 
 const dashboard = h(async (_req, res) => {
-  const q = (s, p) => pool.query(s, p);
-  const [vault, cnt, pd, pw, rec, deps, wds, bets, promos, users, ggr, gs, gs12, spStats, retentionStats, reports12h] = await Promise.all([
-    q('SELECT * FROM casino_vault WHERE id=1'),
-    q('SELECT COUNT(*) n FROM users'),
-    q(`SELECT * FROM transactions WHERE type='DEPOSIT' AND status='PENDING' ORDER BY created_at DESC LIMIT 200`),
-    q(`SELECT * FROM transactions WHERE type='WITHDRAWAL' AND status='PENDING' ORDER BY created_at DESC LIMIT 200`),
-    q(`SELECT * FROM transactions ORDER BY created_at DESC LIMIT 50`),
-    q(`SELECT * FROM transactions WHERE type='DEPOSIT' ORDER BY created_at DESC LIMIT 100`),
-    q(`SELECT * FROM transactions WHERE type='WITHDRAWAL' ORDER BY created_at DESC LIMIT 100`),
-    q(`SELECT * FROM universal_bets WHERE status<>'IN_FLIGHT' ORDER BY created_at DESC LIMIT 50`),
-    q('SELECT * FROM promo_codes ORDER BY code'),
-    q(`SELECT u.*,(SELECT COUNT(*) FROM universal_bets b WHERE b.user_id=u.user_id) AS bet_count FROM users u ORDER BY u.balance DESC LIMIT 100`),
-    q(`SELECT COALESCE(SUM(house_profit) FILTER (WHERE created_at>=date_trunc('day',NOW())),0) d,
-              COALESCE(SUM(house_profit) FILTER (WHERE created_at>=date_trunc('month',NOW())),0) m FROM universal_bets WHERE status IN ('WON','LOST')`),
-    q(`SELECT game_name,COUNT(*) bets,COALESCE(SUM(bet_amount),0) wagered,COALESCE(SUM(payout),0) paid FROM universal_bets WHERE status IN ('WON','LOST') GROUP BY game_name`),
-    q(`SELECT game_name,COALESCE(SUM(total_bets),0) bets,COALESCE(SUM(total_wagered),0) wagered,COALESCE(SUM(total_payout),0) paid FROM game_12h_reports GROUP BY game_name`).catch(() => ({ rows: [] })),
-    q(`SELECT COUNT(*) bets,COALESCE(SUM(stake),0) wagered,COALESCE(SUM(payout),0) paid FROM sports_bets WHERE status IN ('WON','LOST','CASHED_OUT')`).catch(() => ({ rows: [{ bets: 0, wagered: 0, paid: 0 }] })),
-    getRetentionStats(pool).catch(() => ({ activeBetsInDb: 0, activeAuditLogsInDb: 0, archived12hReports: 0, retentionWindowHours: 12 })),
-    getReports12h(pool, 100).catch(() => [])
-  ]);
-  const v = vault.rows[0] || {};
-  const bonusM = await q(`SELECT COALESCE(SUM(amount),0) s FROM transactions WHERE type='BONUS' AND created_at>=date_trunc('month',NOW())`).catch(() => ({ rows: [{ s: 0 }] }));
-  const usersList = users.rows.map(userRow);
+  const payload = await cache.getOrLoad('admin:dashboard', 3000, async () => {
+    const q = (s, p) => pool.query(s, p);
+    const [vault, cnt, pd, pw, rec, deps, wds, bets, promos, users, ggr, gs, gs12, spStats, retentionStats, reports12h, bonusM] = await Promise.all([
+      q('SELECT * FROM casino_vault WHERE id=1'),
+      q('SELECT COUNT(*) n FROM users'),
+      q(`SELECT * FROM transactions WHERE type='DEPOSIT' AND status='PENDING' ORDER BY created_at DESC LIMIT 200`),
+      q(`SELECT * FROM transactions WHERE type='WITHDRAWAL' AND status='PENDING' ORDER BY created_at DESC LIMIT 200`),
+      q(`SELECT * FROM transactions ORDER BY created_at DESC LIMIT 50`),
+      q(`SELECT * FROM transactions WHERE type='DEPOSIT' ORDER BY created_at DESC LIMIT 100`),
+      q(`SELECT * FROM transactions WHERE type='WITHDRAWAL' ORDER BY created_at DESC LIMIT 100`),
+      q(`SELECT * FROM universal_bets WHERE status<>'IN_FLIGHT' ORDER BY created_at DESC LIMIT 50`),
+      q('SELECT * FROM promo_codes ORDER BY code'),
+      q(`SELECT u.*,(SELECT COUNT(*) FROM universal_bets b WHERE b.user_id=u.user_id) AS bet_count FROM users u ORDER BY u.balance DESC LIMIT 100`),
+      q(`SELECT COALESCE(SUM(house_profit) FILTER (WHERE created_at>=date_trunc('day',NOW())),0) d,
+                COALESCE(SUM(house_profit) FILTER (WHERE created_at>=date_trunc('month',NOW())),0) m FROM universal_bets WHERE status IN ('WON','LOST')`),
+      q(`SELECT game_name,COUNT(*) bets,COALESCE(SUM(bet_amount),0) wagered,COALESCE(SUM(payout),0) paid FROM universal_bets WHERE status IN ('WON','LOST') GROUP BY game_name`),
+      q(`SELECT game_name,COALESCE(SUM(total_bets),0) bets,COALESCE(SUM(total_wagered),0) wagered,COALESCE(SUM(total_payout),0) paid FROM game_12h_reports GROUP BY game_name`).catch(() => ({ rows: [] })),
+      q(`SELECT COUNT(*) bets,COALESCE(SUM(stake),0) wagered,COALESCE(SUM(payout),0) paid FROM sports_bets WHERE status IN ('WON','LOST','CASHED_OUT')`).catch(() => ({ rows: [{ bets: 0, wagered: 0, paid: 0 }] })),
+      getRetentionStats(pool).catch(() => ({ activeBetsInDb: 0, activeAuditLogsInDb: 0, archived12hReports: 0, retentionWindowHours: 12 })),
+      getReports12h(pool, 100).catch(() => []),
+      q(`SELECT COALESCE(SUM(amount),0) s FROM transactions WHERE type='BONUS' AND created_at>=date_trunc('month',NOW())`).catch(() => ({ rows: [{ s: 0 }] }))
+    ]);
+    const v = vault.rows[0] || {};
+    const usersList = users.rows.map(userRow);
 
-  const gameMap = new Map();
-  const addGameStat = (name, b, w, p) => {
-    const cur = gameMap.get(name) || { game: name, bets: 0, wagered: 0, paid: 0 };
-    cur.bets += Number(b || 0);
-    cur.wagered = r2(cur.wagered + num(w));
-    cur.paid = r2(cur.paid + num(p));
-    gameMap.set(name, cur);
-  };
-  gs.rows.forEach(g => addGameStat(g.game_name, g.bets, g.wagered, g.paid));
-  gs12.rows.forEach(g => addGameStat(g.game_name, g.bets, g.wagered, g.paid));
-  const sp = spStats.rows[0];
-  if (sp && Number(sp.bets || 0) > 0) addGameStat('Sportsbook', sp.bets, sp.wagered, sp.paid);
+    const gameMap = new Map();
+    const addGameStat = (name, b, w, p) => {
+      const cur = gameMap.get(name) || { game: name, bets: 0, wagered: 0, paid: 0 };
+      cur.bets += Number(b || 0);
+      cur.wagered = r2(cur.wagered + num(w));
+      cur.paid = r2(cur.paid + num(p));
+      gameMap.set(name, cur);
+    };
+    gs.rows.forEach(g => addGameStat(g.game_name, g.bets, g.wagered, g.paid));
+    gs12.rows.forEach(g => addGameStat(g.game_name, g.bets, g.wagered, g.paid));
+    const sp = spStats.rows[0];
+    if (sp && Number(sp.bets || 0) > 0) addGameStat('Sportsbook', sp.bets, sp.wagered, sp.paid);
 
-  const targetFor = g => {
-    if (g === 'KenoFast' || g === 'ClassicKeno') return r2(CONFIG.KENO_RTP * 100);
-    if (g === 'Roulette') return 97.3;
-    if (g === 'Sportsbook') return 92.0;
-    return r2(CONFIG.TARGET_RTP * 100);
-  };
-  const gameStats = [...gameMap.values()].map(g => ({
-    ...g,
-    rtp: g.wagered ? r2((g.paid / g.wagered) * 100) : 0,
-    targetRtp: targetFor(g.game)
-  }));
+    const targetFor = g => {
+      if (g === 'KenoFast' || g === 'ClassicKeno') return r2(CONFIG.KENO_RTP * 100);
+      if (g === 'Roulette') return 97.3;
+      if (g === 'Sportsbook') return 92.0;
+      return r2(CONFIG.TARGET_RTP * 100);
+    };
+    const gameStats = [...gameMap.values()].map(g => ({
+      ...g,
+      rtp: g.wagered ? r2((g.paid / g.wagered) * 100) : 0,
+      targetRtp: targetFor(g.game)
+    }));
 
-  res.json({
-    success: true,
-    vault: { gross_profit: num(v.gross_profit), vault_balance: num(v.vault_balance), total_wagered: num(v.total_wagered), ggrToday: num(ggr.rows[0].d), ngrMonth: r2(num(ggr.rows[0].m) - num(bonusM.rows[0].s)), vaultBalance: num(v.vault_balance), totalWagered: num(v.total_wagered) },
-    totalUsers: Number(cnt.rows[0].n), currentRtp: CONFIG.TARGET_RTP, currentCommission: CONFIG.AGENT_COMMISSION,
-    pendingDeposits: pd.rows, pendingWithdrawals: pw.rows, completedHistory: rec.rows.filter(t => t.status !== 'PENDING'), recentTransactions: rec.rows,
-    usersList, users: usersList, dep: deps.rows.map(fmtTx), wd: wds.rows.map(fmtTx),
-    bets: bets.rows.map(b => ({ id: b.bet_id, u: b.username || b.user_id, m: b.game_name, p: num(b.multiplier) + 'x', s: num(b.bet_amount), st: String(b.status).toLowerCase() })),
-    promos: promos.rows.map(p => ({ c: p.code, code: p.code, d: `+${p.bonus_amount} ETB (${p.times_used}/${p.max_uses})`, on: p.is_active ? 1 : 0 })),
-    gameStats,
-    retentionStats,
-    reports12h,
-    settings: {
-      targetRtp: r2(CONFIG.TARGET_RTP * 100),
-      kenoRtp: r2(CONFIG.KENO_RTP * 100),
-      agentCommission: r2(CONFIG.AGENT_COMMISSION * 100),
-      welcomeBonus: CONFIG.WELCOME_BONUS,
-      referralBonus: CONFIG.REFERRAL_BONUS,
-      cashbackPercent: CASHBACK.percent,
-      cashbackMinLoss: CASHBACK.minLoss,
-      minDep: CONFIG.MIN_DEP, maxDep: CONFIG.MAX_DEP, minWd: CONFIG.MIN_WTH, maxWd: CONFIG.MAX_WTH
-    }
+    return {
+      success: true,
+      vault: { gross_profit: num(v.gross_profit), vault_balance: num(v.vault_balance), total_wagered: num(v.total_wagered), ggrToday: num(ggr.rows[0].d), ngrMonth: r2(num(ggr.rows[0].m) - num(bonusM.rows[0].s)), vaultBalance: num(v.vault_balance), totalWagered: num(v.total_wagered) },
+      totalUsers: Number(cnt.rows[0].n), currentRtp: CONFIG.TARGET_RTP, currentCommission: CONFIG.AGENT_COMMISSION,
+      pendingDeposits: pd.rows, pendingWithdrawals: pw.rows, completedHistory: rec.rows.filter(t => t.status !== 'PENDING'), recentTransactions: rec.rows,
+      usersList, users: usersList, dep: deps.rows.map(fmtTx), wd: wds.rows.map(fmtTx),
+      bets: bets.rows.map(b => ({ id: b.bet_id, u: b.username || b.user_id, m: b.game_name, p: num(b.multiplier) + 'x', s: num(b.bet_amount), st: String(b.status).toLowerCase() })),
+      promos: promos.rows.map(p => ({ c: p.code, code: p.code, d: `+${p.bonus_amount} ETB (${p.times_used}/${p.max_uses})`, on: p.is_active ? 1 : 0 })),
+      gameStats,
+      retentionStats,
+      reports12h,
+      settings: {
+        targetRtp: r2(CONFIG.TARGET_RTP * 100),
+        kenoRtp: r2(CONFIG.KENO_RTP * 100),
+        agentCommission: r2(CONFIG.AGENT_COMMISSION * 100),
+        welcomeBonus: CONFIG.WELCOME_BONUS,
+        referralBonus: CONFIG.REFERRAL_BONUS,
+        cashbackPercent: CASHBACK.percent,
+        cashbackMinLoss: CASHBACK.minLoss,
+        minDep: CONFIG.MIN_DEP, maxDep: CONFIG.MAX_DEP, minWd: CONFIG.MIN_WTH, maxWd: CONFIG.MAX_WTH
+      }
+    };
   });
+  res.json(payload);
 });
 const userRow = u => ({
   id: u.user_id, user_id: u.user_id, name: u.full_name || u.telegram_username, telegram_username: u.telegram_username,
@@ -836,6 +891,7 @@ app.get('/api/admin/reports-12h', admin, h(async (req, res) => {
 
 app.post('/api/admin/run-12h-audit', admin, h(async (req, res) => {
   const out = await runTwelveHourAuditAndPrune(pool, { actor: req.actor, ip: req.ip });
+  cacheInvalidate('admin:dashboard');
   res.json({
     ...out,
     message: `12h Audit complete: ${out.reportsCreated} summaries created, ${out.purgedBets} bets & ${out.purgedAuditLogs} audit logs pruned`
@@ -869,6 +925,7 @@ app.post('/api/admin/approve-deposit', admin, h(async (req, res) => {
     if (first && amt >= CONFIG.MIN_FIRST_DEP) await creditReferral(c, t.user_id);
     return { amt, uid: t.user_id };
   });
+  cacheInvalidate('admin:dashboard');
   alog(req, 'approve-deposit', `${txnId} ${out.amt} -> ${out.uid}`);
   notify(out.uid, `Your deposit of ${fmt(out.amt)} ETB was approved.`);
   res.json({ success: true, message: `Deposit ${txnId} approved (+${out.amt} ETB to ${out.uid})` });
@@ -878,6 +935,7 @@ app.post('/api/admin/reject-deposit', admin, h(async (req, res) => {
   const r = await pool.query(`UPDATE transactions SET status='REJECTED',remarks=$1,processed_by=$2,updated_at=NOW() WHERE txn_id=$3 AND type='DEPOSIT' AND status='PENDING' RETURNING user_id,amount`,
     [reason, req.actor, String(req.body.txnId || '')]);
   if (!r.rowCount) throw new Biz('Deposit already processed or not found');
+  cacheInvalidate('admin:dashboard');
   alog(req, 'reject-deposit', req.body.txnId);
   notify(r.rows[0].user_id, `Your deposit of ${fmt(r.rows[0].amount)} ETB was rejected.\nReason: ${reason}`);
   res.json({ success: true, message: `Deposit ${req.body.txnId} rejected` });
@@ -886,6 +944,7 @@ app.post('/api/admin/approve-withdrawal', admin, h(async (req, res) => {
   const r = await pool.query(`UPDATE transactions SET status='APPROVED',remarks=$1,processed_by=$2,updated_at=NOW() WHERE txn_id=$3 AND type='WITHDRAWAL' AND status='PENDING' RETURNING user_id,amount,method`,
     [`Payout completed by ${req.actor}`, req.actor, String(req.body.txnId || '')]);
   if (!r.rowCount) throw new Biz('Withdrawal already processed or not found');
+  cacheInvalidate('admin:dashboard');
   alog(req, 'approve-withdrawal', req.body.txnId);
   notify(r.rows[0].user_id, `Your withdrawal of ${fmt(r.rows[0].amount)} ETB was paid out via ${r.rows[0].method}.`);
   res.json({ success: true, message: `Withdrawal ${req.body.txnId} marked completed` });
@@ -902,6 +961,7 @@ app.post('/api/admin/reject-withdrawal', admin, h(async (req, res) => {
     await audit(c, t.user_id, 'WITHDRAWAL_REFUND', amt, before, after, txnId);
     return { amt, uid: t.user_id };
   });
+  cacheInvalidate('admin:dashboard');
   alog(req, 'reject-withdrawal', `${txnId} refund ${out.amt}`);
   notify(out.uid, `Your withdrawal of ${fmt(out.amt)} ETB was rejected and the money was returned to your balance.`);
   res.json({ success: true, message: `Withdrawal ${txnId} rejected, ${out.amt} ETB refunded to ${out.uid}` });
@@ -921,6 +981,7 @@ app.post('/api/admin/topup', admin, h(async (req, res) => {
     await audit(c, uid, 'TOPUP', amt, before, after, id);
     if (first && amt >= CONFIG.MIN_FIRST_DEP) await creditReferral(c, uid);
   });
+  cacheInvalidate('admin:dashboard');
   alog(req, 'topup', `${uid} ${amt} ref=${ref}`);
   res.json({ success: true, message: `Credited ${amt} ETB to player ${uid}` });
 }));
@@ -937,6 +998,7 @@ app.post('/api/admin/adjust-balance', admin, h(async (req, res) => {
       [id, uid, amt, String(req.body.reason || `${action} by admin`).slice(0, 200), req.actor]);
     await audit(c, uid, `BALANCE_${action}`, amt, before, after, id);
   });
+  cacheInvalidate('admin:dashboard');
   alog(req, 'adjust-balance', `${uid} ${action} ${amt} ${req.body.reason || ''}`);
   res.json({ success: true, message: `Adjusted ${amt} ETB (${action}) for ${uid}` });
 }));
@@ -969,26 +1031,33 @@ app.post('/api/admin/distribute-cashback', admin, h(async (req, res) => {
   const pct = Number(req.body.percentage) / 100, cutoff = Number(req.body.minLoss || 100);
   if (!(pct > 0 && pct <= 0.5)) throw new Biz('Percentage must be between 1 and 50');
   const out = await runCashback(pct, cutoff, req.actor, `${req.body.percentage}% cashback`);
+  cacheInvalidate('admin:dashboard');
   alog(req, 'cashback', `${req.body.percentage}% -> ${out.n} players, ${out.total.toFixed(2)} ETB`);
   notifyCashback(out.items, req.body.percentage);
   res.json({ success: true, message: `Distributed ${out.total.toFixed(2)} ETB cashback to ${out.n} players (1x wagering applies)` });
 }));
 
 let cashbackFailedAt = 0;
+let cashbackDoneDate = '';
 async function cashbackTick() {
-  if (!CASHBACK.auto || Date.now() - cashbackFailedAt < 10 * 60e3) return;
+  if (!schemaReady || !CASHBACK.auto || Date.now() - cashbackFailedAt < 10 * 60e3) return;
+  if (!cashbackDue(new Date(), cashbackDoneDate, CASHBACK.hour)) return;
   const last = (await pool.query(`SELECT value FROM system_settings WHERE key='cashback_last_run'`)).rows[0];
-  const key = cashbackDue(new Date(), last ? last.value : '', CASHBACK.hour); if (!key) return;
+  const lastVal = last ? last.value : '';
+  const key = cashbackDue(new Date(), lastVal, CASHBACK.hour);
+  if (!key) { cashbackDoneDate = lastVal; return; }
   await pool.query(`INSERT INTO system_settings (key,value) VALUES ('cashback_last_run','') ON CONFLICT (key) DO NOTHING`);
   const claim = await pool.query(`UPDATE system_settings SET value=$1 WHERE key='cashback_last_run' AND value<>$1`, [key]);   // atomic: only one run per day
-  if (claim.rowCount !== 1) return;
+  if (claim.rowCount !== 1) { cashbackDoneDate = key; return; }
   try {
     const base = await pool.query(`INSERT INTO system_settings (key,value) VALUES ('cashback_baseline','done') ON CONFLICT (key) DO NOTHING RETURNING key`);
     if (base.rowCount === 1) {   // first ever run: today's starting line, so old losses are never paid retroactively
       await pool.query(`UPDATE users SET cashback_settled_loss=GREATEST(0,total_wagered-total_won)`);
+      cashbackDoneDate = key;
       console.log('Auto cashback: starting line set, the first payout is tomorrow'); return;
     }
     const out = await runCashback(CASHBACK.percent / 100, CASHBACK.minLoss, 'AUTO', `${CASHBACK.percent}% daily cashback`);
+    cashbackDoneDate = key;
     console.log(`Auto cashback ${key}: ${out.total.toFixed(2)} ETB to ${out.n} players`);
     notifyAdmins(`Daily cashback paid: ${fmt(out.total)} ETB to ${out.n} players (${CASHBACK.percent}%)`);
     notifyCashback(out.items, CASHBACK.percent);
@@ -997,12 +1066,13 @@ async function cashbackTick() {
     await pool.query(`UPDATE system_settings SET value='' WHERE key='cashback_last_run' AND value=$1`, [key]).catch(() => {});
   }
 }
-setInterval(() => cashbackTick().catch(e => console.error('cashback tick:', e.message)), 30e3).unref();
+setInterval(() => cashbackTick().catch(e => console.error('cashback tick:', e.message)), 60e3).unref();
 
 app.post('/api/admin/create-promo', admin, h(async (req, res) => {
   const code = String(req.body.code || '').trim().toUpperCase().slice(0, 40), amt = r2(req.body.bonusAmount), max = parseInt(req.body.maxUses || 100, 10);
   if (!code || !(amt > 0 && amt <= 10000) || !(max > 0)) throw new Biz('Valid code, bonus amount and max uses required');
   await pool.query('INSERT INTO promo_codes (code,bonus_amount,max_uses) VALUES ($1,$2,$3)', [code, amt, max]);
+  cacheInvalidate('admin:dashboard');
   alog(req, 'create-promo', `${code} +${amt} x${max}`);
   res.json({ success: true, message: `Promo ${code} created (+${amt} ETB)` });
 }));
@@ -1012,6 +1082,7 @@ app.post('/api/admin/toggle-promo', admin, h(async (req, res) => {
   const r = await pool.query(`UPDATE promo_codes SET is_active=NOT is_active WHERE code=$1 RETURNING code,is_active`, [code]);
   if (!r.rowCount) throw new Biz('Promo code not found', 404);
   const on = Boolean(r.rows[0].is_active);
+  cacheInvalidate('admin:dashboard');
   alog(req, 'toggle-promo', `${code} -> ${on ? 'active' : 'off'}`);
   res.json({ success: true, code, isActive: on, message: `Promo ${code} is now ${on ? 'active' : 'disabled'}` });
 }));
@@ -1028,6 +1099,7 @@ app.post('/api/admin/reward-users', admin, h(async (req, res) => {
     await c.query('UPDATE casino_vault SET total_bonus_awarded=total_bonus_awarded+$1 WHERE id=1', [amt * count]);
     return count;
   });
+  cacheInvalidate('admin:dashboard');
   alog(req, 'reward-users', `${n} players x ${amt}`);
   res.json({ success: true, message: `Rewarded ${n} players with ${amt} ETB each (wager ${wr} ETB)` });
 }));
@@ -1059,6 +1131,7 @@ app.post('/api/admin/update-settings', admin, h(async (req, res) => {
     const v = r2(cashbackPercent); if (!Number.isFinite(v) || v < 1 || v > 50) throw new Biz('Cashback % must be 1 to 50');
     CASHBACK.percent = v; await saveKey('cashback_percent', v);
   }
+  cacheInvalidate('admin:dashboard');
   alog(req, 'update-settings', JSON.stringify({ targetRtp, kenoRtp, agentCommission, welcomeBonus, referralBonus, cashbackPercent }));
   res.json({ success: true, message: 'Settings saved & applied immediately' });
 }));
@@ -1067,10 +1140,21 @@ app.post('/api/admin/user-status', admin, h(async (req, res) => {
   if (!['active', 'suspended', 'banned'].includes(status)) throw new Biz('Invalid status');
   const r = await pool.query('UPDATE users SET status=$1 WHERE user_id=$2', [status, String(req.body.userId)]);
   if (!r.rowCount) throw new Biz('User not found', 404);
+  cacheInvalidate('admin:dashboard');
   alog(req, 'user-status', `${req.body.userId} -> ${status}`); res.json({ success: true, message: `User status changed to ${status}` });
 }));
 
-async function shutdown() { console.log('Shutting down, saving stats...'); try { await flushVault(); } catch (e) {} process.exit(0); }
+let shuttingDown = false;
+async function shutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log('Shutting down, saving stats...');
+  try { await flushVault(); } catch (_) {}
+  try { await sportsbook.persistIfDirty(true); } catch (_) {}
+  try { if (typeof pool.end === 'function') await pool.end(); } catch (_) {}
+  try { server.close(); } catch (_) {}
+  process.exit(0);
+}
 process.on('SIGTERM', shutdown); process.on('SIGINT', shutdown);
 process.on('unhandledRejection', e => console.error('unhandledRejection:', e));
 const PORT = ENV.PORT || 3000;
@@ -1078,6 +1162,11 @@ ensureSchema()
   .then(closeLegacyRounds)
   .then(loadSettings)
   .then(refreshVaultCache)
+  .then(hydrateChatBuffer)
+  .then(() => sportsbook.restoreFixtures().then(() => sportsbook.startTick()).catch(() => sportsbook.startTick()))
   .then(() => gameShared.crashEngine.seedHistories().catch(() => {}))
   .then(() => runTwelveHourAuditAndPrune(pool).catch(e => console.warn('startup 12h audit:', e.message)))
-  .finally(() => server.listen(PORT, '0.0.0.0', () => console.log(`Hulu Bet server on 0.0.0.0:${PORT}`)));
+  .finally(() => {
+    schemaReady = true;
+    server.listen(PORT, '0.0.0.0', () => console.log(`Hulu Bet server on 0.0.0.0:${PORT}`));
+  });

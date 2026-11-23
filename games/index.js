@@ -31,7 +31,7 @@ function mountAllGames(app, ctx, rootDir) {
   // Serve each game HTML cleanly from the single repository + mount dedicated API router /api/games/<slug>/*
   for (const mod of registry) {
     app.get([mod.routePath, mod.routePath + '/', '/' + mod.htmlFile], (_req, res) => {
-      res.sendFile(path.join(rootDir, mod.htmlFile));
+      res.sendFile(path.join(rootDir, mod.htmlFile), { maxAge: 60 * 1000 });
     });
     app.use('/api/games/' + mod.slug, mod.router);
   }
@@ -69,28 +69,28 @@ function mountAllGames(app, ctx, rootDir) {
   app.post('/api/chicken/step', ctx.userAuth, ctx.limit('chickenstep', 300, 60e3), chickenMod.handlers.stepHandler);
   app.post('/api/chicken/cashout', ctx.userAuth, ctx.limit('chickenstep', 300, 60e3), chickenMod.handlers.cashoutHandler);
 
-  app.post('/api/bet/play', ctx.userAuth, ctx.limit('bet', 120, 60e3), ctx.h(async (req, res) => {
+  app.post('/api/bet/play', ctx.userAuth, ctx.limit('bet', 240, 60e3), ctx.h(async (req, res) => {
     const { gameName } = req.body || {};
     if (CRASH_GAMES.includes(gameName)) throw new ctx.Biz('Use /api/crash/bet for this game');
     if (!INSTANT_GAMES.includes(gameName)) throw new ctx.Biz('Invalid game');
     res.json(await shared.processInstantBet(req, gameName));
   }));
 
-  app.post('/api/crash/bet', ctx.userAuth, ctx.limit('crash', 120, 60e3), ctx.h(async (req, res) => {
+  app.post('/api/crash/bet', ctx.userAuth, ctx.limit('crash', 240, 60e3), ctx.h(async (req, res) => {
     const { gameName, roundId } = req.body || {};
     if (roundId) return res.json(await shared.crashEngine.placeRoomBet(req, gameName));
     res.json(await shared.placeCrashBets(req, gameName));
   }));
-  app.post('/api/crash/cancel', ctx.userAuth, ctx.limit('crash', 120, 60e3), ctx.h(async (req, res) => {
+  app.post('/api/crash/cancel', ctx.userAuth, ctx.limit('crash', 240, 60e3), ctx.h(async (req, res) => {
     res.json(await shared.crashEngine.cancelRoomBet(req));
   }));
-  app.get('/api/crash/room', ctx.limit('feed', 120, 60e3), ctx.h(async (req, res) => {
+  app.get('/api/crash/room', ctx.limit('crashroom', 240, 60e3), ctx.h(async (req, res) => {
     const gameName = req.query.game === 'JetX' ? 'JetX' : 'Aviator';
     const auth = ctx.parseInitData ? ctx.parseInitData(req.headers['x-telegram-init-data'] || req.query?.initData) : null;
     res.json(shared.crashEngine.getRoomState(gameName, auth?.id || null));
   }));
   app.get('/api/crash/status', ctx.userAuth, ctx.limit('crashstat', 600, 60e3), ctx.h((req, res) => shared.settleCrashRoute(req, res, false)));
-  app.post('/api/crash/cashout', ctx.userAuth, ctx.limit('crash', 120, 60e3), ctx.h((req, res) => shared.settleCrashRoute(req, res, true)));
+  app.post('/api/crash/cashout', ctx.userAuth, ctx.limit('crash', 240, 60e3), ctx.h((req, res) => shared.settleCrashRoute(req, res, true)));
 
   return { registry, shared, chickenMod };
 }

@@ -1036,8 +1036,9 @@
         if (Number.isFinite(Number(d.balance))) {
           serverBalance = Number(d.balance);
           document.getElementById('ui-balance').textContent = Number(serverBalance).toFixed(2);
+        } else {
+          refreshBalance();
         }
-        refreshBalance();
       }
     });
 

@@ -856,8 +856,9 @@ addEventListener('message', e => {
       const formatted = hideBalance ? '••••••' : Number(serverBalance).toFixed(2);
       document.getElementById('uiBalance').innerText = formatted;
       document.getElementById('headerSubBalance').innerText = formatted;
+    } else {
+      refreshBalance();
     }
-    refreshBalance();
   }
 });
 
@@ -1635,7 +1636,7 @@ async function loadLiveFeed() {
     renderLedger();
   }
 }
-setInterval(() => { if (ledgerTab === 'live') loadLiveFeed(); }, 15000);
+setInterval(() => { if (!document.hidden && ledgerTab === 'live') loadLiveFeed(); }, 30000);
 
 // Tab Switching
 function selectTab(tab) {

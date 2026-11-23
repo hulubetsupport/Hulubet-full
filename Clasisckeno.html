@@ -825,8 +825,9 @@
         if (Number.isFinite(Number(d.balance))) {
           serverBalance = Number(d.balance);
           if (shownBalance === null) document.getElementById('balanceDisplay').textContent = Number(serverBalance).toFixed(2) + ' ETB';
+        } else {
+          refreshBalance();
         }
-        refreshBalance();
       }
     });
 
@@ -1209,7 +1210,7 @@
           <div class="ticket-footer"><span>${String(w.game).replace(/[<>&"']/g, '')} - x${Number(w.mult || 1).toFixed(2)}</span></div>
         </div>`).join('') : '<div style="padding:14px;text-align:center;opacity:.6;font-size:12px">No big wins yet</div>';
     }
-    setInterval(loadLatestWins, 15000);
+    setInterval(() => { if (!document.hidden) loadLatestWins(); }, 30000);
 
     /* ==========================================================================
        8. ROUND STATE MACHINE: BETTING -> DRAWING -> SETTLEMENT

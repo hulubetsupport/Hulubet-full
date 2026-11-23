@@ -5,13 +5,14 @@
   style.id = 'hulu-fullscreen-guard';
   style.textContent = [
     'html, body {',
+    '  box-sizing: border-box !important;',
     '  width: 100% !important;',
     '  max-width: 100vw !important;',
     '  min-height: 100dvh !important;',
     '  margin: 0 !important;',
     '  overflow-x: hidden !important;',
     '}',
-    '.aviator-wrapper, #app, .keno-wrapper, .main-content-limiter, .game-wrapper, .game-container, #game-container, .slot-shell, .roulette-app {',
+    '.aviator-wrapper, #app, #game-app, .keno-wrapper, .main-content-limiter, .game-wrapper, .game-container, #game-container, .slot-shell, .roulette-app {',
     '  width: 100% !important;',
     '  max-width: 100% !important;',
     '  margin-left: 0 !important;',
@@ -23,6 +24,11 @@
     'body.tg-game-fullscreen {',
     '  padding-top: var(--tg-safe-top, 0px) !important;',
     '  padding-bottom: var(--tg-safe-bottom, 0px) !important;',
+    '}',
+    'body.tg-game-fullscreen #game-app,',
+    'body.tg-game-fullscreen #game-container,',
+    'body.tg-game-fullscreen .game-container {',
+    '  max-height: calc(100dvh - var(--tg-safe-top, 0px) - var(--tg-safe-bottom, 0px)) !important;',
     '}',
     'body.tg-game-fullscreen #btnBack { display: none !important; }'
   ].join('\n');

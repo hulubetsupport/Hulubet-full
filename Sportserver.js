@@ -15,12 +15,16 @@ const SETTINGS_KEY = 'sports_fixtures_state';
 function registerSportsbook(app, ctx) {
   const {
     pool, io, CONFIG, Biz, h, tx, audit, lockUser,
-    newId, vaultAdd, userAuth, admin, alog, notify, limit, r2, num
+    newId, vaultAdd, userAuth, admin, alog, notify, limit, r2, num, cacheInvalidate
   } = ctx;
 
   let fixtures = createDefaultFixtures();
   let seqCounter = 1;
   let settling = new Set();
+  let dirty = false;
+  let lastPersistedAt = 0;
+  let tickTimer = null;
+  const PERSIST_INTERVAL_MS = 120000; // Persist routine clock ticks at most every 2 minutes (or immediately on FT/admin changes)
 
   async function persistFixtures() {
     try {
@@ -29,7 +33,16 @@ function registerSportsbook(app, ctx) {
         `INSERT INTO system_settings (key,value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value=$2`,
         [SETTINGS_KEY, payload]
       );
+      dirty = false;
+      lastPersistedAt = Date.now();
     } catch (_) {}
+  }
+
+  async function persistIfDirty(force = false) {
+    if (!dirty) return;
+    if (force || Date.now() - lastPersistedAt >= PERSIST_INTERVAL_MS) {
+      await persistFixtures();
+    }
   }
 
   async function restoreFixtures() {
@@ -39,6 +52,8 @@ function registerSportsbook(app, ctx) {
         const parsed = JSON.parse(r.rows[0].value);
         if (Array.isArray(parsed) && parsed.length) {
           fixtures = parsed.map(hydrateFixture);
+          dirty = false;
+          lastPersistedAt = Date.now();
           return;
         }
       }
@@ -54,7 +69,9 @@ function registerSportsbook(app, ctx) {
   }
 
   function broadcastUpdate() {
-    if (io) io.emit('sports:update', { matches: fixtures });
+    if (io && io.engine && io.engine.clientsCount > 0) {
+      io.emit('sports:update', { matches: fixtures });
+    }
   }
 
   async function settleFixture(matchId, actor = 'AUTO_FT', overrideScores = null) {
@@ -133,6 +150,7 @@ function registerSportsbook(app, ctx) {
         vaultAdd({ bal: -out.totalPayout, payouts: out.totalPayout, profit: -out.totalPayout });
       }
       await persistFixtures();
+      if (cacheInvalidate) cacheInvalidate('admin:dashboard');
       broadcastUpdate();
       if (io) {
         io.emit('sports:settled', {
@@ -154,40 +172,49 @@ function registerSportsbook(app, ctx) {
     }
   }
 
-  // Live progression timer (ticks every 20s, auto-settles FT, rotates fresh matches)
-  setTimeout(() => { restoreFixtures().catch(() => {}); }, 250).unref();
-  setInterval(async () => {
-    try {
-      const now = Date.now();
-      const finishedIds = [];
-      let changed = false;
+  // Live progression timer (started after DB schema/restore; DB writes batched every 2m unless FT/rotated)
+  function startTick() {
+    if (tickTimer) return;
+    tickTimer = setInterval(async () => {
+      try {
+        const now = Date.now();
+        const finishedIds = [];
+        let changed = false;
+        let urgentPersist = false;
 
-      fixtures = fixtures.map(f => {
-        if (f.status === 'LIVE') {
-          const next = tickMatch(f);
-          changed = true;
-          if (next.status === 'FT') finishedIds.push(next.id);
-          return next;
+        fixtures = fixtures.map(f => {
+          if (f.status === 'LIVE') {
+            const next = tickMatch(f);
+            changed = true;
+            if (next.status === 'FT') {
+              finishedIds.push(next.id);
+              urgentPersist = true;
+            }
+            return next;
+          }
+          if (f.status === 'FT' && f.finishedAt && now - f.finishedAt > 90 * 1000) {
+            changed = true;
+            urgentPersist = true;
+            return createReplacementFixture(f.sport, seqCounter++, now);
+          }
+          return f;
+        });
+
+        for (const mid of finishedIds) {
+          await settleFixture(mid, 'AUTO_FT').catch(e => console.error('sports auto-settle:', e.message));
         }
-        if (f.status === 'FT' && f.finishedAt && now - f.finishedAt > 90 * 1000) {
-          changed = true;
-          return createReplacementFixture(f.sport, seqCounter++, now);
+
+        if (changed) {
+          dirty = true;
+          await persistIfDirty(urgentPersist);
+          broadcastUpdate();
         }
-        return f;
-      });
-
-      for (const mid of finishedIds) {
-        await settleFixture(mid, 'AUTO_FT').catch(e => console.error('sports auto-settle:', e.message));
+      } catch (e) {
+        console.error('sports tick:', e.message);
       }
-
-      if (changed) {
-        await persistFixtures();
-        broadcastUpdate();
-      }
-    } catch (e) {
-      console.error('sports tick:', e.message);
-    }
-  }, 20000).unref();
+    }, 20000);
+    tickTimer.unref();
+  }
 
   // ---- Player Routes (/api/sports/*) ----
   const router = express.Router();
@@ -259,6 +286,7 @@ function registerSportsbook(app, ctx) {
     });
 
     vaultAdd({ bal: stake, wagered: stake, profit: stake });
+    if (cacheInvalidate) cacheInvalidate('admin:dashboard');
     res.json({ success: true, newBalance: out.newBal, ticket: out.ticket });
   }));
 
@@ -326,6 +354,7 @@ function registerSportsbook(app, ctx) {
     });
 
     vaultAdd({ bal: -out.cashVal, payouts: out.cashVal, profit: -out.cashVal });
+    if (cacheInvalidate) cacheInvalidate('admin:dashboard');
     res.json({ success: true, ticketId, payout: out.cashVal, newBalance: out.after });
   }));
 
@@ -417,7 +446,9 @@ function registerSportsbook(app, ctx) {
   return {
     getFixtures: () => fixtures,
     settleFixture,
-    restoreFixtures
+    restoreFixtures,
+    startTick,
+    persistIfDirty
   };
 }
 

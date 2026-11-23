@@ -35,8 +35,8 @@
       background-image: radial-gradient(circle at 50% 12%, #221c54 0%, #0d0e26 55%, #050611 100%);
       color: var(--text-main);
       font-family: var(--font-family);
-      width: 100vw;
-      height: 100vh;
+      width: 100%;
+      height: 100dvh;
       overflow: hidden;
       display: flex;
       justify-content: center;
@@ -47,6 +47,7 @@
       width: 100%;
       max-width: 100%;
       height: 100%;
+      min-height: 0;
       display: flex;
       flex-direction: column;
       position: relative;
@@ -139,7 +140,7 @@
       flex: 1;
       position: relative;
       width: 100%;
-      min-height: 0;
+      min-height: 140px;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -953,13 +954,16 @@
         refreshBalance();
       }
       if (d.type === 'UPDATE_BALANCE') {
-        if (Number.isFinite(Number(d.balance)) && !inFlightRequests && !activeBalls.length) {
+        if (Number.isFinite(Number(d.balance))) {
           serverBalance = Number(d.balance);
-          shownBalance = serverBalance;
-          const el = document.getElementById('balance-display-val');
-          if (el) el.textContent = Number(shownBalance).toFixed(2) + " ETB";
+          if (!inFlightRequests && !activeBalls.length) {
+            shownBalance = serverBalance;
+            const el = document.getElementById('balance-display-val');
+            if (el) el.textContent = Number(shownBalance).toFixed(2) + " ETB";
+          }
+        } else {
+          refreshBalance();
         }
-        refreshBalance();
       }
     });
 
@@ -1418,6 +1422,8 @@
     }
 
     /* Main Render Loop */
+    let hasNotifiedRoundActive = false;
+    let pendingBallSpawns = 0;
     function animate() {
       const rect = canvas.parentElement.getBoundingClientRect();
       ctx.clearRect(0, 0, rect.width, rect.height);
@@ -1483,7 +1489,8 @@
         }
       }
 
-      if (activeBalls.length === 0 && inFlightRequests === 0) {
+      if (hasNotifiedRoundActive && activeBalls.length === 0 && inFlightRequests === 0 && pendingBallSpawns === 0) {
+        hasNotifiedRoundActive = false;
         postParent({ type: 'BET_ENDED' });
       }
 
@@ -1510,6 +1517,7 @@
       }
 
       inFlightRequests++;
+      hasNotifiedRoundActive = true;
       updateDropButtonState();
       postParent({ type: 'BET_STARTED' });
 
@@ -1548,8 +1556,10 @@
       let landed = 0;
 
       if (balls.length > 0) {
+        pendingBallSpawns += balls.length;
         balls.forEach((b, i) => {
           setTimeout(() => {
+            pendingBallSpawns = Math.max(0, pendingBallSpawns - 1);
             const ballMult = b.ballMultiplier || (b.mult >= 10 && b.mult % 10 === 0 ? 10 : b.mult >= 5 && b.mult % 5 === 0 ? 5 : 1);
             highlightMeter(ballMult);
 

@@ -14,14 +14,17 @@ module.exports = function createKenoFastModule(ctx, shared) {
 
   const resultsHandler = ctx.h(async (req, res) => {
     const lim = Math.min(50, Math.max(1, parseInt(req.query.limit || '20', 10) || 20));
-    const r = await ctx.pool.query(
-      `SELECT game_data, created_at FROM universal_bets WHERE game_name=$1 AND status IN ('WON','LOST') ORDER BY created_at DESC LIMIT $2`,
-      [GAME_NAME, lim]
-    );
-    const results = r.rows.map((row, idx) => {
-      const gd = ctx.parseJson(row.game_data);
-      return { round: r.rows.length - idx, drawnNumbers: gd.drawnNumbers || [], createdAt: row.created_at };
-    });
+    const load = async () => {
+      const r = await ctx.pool.query(
+        `SELECT game_data, created_at FROM universal_bets WHERE game_name=$1 AND status IN ('WON','LOST') ORDER BY created_at DESC LIMIT $2`,
+        [GAME_NAME, lim]
+      );
+      return r.rows.map((row, idx) => {
+        const gd = ctx.parseJson(row.game_data);
+        return { round: r.rows.length - idx, drawnNumbers: gd.drawnNumbers || [], createdAt: row.created_at };
+      });
+    };
+    const results = ctx.cache ? await ctx.cache.getOrLoad(`keno_results:${lim}`, 4000, load) : await load();
     res.json({ success: true, results });
   });
 

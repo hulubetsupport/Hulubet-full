@@ -62,7 +62,7 @@ function createMockPool() {
       db.casino_vault.gross_profit += Number(params[3] || 0);
       db.casino_vault.total_bonus_awarded += Number(params[4] || 0);
       db.casino_vault.updated_at = new Date();
-      return { rows: [], rowCount: 1 };
+      return { rows: low.includes('returning') ? [{ vault_balance: db.casino_vault.vault_balance }] : [], rowCount: 1 };
     }
     if (low.startsWith('update casino_vault set total_bonus_awarded=')) {
       db.casino_vault.total_bonus_awarded += Number(params[0] || 0);
@@ -180,9 +180,16 @@ function createMockPool() {
         .map(u => ({ user_id: u.user_id, balance: u.balance, net_loss: u.total_wagered - u.total_won, settled: u.cashback_settled_loss || 0 }));
       return { rows, rowCount: rows.length };
     }
+    if (low.startsWith('select user_id,balance from users where user_id=any($1')) {
+      const ids = new Set((params[0] || []).map(String));
+      const rows = [...db.users.values()].filter(u => ids.has(u.user_id)).map(u => ({ user_id: u.user_id, balance: u.balance }));
+      return { rows, rowCount: rows.length };
+    }
     if (low.includes('from users where user_id=$1')) {
       const u = db.users.get(String(params[0]));
-      return u ? { rows: [{ ...u }], rowCount: 1 } : { rows: [], rowCount: 0 };
+      if (!u) return { rows: [], rowCount: 0 };
+      const refCount = low.includes('as referral_count') ? [...db.users.values()].filter(x => x.referrer_id === u.user_id).length : undefined;
+      return { rows: [{ ...u, ...(refCount !== undefined ? { referral_count: refCount } : {}) }], rowCount: 1 };
     }
     if (low.startsWith('update users set balance=$1,total_wagered=total_wagered+$2,total_won=total_won+$3')) {
       const u = db.users.get(String(params[3]));
@@ -404,6 +411,16 @@ function createMockPool() {
       if (b) { b.status = 'VOID'; b.multiplier = 0; b.payout = Number(params[0]); b.house_profit = 0; }
       return { rows: [], rowCount: b ? 1 : 0 };
     }
+    if (low.startsWith("update universal_bets set status='lost',multiplier=0,payout=0,house_profit=bet_amount where bet_id=any($1")) {
+      const ids = new Set(params[0] || []);
+      let n = 0;
+      db.universal_bets.forEach(b => {
+        if (ids.has(b.bet_id) && b.status === 'IN_FLIGHT') {
+          b.status = 'LOST'; b.multiplier = 0; b.payout = 0; b.house_profit = b.bet_amount; n++;
+        }
+      });
+      return { rows: [], rowCount: n };
+    }
     if (low.startsWith("update universal_bets set status='lost',house_profit=bet_amount where status='in_flight'")) {
       let n = 0;
       db.universal_bets.forEach(b => { if (b.status === 'IN_FLIGHT' && !b.flight_start) { b.status = 'LOST'; b.house_profit = b.bet_amount; n++; } });
@@ -452,6 +469,13 @@ function createMockPool() {
     }
 
     // ---- 12h audit & pruning queries ----
+    if (low.startsWith('select exists(select 1 from universal_bets')) {
+      const cutoff = new Date(params[0]).getTime();
+      const has_bets = db.universal_bets.some(b => new Date(b.created_at).getTime() < cutoff);
+      const has_audits = db.balance_audit_logs.some(l => new Date(l.created_at).getTime() < cutoff);
+      const has_sports = db.sports_bets.some(s => new Date(s.created_at).getTime() < cutoff);
+      return { rows: [{ has_bets, has_audits, has_sports }], rowCount: 1 };
+    }
     if (low.startsWith("update universal_bets set status='lost', house_profit=bet_amount where status='in_flight' and created_at < $1") ||
         low.startsWith("update universal_bets set status='lost',house_profit=bet_amount where status='in_flight' and created_at < $1")) {
       const cutoff = new Date(params[0]).getTime();

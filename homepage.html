@@ -200,7 +200,7 @@ body, html {
   display: none;
   flex-direction: column;
   flex: 1;
-  padding-bottom: 115px;
+  padding-bottom: calc(96px + var(--safe-bottom));
   overflow-y: auto;
 }
 .screen-view.active { display: flex; }
@@ -1467,7 +1467,25 @@ function getTgSafeArea() {
   const sTop = Number(tg.safeAreaInset?.top || 0);
   const cBot = Number(tg.contentSafeAreaInset?.bottom || 0);
   const sBot = Number(tg.safeAreaInset?.bottom || 0);
-  return { top: cTop + sTop, bottom: Math.max(cBot, sBot) };
+  let top = cTop > 0 ? (cTop + sTop) : sTop;
+  if (tg.isFullscreen) top = Math.max(top, cTop > 0 ? (cTop + sTop) : Math.max(92, sTop + 48));
+  return { top, bottom: Math.max(cBot, sBot) };
+}
+
+function applyHomepageSafeInsets() {
+  const insets = getTgSafeArea();
+  if (IS_TELEGRAM_APP && insets.top > 0) {
+    document.documentElement.style.setProperty('--safe-top', insets.top + 'px');
+  }
+  if (IS_TELEGRAM_APP && insets.bottom > 0) {
+    document.documentElement.style.setProperty('--safe-bottom', insets.bottom + 'px');
+  }
+  return insets;
+}
+applyHomepageSafeInsets();
+if (IS_TELEGRAM_APP) {
+  setTimeout(applyHomepageSafeInsets, 140);
+  setTimeout(applyHomepageSafeInsets, 450);
 }
 
 function syncBackButton(tab) {
@@ -1486,13 +1504,15 @@ if (tg?.BackButton && tg.isVersionAtLeast?.('6.1')) {
 
 if (tg?.onEvent) {
   const forwardInsets = () => {
-    const insets = getTgSafeArea();
+    const insets = applyHomepageSafeInsets();
     try {
       gameWin()?.postMessage({ type: 'SAFE_AREA', safeTop: insets.top, safeBottom: insets.bottom, isTelegram: IS_TELEGRAM_APP }, GAME_ORIGIN);
     } catch (_) {}
   };
   tg.onEvent('safeAreaChanged', forwardInsets);
   tg.onEvent('contentSafeAreaChanged', forwardInsets);
+  tg.onEvent('fullscreenChanged', forwardInsets);
+  tg.onEvent('viewportChanged', forwardInsets);
 }
 
 const INIT_DATA = tg?.initData || "demo_session";
@@ -1530,12 +1550,19 @@ async function api(path, opts = {}) {
   }
 }
 
+const _toastSeenAt = new Map();
 function toast(msg) {
   const box = document.getElementById('toast-container');
-  if (!box) return;
+  const txt = String(msg || '').trim();
+  if (!box || !txt) return;
+  const now = Date.now();
+  const prevAt = _toastSeenAt.get(txt) || 0;
+  if (now - prevAt < 2500) return;
+  _toastSeenAt.set(txt, now);
+  while (box.children.length >= 2) box.firstElementChild.remove();
   const t = document.createElement('div');
   t.className = 'clean-toast';
-  t.innerText = msg;
+  t.innerText = txt;
   box.appendChild(t);
   haptic('medium');
   setTimeout(() => t.remove(), 2600);
@@ -1568,23 +1595,39 @@ function toggleBalanceVisibility() {
   updateBalanceDisplay();
 }
 
-async function syncDatabaseBalance() {
+let syncInFlight = null;
+let lastSyncSuccessAt = 0;
+async function syncDatabaseBalance(force = false) {
   if (!INIT_DATA) return null;
-  const urlParams = new URLSearchParams(window.location.search);
-  const ref = tg?.initDataUnsafe?.start_param || urlParams.get('refId') || urlParams.get('startapp') || '';
-  const d = await api('/api/user/init' + (ref ? '?refId=' + encodeURIComponent(ref) : ''));
-  if (d.success) {
-    currentBalance = Number(d.balance);
-    wagerLeft = Number(d.wagerRequirementLeft || 0);
-    updateBalanceDisplay();
-    if (document.getElementById('gameViewport')?.style.display === 'flex') {
-      try {
-        gameWin()?.postMessage({ type: 'UPDATE_BALANCE', balance: currentBalance }, GAME_ORIGIN);
-      } catch (_) {}
-    }
+  if (syncInFlight) return syncInFlight;
+  if (!force && currentBalance !== null && Date.now() - lastSyncSuccessAt < 1000) {
     return currentBalance;
-  } else if (d.message && !NEEDS_BACKEND_SETUP) toast(d.message);
-  return null;
+  }
+  syncInFlight = (async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const ref = tg?.initDataUnsafe?.start_param || urlParams.get('refId') || urlParams.get('startapp') || '';
+    const d = await api('/api/user/init' + (ref ? '?refId=' + encodeURIComponent(ref) : ''));
+    if (d.success) {
+      lastSyncSuccessAt = Date.now();
+      currentBalance = Number(d.balance);
+      wagerLeft = Number(d.wagerRequirementLeft || 0);
+      updateBalanceDisplay();
+      if (document.getElementById('gameViewport')?.style.display === 'flex') {
+        try {
+          gameWin()?.postMessage({ type: 'UPDATE_BALANCE', balance: currentBalance }, GAME_ORIGIN);
+        } catch (_) {}
+      }
+      return currentBalance;
+    } else if (d.message && !NEEDS_BACKEND_SETUP && !String(d.message).toLowerCase().includes('too many requests')) {
+      toast(d.message);
+    }
+    return null;
+  })();
+  try {
+    return await syncInFlight;
+  } finally {
+    syncInFlight = null;
+  }
 }
 
 const GAME_ROUTES = {
@@ -1603,10 +1646,13 @@ const GAME_ROUTES = {
 };
 const getGameUrl = key => GAME_ORIGIN + (GAME_ROUTES[key] || GAME_ROUTES.aviator).path;
 
-let currentLoadedGame = null, isGameRoundActive = false;
+let currentLoadedGame = null, isGameRoundActive = false, lastInitSentAt = 0;
 const gameWin = () => document.getElementById('gameIframe')?.contentWindow;
-const sendInit = () => {
-  const insets = getTgSafeArea();
+const sendInit = (force = false) => {
+  const now = Date.now();
+  if (!force && now - lastInitSentAt < 500) return;
+  lastInitSentAt = now;
+  const insets = applyHomepageSafeInsets();
   try {
     gameWin()?.postMessage({
       type: 'INIT',
@@ -1624,19 +1670,20 @@ async function launchGameEngine(key, title) {
   if (!INIT_DATA) return toast("Open the app from Telegram");
   if (NEEDS_BACKEND_SETUP) return openModal('modalServerConnect');
   haptic('medium');
-  if (currentBalance === null) await syncDatabaseBalance();
+  if (currentBalance === null) await syncDatabaseBalance(true);
   const iframe = document.getElementById('gameIframe');
   document.getElementById('gameViewport').style.display = 'flex';
   syncBackButton();
   const targetUrl = getGameUrl(key);
   if (currentLoadedGame === key && iframe.src && iframe.src === targetUrl) {
-    sendInit();
+    sendInit(true);
     try { gameWin()?.postMessage({ type: 'UPDATE_BALANCE', balance: currentBalance }, GAME_ORIGIN); } catch (_) {}
     return;
   }
   currentLoadedGame = key;
   isGameRoundActive = false;
-  iframe.onload = () => sendInit();
+  lastInitSentAt = 0;
+  iframe.onload = () => sendInit(true);
   iframe.src = targetUrl;
 }
 
@@ -1645,23 +1692,31 @@ async function closeGameViewport() {
   const hadActiveRound = isGameRoundActive;
   isGameRoundActive = false;
   document.getElementById('gameViewport').style.display = 'none';
+  const iframe = document.getElementById('gameIframe');
+  if (iframe) {
+    iframe.onload = null;
+    try { iframe.contentWindow?.postMessage({ type: 'GAME_PAUSED' }, GAME_ORIGIN); } catch (_) {}
+    iframe.src = 'about:blank';
+  }
+  currentLoadedGame = null;
   syncBackButton(document.querySelector('.screen-view.active')?.id?.replace('tab-', '') || 'casino');
-  await syncDatabaseBalance();
+  await syncDatabaseBalance(true);
   refreshBonusStatus();
   if (hadActiveRound) {
-    setTimeout(() => { syncDatabaseBalance(); refreshBonusStatus(); }, 900);
+    setTimeout(() => { syncDatabaseBalance(true); refreshBonusStatus(); }, 900);
   }
 }
 
 window.addEventListener('message', e => {
   if (e.source !== gameWin() || e.origin !== GAME_ORIGIN) return;
   const d = e.data || {};
-  if (d.type === 'GAME_READY') sendInit();
+  if (d.type === 'GAME_READY') sendInit(false);
   else if (d.type === 'BET_STARTED') isGameRoundActive = true;
   else if (d.type === 'BET_ENDED') {
+    const wasActive = isGameRoundActive;
     isGameRoundActive = false;
-    syncDatabaseBalance();
-    refreshBonusStatus();
+    syncDatabaseBalance(false);
+    refreshBonusStatus(wasActive);
   } else if (d.type === 'EXIT_GAME') {
     closeGameViewport();
   } else if (d.type === 'BALANCE_UPDATE') {
@@ -2118,11 +2173,28 @@ function updateSpinCooldownUI() {
   }
 }
 
-async function refreshBonusStatus() {
-  if (NEEDS_BACKEND_SETUP) return;
-  const d = await api('/api/bonus/status');
-  if (!d || !d.success) return;
-  bonusStatusCache = d;
+let bonusStatusInFlight = null;
+let lastBonusRefreshAt = 0;
+async function refreshBonusStatus(force = false) {
+  if (NEEDS_BACKEND_SETUP) return null;
+  if (bonusStatusInFlight) return bonusStatusInFlight;
+  if (!force && bonusStatusCache && Date.now() - lastBonusRefreshAt < 1500) {
+    return bonusStatusCache;
+  }
+  bonusStatusInFlight = (async () => {
+    const d = await api('/api/bonus/status');
+    if (!d || !d.success) return null;
+    lastBonusRefreshAt = Date.now();
+    bonusStatusCache = d;
+    return d;
+  })();
+  let d = null;
+  try {
+    d = await bonusStatusInFlight;
+  } finally {
+    bonusStatusInFlight = null;
+  }
+  if (!d) return;
   if (d.wagerRequirementLeft != null) {
     wagerLeft = Number(d.wagerRequirementLeft);
     updateBalanceDisplay();
@@ -2376,9 +2448,10 @@ async function loadHistoryList() {
     </div>`).join('');
 }
 
-// Progressive Jackpot Counter
+// Progressive Jackpot Counter (paused when hidden or playing a game)
 let curJackpot = 1845920.50;
 setInterval(() => {
+  if (document.hidden || currentLoadedGame) return;
   curJackpot += (Math.random() * 0.95);
   const el = document.getElementById('liveJackpotCounter');
   if (el) el.innerText = curJackpot.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ETB';

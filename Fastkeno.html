@@ -490,8 +490,9 @@ addEventListener('message', e => {
         const bEl = $('lbl-balance');
         if (bEl) bEl.textContent = Number(shownBalance).toFixed(2);
       }
+    } else {
+      refreshBalance();
     }
-    refreshBalance();
   }
 });
 postParent({ type: 'GAME_READY' });
@@ -505,7 +506,7 @@ async function syncServerClock() {
     }
   } catch (e) {}
 }
-setInterval(syncServerClock, 30000);
+setInterval(() => { if (!document.hidden) syncServerClock(); }, 60000);
 
 // ---------------- 3. Global Round & Cycle (Matching server.js MIN_BET = 2) ----------------
 const BET_WINDOW = 60;   
@@ -877,11 +878,12 @@ setInterval(async () => {
       lastExecutedRoundId = round.roundId;
       dynamicAllCount = computeBaseRoundBets(round.roundId);
       if ($('lbl-all-count')) $('lbl-all-count').textContent = dynamicAllCount.toLocaleString();
+      const hadActiveTickets = myActiveTickets.length > 0;
       myActiveTickets = [];
       renderActiveUserTickets();
       initPlayerFeed();
       $('btn-bet').disabled = false;
-      refreshBalance();
+      if (hadActiveTickets) refreshBalance();
 
       // Reset draw view
       if ($('current-drawn-ball')) {

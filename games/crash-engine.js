@@ -11,7 +11,7 @@ const { createRoomState } = require('../lib/crash-room');
 function createCrashEngine(ctx) {
   const {
     pool, io, CONFIG, Biz, tx, audit, lockUser,
-    validWager, newId, mask, parseJson, vaultAdd, r2, num, parseInitData
+    validWager, newId, mask, parseJson, vaultAdd, r2, num, parseInitData, cacheInvalidate
   } = ctx;
 
   const ROOM_NAMES = ['Aviator', 'JetX'];
@@ -112,19 +112,18 @@ function createCrashEngine(ctx) {
   async function persistCrashLosses(crashedBets, gameName) {
     if (!crashedBets.length) return;
     try {
-      await tx(async c => {
-        for (const b of crashedBets) {
-          await c.query(
-            `UPDATE universal_bets SET status=$1,multiplier=$2,payout=$3,house_profit=$4 WHERE bet_id=$5`,
-            ['LOST', 0, 0, b.wager, b.betId]
-          );
-        }
-      });
+      const betIds = crashedBets.map(b => b.betId);
+      await pool.query(
+        `UPDATE universal_bets SET status='LOST',multiplier=0,payout=0,house_profit=bet_amount WHERE bet_id=ANY($1::text[]) AND status='IN_FLIGHT'`,
+        [betIds]
+      );
       const affectedUsers = [...new Set(crashedBets.map(b => b.userId))];
-      for (const uid of affectedUsers) {
-        const r = await pool.query('SELECT balance FROM users WHERE user_id=$1', [uid]).catch(() => null);
-        if (r && r.rows.length) {
-          io.to(userChannel(uid)).emit('crash:balance', { game: gameName, newBalance: num(r.rows[0].balance) });
+      if (affectedUsers.length) {
+        const r = await pool.query('SELECT user_id,balance FROM users WHERE user_id=ANY($1::text[])', [affectedUsers]).catch(() => null);
+        if (r && r.rows) {
+          for (const row of r.rows) {
+            io.to(userChannel(row.user_id)).emit('crash:balance', { game: gameName, newBalance: num(row.balance) });
+          }
         }
       }
     } catch (e) {
@@ -132,7 +131,7 @@ function createCrashEngine(ctx) {
     }
   }
 
-  // Main 100ms authoritative simulation loop for both Aviator & JetX
+  // Main 100ms authoritative simulation loop for both Aviator & JetX (idle rooms sleep cleanly with 0 CPU/DB/emits)
   let tickBusy = false;
   setInterval(async () => {
     if (tickBusy) return;
@@ -140,36 +139,43 @@ function createCrashEngine(ctx) {
     try {
       const now = Date.now();
       for (const [gameName, mgr] of rooms) {
+        if (mgr.isIdle()) continue;
         const step = mgr.stepTick(now, CONFIG.MAX_PAYOUT);
         const chan = roomChannel(gameName);
+        const hasPlayers = mgr.room.players.size > 0;
 
         if (step.event === 'TAKEOFF') {
-          io.to(chan).emit('crash:phase', step.snapshot);
+          if (hasPlayers) io.to(chan).emit('crash:phase', step.snapshot);
         } else if (step.event === 'TICK') {
           if (step.autoWins && step.autoWins.length) {
             for (const w of step.autoWins) {
               await persistWinner(w, gameName);
-              io.to(chan).emit('crash:cashout', { game: gameName, roundId: mgr.room.roundId, bet: w });
+              if (hasPlayers) io.to(chan).emit('crash:cashout', { game: gameName, roundId: mgr.room.roundId, bet: w });
             }
-            io.to(chan).emit('crash:bets', { game: gameName, roundId: mgr.room.roundId, bets: mgr.getPublicBets() });
+            if (hasPlayers) io.to(chan).emit('crash:bets', { game: gameName, roundId: mgr.room.roundId, bets: mgr.getPublicBets() });
           }
-          io.to(chan).emit('crash:tick', {
-            game: gameName,
-            roundId: mgr.room.roundId,
-            mult: step.mult,
-            elapsedMs: step.elapsedMs
-          });
+          if (hasPlayers) {
+            io.to(chan).emit('crash:tick', {
+              game: gameName,
+              roundId: mgr.room.roundId,
+              mult: step.mult,
+              elapsedMs: step.elapsedMs
+            });
+          }
         } else if (step.event === 'CRASHED') {
           if (step.autoWins && step.autoWins.length) {
             for (const w of step.autoWins) {
               await persistWinner(w, gameName);
-              io.to(chan).emit('crash:cashout', { game: gameName, roundId: mgr.room.roundId, bet: w });
+              if (hasPlayers) io.to(chan).emit('crash:cashout', { game: gameName, roundId: mgr.room.roundId, bet: w });
             }
           }
           await persistCrashLosses(step.crashedBets || [], gameName);
-          io.to(chan).emit('crash:phase', step.snapshot);
+          if (cacheInvalidate && ((step.autoWins && step.autoWins.length) || (step.crashedBets && step.crashedBets.length))) {
+            cacheInvalidate('feed:');
+          }
+          if (hasPlayers) io.to(chan).emit('crash:phase', step.snapshot);
         } else if (step.event === 'NEW_ROUND') {
-          io.to(chan).emit('crash:phase', step.snapshot);
+          if (hasPlayers) io.to(chan).emit('crash:phase', step.snapshot);
         }
       }
     } catch (e) {
@@ -209,9 +215,10 @@ function createCrashEngine(ctx) {
       socket.join(roomChannel(gameName));
       if (uid) socket.join(userChannel(uid));
 
+      const now = Date.now();
+      mgr.wakeIfIdle(now);
       mgr.room.players.set(socket.id, { userId: uid || socket.id, name: uname });
 
-      const now = Date.now();
       socket.emit('crash:state', {
         ...mgr.getPublicSnapshot(now),
         myBets: formatMyBets(mgr, uid)
@@ -238,6 +245,8 @@ function createCrashEngine(ctx) {
   async function placeRoomBet(req, gameName) {
     const mgr = rooms.get(gameName);
     if (!mgr) throw new Biz('Invalid crash game');
+
+    mgr.wakeIfIdle(Date.now());
 
     const { roundId, bets } = req.body || {};
     if (!Array.isArray(bets) || bets.length < 1 || bets.length > 2) {
@@ -421,21 +430,28 @@ function createCrashEngine(ctx) {
         throw new Biz('Round is not flying', 409);
       }
 
-      const out = await tx(async c => {
-        const cur = await c.query('SELECT balance,telegram_username FROM users WHERE user_id=$1 FOR UPDATE', [uid]);
-        const before = num(cur.rows[0].balance);
-        const payout = settled.bet.payout;
-        const after = r2(before + payout);
-        await c.query('UPDATE users SET balance=$1,total_won=total_won+$2 WHERE user_id=$3', [after, payout, uid]);
-        await c.query(
-          `UPDATE universal_bets SET status=$1,multiplier=$2,payout=$3,house_profit=$4 WHERE bet_id=$5`,
-          ['WON', settled.bet.multiplier, payout, r2(settled.bet.wager - payout), betId]
-        );
-        await audit(c, uid, 'CASHOUT_WIN', payout, before, after, betId);
-        return { newBalance: after, uname: cur.rows[0].telegram_username };
-      });
+      let out;
+      try {
+        out = await tx(async c => {
+          const cur = await c.query('SELECT balance,telegram_username FROM users WHERE user_id=$1 FOR UPDATE', [uid]);
+          const before = num(cur.rows[0].balance);
+          const payout = settled.bet.payout;
+          const after = r2(before + payout);
+          await c.query('UPDATE users SET balance=$1,total_won=total_won+$2 WHERE user_id=$3', [after, payout, uid]);
+          await c.query(
+            `UPDATE universal_bets SET status=$1,multiplier=$2,payout=$3,house_profit=$4 WHERE bet_id=$5`,
+            ['WON', settled.bet.multiplier, payout, r2(settled.bet.wager - payout), betId]
+          );
+          await audit(c, uid, 'CASHOUT_WIN', payout, before, after, betId);
+          return { newBalance: after, uname: cur.rows[0].telegram_username };
+        });
+      } catch (e) {
+        mgr.revertManualCashout(betId, uid);
+        throw e;
+      }
 
       vaultAdd({ bal: -settled.bet.payout, payouts: settled.bet.payout, profit: -settled.bet.payout });
+      if (cacheInvalidate) cacheInvalidate('feed:');
       if (settled.bet.payout >= 500) {
         io.emit('live_win', { user: mask(out.uname), game: gameName, win: settled.bet.payout });
       }
@@ -462,9 +478,11 @@ function createCrashEngine(ctx) {
   function getRoomState(gameName, uid = null) {
     const mgr = rooms.get(gameName);
     if (!mgr) throw new Biz('Invalid game');
+    const now = Date.now();
+    mgr.wakeIfIdle(now);
     return {
       success: true,
-      ...mgr.getPublicSnapshot(Date.now()),
+      ...mgr.getPublicSnapshot(now),
       myBets: formatMyBets(mgr, uid)
     };
   }

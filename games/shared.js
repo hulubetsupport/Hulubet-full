@@ -11,7 +11,7 @@ const { createCrashEngine } = require('./crash-engine');
 function createSharedHelpers(ctx) {
   const {
     pool, io, CONFIG, Biz, tx, audit, lockUser,
-    validWager, newId, mask, parseJson, vaultAdd, flights, r2, num
+    validWager, newId, mask, parseJson, vaultAdd, flights, r2, num, cache, cacheInvalidate
   } = ctx;
 
   const crashEngine = createCrashEngine(ctx);
@@ -73,6 +73,10 @@ function createSharedHelpers(ctx) {
     });
 
     vaultAdd({ bal: out.profit, wagered: out.wager, payouts: out.payout, profit: out.profit });
+    if (cacheInvalidate) {
+      if (out.payout >= 100) cacheInvalidate('feed:');
+      if (gameName === 'KenoFast') cacheInvalidate('keno_results:');
+    }
     if (out.payout >= 500) io.emit('live_win', { user: mask(out.uname), game: gameName, win: out.payout });
 
     return {
@@ -264,13 +268,17 @@ function createSharedHelpers(ctx) {
     router.get('/status', ctx.userAuth, ctx.limit('crashstat', 600, 60e3), ctx.h((req, res) => settleCrashRoute(req, res, false)));
     router.post('/cashout', ctx.userAuth, ctx.limit('crash', 120, 60e3), ctx.h((req, res) => settleCrashRoute(req, res, true)));
     router.get('/feed', ctx.limit('feed', 60, 60e3), ctx.h(async (_req, res) => {
-      const c = await pool.query(`SELECT game_data FROM universal_bets WHERE game_name=$1 AND status IN ('WON','LOST') ORDER BY created_at DESC LIMIT 30`, [gameName]);
-      const seen = new Set(), crashes = [];
-      for (const r of c.rows) {
-        const g = parseJson(r.game_data);
-        if (g.roundId && !seen.has(g.roundId)) { seen.add(g.roundId); crashes.push(g.crashPoint); }
-        if (crashes.length >= 15) break;
-      }
+      const load = async () => {
+        const c = await pool.query(`SELECT game_data FROM universal_bets WHERE game_name=$1 AND status IN ('WON','LOST') ORDER BY created_at DESC LIMIT 30`, [gameName]);
+        const seen = new Set(), crashes = [];
+        for (const r of c.rows) {
+          const g = parseJson(r.game_data);
+          if (g.roundId && !seen.has(g.roundId)) { seen.add(g.roundId); crashes.push(g.crashPoint); }
+          if (crashes.length >= 15) break;
+        }
+        return crashes;
+      };
+      const crashes = cache ? await cache.getOrLoad(`game_feed:${gameName}`, 5000, load) : await load();
       res.json({ success: true, game: gameName, crashes });
     }));
     return router;
