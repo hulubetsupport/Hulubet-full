@@ -29,6 +29,7 @@ const { runTwelveHourAuditAndPrune, getRetentionStats, getReports12h } = require
 const { registerTelegramBot } = require('./lib/telegram-bot');
 const { mountAllGames, CRASH_GAMES } = require('./games');
 const { registerSportsbook } = require('./Sportserver');
+const { createSmsVerifyService } = require('./lib/sms-verify-server');
 
 const ENV = process.env;
 const HAS_DB = Boolean(ENV.DATABASE_URL);
@@ -45,6 +46,7 @@ const io = new Server(server, { cors: { origin: '*' }, perMessageDeflate: false 
 app.use(cors());
 app.use(compression({ threshold: 1024 }));
 app.use(express.json({ limit: '100kb' }));
+app.use(express.urlencoded({ extended: false }));
 
 const pool = HAS_DB
   ? new Pool({
@@ -274,6 +276,7 @@ async function ensureSchema() {
       }
     } catch (_) {}
   }
+  await smsVerifier.ensureSchemaAndToken();
 }
 async function loadSettings() {
   const norm = v => { const x = parseFloat(v); return x > 1 ? x / 100 : x; };
@@ -303,20 +306,23 @@ async function notify(chatId, text) {
 const notifyAdmins = text => ENV.ADMIN_CHAT_ID ? notify(ENV.ADMIN_CHAT_ID, text) : null;
 const fmt = n => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-// ---- Unified payment gateway (Telebirr / CBE). The token lives ONLY in the VERIFI_TOKEN environment variable.
+// ---- Unified payment gateway (Telebirr / CBE): uses integrated verify engine by default, or external if USE_EXTERNAL_VERIFI=1
 const AUTO_DEP_MAX = Number(ENV.AUTO_DEP_MAX || 2000);   // verified deposits above this wait for a cashier instead of auto-crediting
+const smsVerifier = createSmsVerifyService({ pool, env: ENV, admin, h });
 async function verifyWithGateway(ref, amount) {
-  if (!ENV.VERIFI_TOKEN) throw new Biz('Automatic verification is not available right now. Use "Send Deposit Request".', 503);
-  const u = new URL(ENV.VERIFI_URL || 'https://verifi-server.onrender.com/api/verify');
-  u.searchParams.set('token', ENV.VERIFI_TOKEN); u.searchParams.set('ref', ref); u.searchParams.set('amount', String(amount));
-  const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 25000);   // the gateway may be waking up
-  try {
-    const r = await fetch(u, { signal: ctl.signal }), text = await r.text();
-    let body = {}; try { body = JSON.parse(text); } catch (e) {}
-    return { ok: r.ok, body, raw: text.slice(0, 200) };
-  } finally { clearTimeout(timer); }
+  if (ENV.USE_EXTERNAL_VERIFI === '1' && ENV.VERIFI_URL && ENV.VERIFI_TOKEN) {
+    const u = new URL(ENV.VERIFI_URL);
+    u.searchParams.set('token', ENV.VERIFI_TOKEN); u.searchParams.set('ref', ref); u.searchParams.set('amount', String(amount));
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 25000);
+    try {
+      const r = await fetch(u, { signal: ctl.signal }), text = await r.text();
+      let body = {}; try { body = JSON.parse(text); } catch (e) {}
+      return { ok: r.ok, body, raw: text.slice(0, 200) };
+    } finally { clearTimeout(timer); }
+  }
+  const body = await smsVerifier.verifyPaymentDirect(ref, amount);
+  return { ok: true, body, raw: '' };
 }
-// Fail closed: only an explicit "Verified" counts. (Tell me your gateway's real reply format and this can be made exact.)
 const gatewayVerified = b => !!b && (String(b.status || '').toLowerCase() === 'verified' || b.verified === true);
 const gatewayAmount = b => { const n = Number(b && (b.amount ?? (b.data && b.data.amount))); return Number.isFinite(n) && n > 0 ? n : null; };
 
@@ -341,6 +347,8 @@ app.get('/api/public/config', (_q, res) => res.json({
   minWth: CONFIG.MIN_WTH,
   botUsername: ENV.BOT_USERNAME || 'Hulubetethbot'
 }));
+smsVerifier.mountRoutes(app);
+
 app.get('/api/agents', h(async (_q, res) => {
   const agents = await cache.getOrLoad('agents:list', 60000, async () => {
     const r = await pool.query('SELECT telegram_username FROM agents');
@@ -590,7 +598,7 @@ const appCtx = {
   newId, mask, parseJson, vaultAdd, userAuth, admin, alog, notify, limit, flights, r2, num, parseInitData,
   cache, cacheInvalidate
 };
-const { shared: gameShared, chickenMod } = mountAllGames(app, appCtx, __dirname);
+const { shared: gameShared, settleAllStale } = mountAllGames(app, appCtx, __dirname);
 const sportsbook = registerSportsbook(app, appCtx);
 registerTelegramBot(app, { pool, env: ENV, config: CONFIG, notify });
 
@@ -608,7 +616,7 @@ setInterval(async () => {
   if (!schemaReady) return;
   try {
     await expireDeposits();
-    await chickenMod.settleStale();
+    await settleAllStale();
     const r = await pool.query(`SELECT bet_id,user_id FROM universal_bets WHERE status='IN_FLIGHT' AND game_name=ANY($1) AND flight_start < NOW() - INTERVAL '5 minutes' LIMIT 100`, [CRASH_GAMES]);
     for (const b of r.rows) {
       try { const vd = await tx(async c => { const v = []; await gameShared.resolveCrash(c, b.bet_id, b.user_id, { vd: v }); return v; }); vd.forEach(vaultAdd); }
@@ -653,7 +661,7 @@ app.post('/api/cashier/verify-deposit', userAuth, limit('verify', 12, 600e3), h(
   const raw = String(req.body.ref || '').trim(), ref = raw.toUpperCase(), amt = r2(req.body.amount), uid = req.tg.id;
   if (!/^[A-Za-z0-9-]{6,40}$/.test(raw)) throw new Biz('Enter the transaction reference exactly as it appears in your payment message');
   if (!(amt >= CONFIG.MIN_DEP && amt <= CONFIG.MAX_DEP)) throw new Biz(`Deposit must be between ${CONFIG.MIN_DEP} and ${CONFIG.MAX_DEP} ETB`);
-  if (!ENV.VERIFI_TOKEN) throw new Biz('Automatic verification is not available right now. Use "Send Deposit Request".', 503);
+  if (ENV.USE_EXTERNAL_VERIFI === '1' && !ENV.VERIFI_TOKEN) throw new Biz('Automatic verification is not available right now. Use "Send Deposit Request".', 503);
   const u = await pool.query('SELECT status FROM users WHERE user_id=$1', [uid]);
   if (!u.rows.length) throw new Biz('User not found', 404);
   if (['banned', 'suspended'].includes(String(u.rows[0].status).toLowerCase())) throw new Biz('Account is restricted. Contact support.', 403);
@@ -678,7 +686,24 @@ app.post('/api/cashier/verify-deposit', userAuth, limit('verify', 12, 600e3), h(
   let g;
   try { g = await verifyWithGateway(raw, amt); }
   catch (e) { await release('Gateway unreachable'); if (e instanceof Biz) throw e; throw new Biz('Could not reach the payment checker. Please try again in a minute.', 503); }
-  if (!gatewayVerified(g.body)) { await release('Payment not found'); throw new Biz('Payment not found yet. Check the reference and amount, wait a minute and try again.', 404); }
+  if (!gatewayVerified(g.body)) {
+    const st = String(g.body?.status || '');
+    if (st === 'AlreadyUsed') {
+      await release('Reference already claimed in SMS ledger');
+      throw new Biz('This payment reference was already used.', 409);
+    }
+    if (st === 'InvalidAmount' && Number.isFinite(Number(g.body?.actual))) {
+      const actual = Number(g.body.actual);
+      await release(`Amount differs (${actual})`);
+      throw new Biz(`The payment amount (${actual} ETB) does not match the amount you entered.`, 400);
+    }
+    if (st === 'Resolving') {
+      await release('CBE receipt resolving');
+      throw new Biz('CBE receipt is still resolving its FT number. Please wait 30 seconds and try again.', 404);
+    }
+    await release('Payment not found');
+    throw new Biz('Payment not found yet. Check the reference and amount, wait a minute and try again.', 404);
+  }
   const gAmt = gatewayAmount(g.body);
   if (gAmt !== null && Math.abs(gAmt - amt) > 0.01) { await release(`Amount differs (${gAmt})`); throw new Biz(`The payment amount (${gAmt} ETB) does not match the amount you entered.`, 400); }
 
@@ -1168,5 +1193,6 @@ ensureSchema()
   .then(() => runTwelveHourAuditAndPrune(pool).catch(e => console.warn('startup 12h audit:', e.message)))
   .finally(() => {
     schemaReady = true;
+    smsVerifier.startCbeBackgroundResolver();
     server.listen(PORT, '0.0.0.0', () => console.log(`Hulu Bet server on 0.0.0.0:${PORT}`));
   });

@@ -92,7 +92,14 @@ function mountAllGames(app, ctx, rootDir) {
   app.get('/api/crash/status', ctx.userAuth, ctx.limit('crashstat', 600, 60e3), ctx.h((req, res) => shared.settleCrashRoute(req, res, false)));
   app.post('/api/crash/cashout', ctx.userAuth, ctx.limit('crash', 240, 60e3), ctx.h((req, res) => shared.settleCrashRoute(req, res, true)));
 
-  return { registry, shared, chickenMod };
+  const interactiveModules = registry.filter(m => typeof m.settleStale === 'function');
+  const settleAllStale = async () => {
+    for (const m of interactiveModules) {
+      await m.settleStale();
+    }
+  };
+
+  return { registry, shared, chickenMod, settleAllStale };
 }
 
 module.exports = { mountAllGames, INSTANT_GAMES, CRASH_GAMES };

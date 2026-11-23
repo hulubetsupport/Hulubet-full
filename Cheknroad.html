@@ -235,34 +235,26 @@
       overflow: hidden;
     }
 
-    /* Continuous Traffic Driving */
+    /* Continuous Traffic Driving (JS RAF positioned top in px) */
     .lane-vehicle {
       position: absolute;
       left: 50%;
       transform: translateX(-50%);
       width: 80px;
       z-index: 8;
-      top: -200px;
-    }
-    .driving-active {
-      animation: driveLoop var(--traffic-speed) linear infinite;
-    }
-    @keyframes driveLoop {
-      0% { top: -200px; }
-      100% { top: 115%; }
+      top: -190px;
+      will-change: top;
     }
 
-    /* Stopped at Breaker Barricade */
+    /* Stopped at Breaker Barricade (strictly above chicken crossing zone) */
     .stopped-at-barrier {
-      animation: none !important;
-      top: 15px !important;
-      transition: top 0.35s ease-out;
+      top: 10px !important;
+      transition: top 0.28s ease-out;
     }
 
-    /* Crashing into Chicken */
+    /* Crashing into Chicken (actual HIT only) */
     .crash-dive {
-      animation: none !important;
-      top: 220px !important;
+      top: 230px !important;
       transition: top 0.16s cubic-bezier(0.5, 0, 1, 1) !important;
     }
 
@@ -1071,6 +1063,7 @@ addEventListener('message', e => {
     }
     ready = true;
     refreshBalance();
+    resumeOpenRound();
   }
   if (d.type === 'UPDATE_BALANCE') {
     if (Number.isFinite(Number(d.balance))) {
@@ -1186,16 +1179,19 @@ const MULTIPLIERS = {
   Hardcore: [1.44, 2.21, 3.60, 6.50, 15.0, 40.0, 120.0, 400.0]
 };
 
-const TRAFFIC_SPEEDS = {
-  Easy: '5.2s',
-  Medium: '3.8s',
-  Hard: '2.5s',
-  Hardcore: '1.4s'
+const TRAFFIC_SPEED_PX = {
+  Easy: 145,
+  Medium: 200,
+  Hard: 280,
+  Hardcore: 420
 };
 
 let currentDifficulty = 'Easy';
 let activeRound = null;
-let currentStepIndex = 0; // 0 = start on sidewalk, 1 = lane 0
+let currentStepIndex = 0; // 0 = start on sidewalk, 1 = lane 0 cleared
+let isStepBusy = false;
+let laneVehicles = [];
+let lastTrafficAt = performance.now();
 
 /* ==========================================================================
    4. SVG VEHICLES & BARRICADE (BREAKER)
@@ -1255,14 +1251,13 @@ function getBarricadeSvg() {
 }
 
 /* ==========================================================================
-   5. TRACK & LANES GENERATION
+   5. TRACK & LANES GENERATION + TRAFFIC CONTROLLER
    ========================================================================== */
 function buildTrack() {
   const lanesBox = document.getElementById('lanes-box');
   lanesBox.innerHTML = '';
+  laneVehicles = [];
   const mults = MULTIPLIERS[currentDifficulty];
-
-  document.documentElement.style.setProperty('--traffic-speed', TRAFFIC_SPEEDS[currentDifficulty]);
 
   mults.forEach((m, idx) => {
     const laneDiv = document.createElement('div');
@@ -1271,10 +1266,9 @@ function buildTrack() {
 
     const carTypes = [getYellowTruckSvg(), getFireEngineSvg(), getIceCreamTruckSvg()];
     const chosenCar = carTypes[idx % carTypes.length];
-    const animDelay = -(idx * 1.25) % 4;
 
     laneDiv.innerHTML = `
-      <div class="lane-vehicle driving-active" id="veh-${idx}" style="animation-delay: ${animDelay}s;">
+      <div class="lane-vehicle" id="veh-${idx}">
         ${chosenCar}
       </div>
 
@@ -1288,8 +1282,54 @@ function buildTrack() {
       </div>
     `;
     lanesBox.appendChild(laneDiv);
+    const el = document.getElementById(`veh-${idx}`);
+    const initialY = -180 + ((idx * 173) % 620);
+    if (el) el.style.top = initialY + 'px';
+    laneVehicles.push({
+      idx,
+      el,
+      y: initialY,
+      state: 'driving', // 'driving' | 'stopped' | 'crash'
+      speedMult: 0.9 + (idx % 3) * 0.12
+    });
   });
 }
+
+function tickTraffic(now) {
+  const dt = Math.min(0.05, Math.max(0.001, (now - lastTrafficAt) / 1000));
+  lastTrafficAt = now;
+  const vpH = document.getElementById('world-viewport')?.clientHeight || 520;
+  const baseSpeed = TRAFFIC_SPEED_PX[currentDifficulty] || 145;
+
+  for (const v of laneVehicles) {
+    if (!v.el) continue;
+    if (v.state === 'stopped') {
+      // If car already passed below the chicken/crossing zone when stopped, let it exit off bottom cleanly before wrapping behind barrier
+      if (v.y > 140) {
+        v.y += baseSpeed * v.speedMult * dt * 1.25;
+        if (v.y > vpH + 40) {
+          v.y = 10;
+          v.el.classList.add('stopped-at-barrier');
+        }
+        v.el.style.top = v.y + 'px';
+      } else {
+        // Move down to barrier at top=10 and stop (never enter chicken zone)
+        if (v.y < 10) {
+          v.y = Math.min(10, v.y + baseSpeed * v.speedMult * dt);
+        } else {
+          v.y = 10;
+        }
+        v.el.style.top = v.y + 'px';
+      }
+    } else if (v.state === 'driving') {
+      v.y += baseSpeed * v.speedMult * dt;
+      if (v.y > vpH + 40) v.y = -185;
+      v.el.style.top = v.y + 'px';
+    }
+  }
+  requestAnimationFrame(tickTraffic);
+}
+requestAnimationFrame(tickTraffic);
 
 /* ==========================================================================
    6. CAMERA TRACKING & CHICKEN CENTERING
@@ -1321,7 +1361,11 @@ function resetChickenPosition() {
   document.querySelectorAll('.lane-barricade').forEach(b => b.classList.remove('deployed'));
   document.querySelectorAll('.lane-vehicle').forEach(v => {
     v.classList.remove('stopped-at-barrier', 'crash-dive');
-    v.classList.add('driving-active');
+  });
+  laneVehicles.forEach((v, idx) => {
+    v.state = 'driving';
+    v.y = -180 + ((idx * 173) % 620);
+    if (v.el) v.el.style.top = v.y + 'px';
   });
 }
 
@@ -1378,10 +1422,63 @@ function createFeatherBlast() {
 }
 
 /* ==========================================================================
-   8. GAME ACTIONS (MATCHING GIF MOTION)
+   8. INTERACTIVE STEP-BY-STEP GAME ACTIONS (NO AUTO-CASHOUT)
    ========================================================================== */
-async function handlePlayClick() {
+(async () => {
+  const cfg = await api('/api/games/chicken-road/config');
+  if (cfg && cfg.success && cfg.tables) Object.assign(MULTIPLIERS, cfg.tables);
+})();
+
+async function resumeOpenRound() {
   if (activeRound) return;
+  const d = await api('/api/games/chicken-road/active');
+  if (!d || !d.success || !d.active) return;
+  const a = d.active;
+  currentDifficulty = MULTIPLIERS[a.difficulty] ? a.difficulty : 'Easy';
+  document.getElementById('diff-label').textContent = currentDifficulty;
+  document.getElementById('bet-input').value = a.betAmount;
+  if (Array.isArray(a.mults)) MULTIPLIERS[currentDifficulty] = a.mults;
+  buildTrack();
+  resetChickenPosition();
+
+  activeRound = { betId: a.betId, betAmount: a.betAmount };
+  currentStepIndex = Number(a.step || 0);
+
+  for (let i = 0; i < currentStepIndex; i++) {
+    const b = document.getElementById(`barricade-${i}`);
+    if (b) b.classList.add('deployed');
+    const mh = document.getElementById(`manhole-${i}`);
+    if (mh) mh.classList.add('passed');
+    const lv = laneVehicles[i];
+    if (lv) {
+      lv.state = 'stopped';
+      lv.y = 10;
+      if (lv.el) { lv.el.style.top = '10px'; lv.el.classList.add('stopped-at-barrier'); }
+    }
+  }
+  if (currentStepIndex > 0) {
+    const laneIdx = currentStepIndex - 1;
+    const chicken = document.getElementById('chicken');
+    const bubble = document.getElementById('mult-bubble');
+    const targetX = 140 + laneIdx * 130 + 65;
+    chicken.style.left = targetX + 'px';
+    updateCameraFollow(targetX);
+    const m = MULTIPLIERS[currentDifficulty][laneIdx];
+    bubble.textContent = `${m.toFixed(2)}x`;
+    bubble.style.display = 'block';
+  }
+
+  document.getElementById('btn-play').style.display = 'none';
+  document.getElementById('ingame-btns').style.display = 'grid';
+  document.getElementById('diff-box').style.pointerEvents = 'none';
+  document.getElementById('diff-box').style.opacity = '0.7';
+  updateCashOutLabel();
+  document.getElementById('btn-cashout').classList.toggle('btn-disabled', currentStepIndex < 1);
+  postParent({ type: 'BET_STARTED' });
+}
+
+async function handlePlayClick() {
+  if (activeRound || isStepBusy) return;
 
   const bet = parseFloat(document.getElementById('bet-input').value) || 0;
   if (bet < 1 || bet > 1000) {
@@ -1398,12 +1495,11 @@ async function handlePlayClick() {
   playBtn.classList.add('btn-disabled');
   playBtn.textContent = "Connecting...";
 
-  const res = await api('/api/bet/play', {
+  const res = await api('/api/games/chicken-road/start', {
     method: 'POST',
     body: JSON.stringify({
-      gameName: "ChickenRoad2",
       betAmount: bet,
-      clientData: { difficulty: currentDifficulty }
+      difficulty: currentDifficulty
     })
   });
 
@@ -1414,41 +1510,43 @@ async function handlePlayClick() {
     showToast(res.message || "Failed to place bet");
     if (res.message && res.message.toLowerCase().includes("balance")) {
       postParent({ type: 'OPEN_DEPOSIT' });
+    } else if (/finish your current/i.test(res.message || '')) {
+      resumeOpenRound();
     }
     return;
   }
 
-  serverBalance -= bet;
-  showBalance();
+  if (Number.isFinite(Number(res.newBalance))) {
+    serverBalance = Number(res.newBalance);
+    showBalance();
+  }
+  if (Array.isArray(res.mults)) MULTIPLIERS[currentDifficulty] = res.mults;
   postParent({ type: 'BET_STARTED' });
 
   buildTrack();
   resetChickenPosition();
 
   activeRound = {
-    betAmount: bet,
-    isWin: res.isWin,
-    payout: res.payout,
-    multiplier: res.multiplier,
-    newBalance: res.newBalance,
-    maxSafeStep: (res.visualOutcome && typeof res.visualOutcome.maxSafeStep === 'number')
-                   ? res.visualOutcome.maxSafeStep
-                   : (res.isWin ? MULTIPLIERS[currentDifficulty].length : 0)
+    betId: res.betId,
+    betAmount: bet
   };
-
   currentStepIndex = 0;
 
-  // Switch UI controls
   document.getElementById('btn-play').style.display = 'none';
   document.getElementById('ingame-btns').style.display = 'grid';
   document.getElementById('diff-box').style.pointerEvents = 'none';
   document.getElementById('diff-box').style.opacity = '0.7';
+  updateCashOutLabel();
+  document.getElementById('btn-cashout').classList.add('btn-disabled');
 
-  // First hop occurs on Play (matching GIF 1 & 2)
-  performStep();
+  await performStep();
 }
 
 function updateCashOutLabel() {
+  if (!activeRound || currentStepIndex < 1) {
+    document.getElementById('cashout-val').textContent = '0.00 ETB';
+    return;
+  }
   const mults = MULTIPLIERS[currentDifficulty];
   const curMult = mults[currentStepIndex - 1] || 1.00;
   const currentPayout = (activeRound.betAmount * curMult).toFixed(2);
@@ -1456,55 +1554,71 @@ function updateCashOutLabel() {
 }
 
 function handleGoStep() {
-  if (!activeRound) return;
+  if (!activeRound || isStepBusy) return;
   performStep();
 }
 
-function performStep() {
+async function performStep() {
+  if (!activeRound || isStepBusy) return;
+  isStepBusy = true;
   const goBtn = document.getElementById('btn-go');
   const cashBtn = document.getElementById('btn-cashout');
   goBtn.classList.add('btn-disabled');
   cashBtn.classList.add('btn-disabled');
 
   const stepToExecute = currentStepIndex;
-  const mults = MULTIPLIERS[currentDifficulty];
+  const res = await api('/api/games/chicken-road/step', {
+    method: 'POST',
+    body: JSON.stringify({ betId: activeRound.betId })
+  });
 
-  if (stepToExecute < activeRound.maxSafeStep && stepToExecute < mults.length) {
-    // SAFE STEP
-    hopChickenToLane(stepToExecute, () => {
-      // 1. Barricade drops AFTER safe crossing
-      const barricade = document.getElementById(`barricade-${stepToExecute}`);
-      if (barricade) barricade.classList.add('deployed');
+  if (!res || !res.success) {
+    showToast(res?.message || "Step failed, try again");
+    isStepBusy = false;
+    goBtn.classList.remove('btn-disabled');
+    if (currentStepIndex >= 1) cashBtn.classList.remove('btn-disabled');
+    return;
+  }
 
-      // 2. Incoming vehicle brakes at the barricade
-      const vehicle = document.getElementById(`veh-${stepToExecute}`);
-      if (vehicle) {
-        setTimeout(() => {
-          vehicle.classList.remove('driving-active');
-          vehicle.classList.add('stopped-at-barrier');
-          soundBrake();
-        }, 80);
+  if (res.state === 'SAFE' || res.state === 'GOAL') {
+    // Deploy barricade immediately BEFORE chicken enters so no car ever drives through the chicken
+    const barricade = document.getElementById(`barricade-${stepToExecute}`);
+    if (barricade) barricade.classList.add('deployed');
+    const lv = laneVehicles[stepToExecute];
+    if (lv) {
+      lv.state = 'stopped';
+      if (lv.y <= 140) {
+        lv.y = Math.min(lv.y, 10);
+        if (lv.el) {
+          lv.el.style.top = lv.y + 'px';
+          lv.el.classList.add('stopped-at-barrier');
+        }
       }
+      soundBrake();
+    }
 
-      currentStepIndex++;
+    hopChickenToLane(stepToExecute, () => {
+      currentStepIndex = Number(res.step || (stepToExecute + 1));
       updateCashOutLabel();
 
-      if (currentStepIndex >= mults.length || (currentStepIndex >= activeRound.maxSafeStep && activeRound.isWin)) {
-        setTimeout(completeWin, 500);
+      if (res.state === 'GOAL') {
+        completeWin(res.payout, res.newBalance);
       } else {
+        isStepBusy = false;
         goBtn.classList.remove('btn-disabled');
         cashBtn.classList.remove('btn-disabled');
       }
     });
-
   } else {
-    // LOSS: CAR ACCELERATES & SMASHES INTO CHICKEN
+    // HIT: NO barricade drops — car speeds straight into the chicken on this lane
     hopChickenToLane(stepToExecute, () => {
-      // NO BARRICADE DROPS!
-      const vehicle = document.getElementById(`veh-${stepToExecute}`);
-      if (vehicle) {
-        vehicle.classList.remove('driving-active');
-        vehicle.classList.add('crash-dive');
+      const lv = laneVehicles[stepToExecute];
+      if (lv) {
+        lv.state = 'crash';
+        if (lv.el) {
+          lv.el.classList.remove('stopped-at-barrier');
+          lv.el.classList.add('crash-dive');
+        }
       }
 
       setTimeout(() => {
@@ -1523,32 +1637,48 @@ function performStep() {
       showToast("Hit by car! Round Over");
 
       setTimeout(() => {
-        endRound(activeRound.newBalance);
+        isStepBusy = false;
+        endRound(Number.isFinite(Number(res.newBalance)) ? Number(res.newBalance) : serverBalance);
       }, 1800);
     });
   }
 }
 
-function handleCashOut() {
-  if (!activeRound) return;
-  if (activeRound.isWin) {
-    completeWin();
-  } else {
-    performStep();
+async function handleCashOut() {
+  if (!activeRound || isStepBusy || currentStepIndex < 1) return;
+  isStepBusy = true;
+  const goBtn = document.getElementById('btn-go');
+  const cashBtn = document.getElementById('btn-cashout');
+  goBtn.classList.add('btn-disabled');
+  cashBtn.classList.add('btn-disabled');
+
+  const res = await api('/api/games/chicken-road/cashout', {
+    method: 'POST',
+    body: JSON.stringify({ betId: activeRound.betId })
+  });
+
+  if (!res || !res.success) {
+    showToast(res?.message || "Cash out failed, try again");
+    isStepBusy = false;
+    goBtn.classList.remove('btn-disabled');
+    cashBtn.classList.remove('btn-disabled');
+    return;
   }
+  completeWin(res.payout, res.newBalance);
 }
 
-function completeWin() {
+function completeWin(payoutAmt, finalBalance) {
   soundWin();
   const winPill = document.getElementById('win-pill');
-  document.getElementById('win-amount').textContent = `${Number(activeRound.payout).toFixed(2)} ETB`;
+  document.getElementById('win-amount').textContent = `${Number(payoutAmt || 0).toFixed(2)} ETB`;
   winPill.classList.add('show');
 
   const chicken = document.getElementById('chicken');
   chicken.style.bottom = '160px';
 
   setTimeout(() => {
-    endRound(activeRound.newBalance);
+    isStepBusy = false;
+    endRound(Number.isFinite(Number(finalBalance)) ? Number(finalBalance) : serverBalance);
   }, 2200);
 }
 

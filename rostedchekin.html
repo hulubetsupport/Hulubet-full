@@ -1127,6 +1127,7 @@ addEventListener('message', e => {
     }
     ready = true;
     refreshBalance();
+    resumeOpenRound();
   }
   if (d.type === 'UPDATE_BALANCE') {
     if (Number.isFinite(Number(d.balance))) {
@@ -1246,7 +1247,8 @@ const MULTIPLIERS = {
 
 let currentDifficulty = 'Easy';
 let activeRound = null;
-let currentStepIndex = 0; // 0 = start inside tunnel, 1 = lane 0
+let currentStepIndex = 0; // 0 = start inside tunnel, 1 = lane 0 cleared
+let isStepBusy = false;
 
 /* ==========================================================================
    4. WORLD GENERATION
@@ -1334,10 +1336,47 @@ function hopChickenToLane(laneIdx, onComplete) {
 }
 
 /* ==========================================================================
-   5. GAME ACTION LOGIC
+   5. INTERACTIVE STEP-BY-STEP GAME ACTION LOGIC
    ========================================================================== */
-async function handlePlayClick() {
+(async () => {
+  const cfg = await api('/api/games/roasted-chicken/config');
+  if (cfg && cfg.success && cfg.tables) Object.assign(MULTIPLIERS, cfg.tables);
+})();
+
+async function resumeOpenRound() {
   if (activeRound) return;
+  const d = await api('/api/games/roasted-chicken/active');
+  if (!d || !d.success || !d.active) return;
+  const a = d.active;
+  currentDifficulty = MULTIPLIERS[a.difficulty] ? a.difficulty : 'Easy';
+  document.getElementById('diff-label').textContent = currentDifficulty;
+  document.getElementById('bet-input').value = a.betAmount;
+  if (Array.isArray(a.mults)) MULTIPLIERS[currentDifficulty] = a.mults;
+  buildTrack();
+  resetChickenPosition();
+
+  activeRound = { betId: a.betId, betAmount: a.betAmount };
+  currentStepIndex = Number(a.step || 0);
+  for (let i = 0; i < currentStepIndex; i++) {
+    const disc = document.getElementById(`disc-${i}`);
+    if (disc) disc.classList.add('passed');
+  }
+  if (currentStepIndex > 0) {
+    const targetX = 130 + (currentStepIndex - 1) * 140 + 70;
+    document.getElementById('chicken').style.left = targetX + 'px';
+    updateCameraFollow(targetX);
+  }
+  document.getElementById('btn-play').style.display = 'none';
+  document.getElementById('ingame-btns').style.display = 'grid';
+  document.getElementById('diff-container').style.pointerEvents = 'none';
+  document.getElementById('diff-container').style.opacity = '0.7';
+  updateCashOutDisplay();
+  document.getElementById('btn-cashout').classList.toggle('btn-disabled', currentStepIndex < 1);
+  postParent({ type: 'BET_STARTED' });
+}
+
+async function handlePlayClick() {
+  if (activeRound || isStepBusy) return;
 
   const bet = parseFloat(document.getElementById('bet-input').value) || 0;
   if (bet < 1 || bet > 1000) {
@@ -1354,12 +1393,11 @@ async function handlePlayClick() {
   playBtn.classList.add('btn-disabled');
   playBtn.textContent = "Connecting...";
 
-  const res = await api('/api/bet/play', {
+  const res = await api('/api/games/roasted-chicken/start', {
     method: 'POST',
     body: JSON.stringify({
-      gameName: "RoastedChicken",
       betAmount: bet,
-      clientData: { difficulty: currentDifficulty }
+      difficulty: currentDifficulty
     })
   });
 
@@ -1370,40 +1408,43 @@ async function handlePlayClick() {
     showToast(res.message || "Failed to place bet");
     if (res.message && res.message.toLowerCase().includes("balance")) {
       postParent({ type: 'OPEN_DEPOSIT' });
+    } else if (/finish your current/i.test(res.message || '')) {
+      resumeOpenRound();
     }
     return;
   }
 
-  serverBalance -= bet;
-  showBalance();
+  if (Number.isFinite(Number(res.newBalance))) {
+    serverBalance = Number(res.newBalance);
+    showBalance();
+  }
+  if (Array.isArray(res.mults)) MULTIPLIERS[currentDifficulty] = res.mults;
   postParent({ type: 'BET_STARTED' });
 
   buildTrack();
   resetChickenPosition();
 
   activeRound = {
-    betAmount: bet,
-    isWin: res.isWin,
-    payout: res.payout,
-    multiplier: res.multiplier,
-    newBalance: res.newBalance,
-    maxSafeStep: (res.visualOutcome && typeof res.visualOutcome.maxSafeStep === 'number')
-                   ? res.visualOutcome.maxSafeStep
-                   : (res.isWin ? MULTIPLIERS[currentDifficulty].length : 0)
+    betId: res.betId,
+    betAmount: bet
   };
-
   currentStepIndex = 0;
 
-  // Toggle UI controls to in-game mode (Screenshot 4)
   document.getElementById('btn-play').style.display = 'none';
   document.getElementById('ingame-btns').style.display = 'grid';
   document.getElementById('diff-container').style.pointerEvents = 'none';
   document.getElementById('diff-container').style.opacity = '0.7';
+  updateCashOutDisplay();
+  document.getElementById('btn-cashout').classList.add('btn-disabled');
 
-  performStep();
+  await performStep();
 }
 
 function updateCashOutDisplay() {
+  if (!activeRound || currentStepIndex < 1) {
+    document.getElementById('cashout-val-num').textContent = '0.00';
+    return;
+  }
   const mults = MULTIPLIERS[currentDifficulty];
   const curMult = mults[currentStepIndex - 1] || 1.00;
   const currentPayout = (activeRound.betAmount * curMult).toFixed(2);
@@ -1411,40 +1452,50 @@ function updateCashOutDisplay() {
 }
 
 function handleGoStep() {
-  if (!activeRound) return;
+  if (!activeRound || isStepBusy) return;
   performStep();
 }
 
-function performStep() {
+async function performStep() {
+  if (!activeRound || isStepBusy) return;
+  isStepBusy = true;
   const goBtn = document.getElementById('btn-go');
   const cashBtn = document.getElementById('btn-cashout');
   goBtn.classList.add('btn-disabled');
   cashBtn.classList.add('btn-disabled');
 
   const stepToExecute = currentStepIndex;
-  const mults = MULTIPLIERS[currentDifficulty];
+  const res = await api('/api/games/roasted-chicken/step', {
+    method: 'POST',
+    body: JSON.stringify({ betId: activeRound.betId })
+  });
 
-  if (stepToExecute < activeRound.maxSafeStep && stepToExecute < mults.length) {
-    // SAFE STEP
+  if (!res || !res.success) {
+    showToast(res?.message || "Step failed, try again");
+    isStepBusy = false;
+    goBtn.classList.remove('btn-disabled');
+    if (currentStepIndex >= 1) cashBtn.classList.remove('btn-disabled');
+    return;
+  }
+
+  if (res.state === 'SAFE' || res.state === 'GOAL') {
     hopChickenToLane(stepToExecute, () => {
       const disc = document.getElementById(`disc-${stepToExecute}`);
       if (disc) disc.classList.add('passed');
 
-      currentStepIndex++;
+      currentStepIndex = Number(res.step || (stepToExecute + 1));
       updateCashOutDisplay();
 
-      if (currentStepIndex >= mults.length || (currentStepIndex >= activeRound.maxSafeStep && activeRound.isWin)) {
-        setTimeout(triggerWinSequence, 400);
+      if (res.state === 'GOAL') {
+        triggerWinSequence(res.multiplier, res.payout, res.newBalance);
       } else {
+        isStepBusy = false;
         goBtn.classList.remove('btn-disabled');
         cashBtn.classList.remove('btn-disabled');
       }
     });
-
   } else {
-    // LOSS STEP: ROAST THE CHICKEN
     hopChickenToLane(stepToExecute, () => {
-      // Roaring flame bursts out through the sewer grate slits!
       const fire = document.getElementById(`fire-${stepToExecute}`);
       if (fire) fire.classList.add('active');
 
@@ -1460,33 +1511,49 @@ function performStep() {
       showToast("Chicken Roasted! Round Over");
 
       setTimeout(() => {
-        finishRound(activeRound.newBalance);
+        isStepBusy = false;
+        finishRound(Number.isFinite(Number(res.newBalance)) ? Number(res.newBalance) : serverBalance);
       }, 1900);
     });
   }
 }
 
-function handleCashOut() {
-  if (!activeRound) return;
-  if (activeRound.isWin) {
-    triggerWinSequence();
-  } else {
-    performStep();
+async function handleCashOut() {
+  if (!activeRound || isStepBusy || currentStepIndex < 1) return;
+  isStepBusy = true;
+  const goBtn = document.getElementById('btn-go');
+  const cashBtn = document.getElementById('btn-cashout');
+  goBtn.classList.add('btn-disabled');
+  cashBtn.classList.add('btn-disabled');
+
+  const res = await api('/api/games/roasted-chicken/cashout', {
+    method: 'POST',
+    body: JSON.stringify({ betId: activeRound.betId })
+  });
+
+  if (!res || !res.success) {
+    showToast(res?.message || "Cash out failed, try again");
+    isStepBusy = false;
+    goBtn.classList.remove('btn-disabled');
+    cashBtn.classList.remove('btn-disabled');
+    return;
   }
+  triggerWinSequence(res.multiplier, res.payout, res.newBalance);
 }
 
-function triggerWinSequence() {
+function triggerWinSequence(achievedMult, payoutAmt, finalBalance) {
   soundWin();
   const mults = MULTIPLIERS[currentDifficulty];
-  const achievedMult = mults[currentStepIndex - 1] || activeRound.multiplier || 1.00;
+  const m = Number(achievedMult) || mults[currentStepIndex - 1] || 1.00;
   const winModal = document.getElementById('win-modal');
 
-  document.getElementById('win-mult-text').textContent = `x${achievedMult.toFixed(2)}`;
-  document.getElementById('win-cash-text').textContent = `+${Number(activeRound.payout).toFixed(2)}`;
+  document.getElementById('win-mult-text').textContent = `x${m.toFixed(2)}`;
+  document.getElementById('win-cash-text').textContent = `+${Number(payoutAmt || 0).toFixed(2)}`;
   winModal.classList.add('show');
 
   setTimeout(() => {
-    finishRound(activeRound.newBalance);
+    isStepBusy = false;
+    finishRound(Number.isFinite(Number(finalBalance)) ? Number(finalBalance) : serverBalance);
   }, 2200);
 }
 

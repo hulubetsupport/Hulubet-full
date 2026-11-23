@@ -784,7 +784,7 @@
 
     let lastTime = performance.now();
     function render(now) {
-      const dt = (now - lastTime) / 1000;
+      const dt = Math.min(0.05, Math.max(0.001, (now - lastTime) / 1000));
       lastTime = now;
 
       const w = canvas.width / window.devicePixelRatio;
@@ -813,6 +813,10 @@
         ctx.fillRect(w - sidewalkWidth + 1, y, 5, 12);
       }
 
+      const safeZoneHalf = 52;
+      const barrierTopY = h / 2 - safeZoneHalf;
+      const barrierBotY = h / 2 + safeZoneHalf;
+
       // Lanes & Multipliers
       const mults = DIFFICULTY_TABLE[currentDifficulty];
       for (let i = 0; i < NUM_LANES; i++) {
@@ -836,7 +840,7 @@
         const boxH = 24;
         const boxY = h / 2 - boxH / 2;
 
-        const isCleared = currentStep >= i;
+        const isCleared = currentStep >= i && !(chicken.isHit && i === currentStep);
         ctx.fillStyle = isCleared ? "rgba(16, 185, 129, 0.45)" : "rgba(18, 20, 30, 0.65)";
         ctx.beginPath();
         ctx.roundRect(centerX - boxW/2, boxY, boxW, boxH, 4);
@@ -851,13 +855,58 @@
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(`x${mults[i].toFixed(2)}`, centerX, boxY + boxH / 2 + 1);
+
+        // Draw crossing safety barriers on cleared lanes so cars clearly stop outside the crossing zone
+        if (isCleared) {
+          const bW = Math.max(24, laneWidth - 10);
+          const bX = centerX - bW / 2;
+          [barrierTopY, barrierBotY].forEach(by => {
+            ctx.fillStyle = "#f59e0b";
+            ctx.beginPath();
+            ctx.roundRect(bX, by - 4, bW, 8, 3);
+            ctx.fill();
+            ctx.fillStyle = "#1f2937";
+            for (let sx = bX + 4; sx < bX + bW - 6; sx += 10) {
+              ctx.fillRect(sx, by - 4, 4, 8);
+            }
+          });
+        }
       }
 
-      // Update cars
+      // Update cars (park cleared-lane cars behind barriers; never drive over a living chicken)
       traffic.forEach(v => {
-        v.y += v.speed * 60 * dt;
-        if (v.speed > 0 && v.y > h + 70) v.y = -70;
-        if (v.speed < 0 && v.y < -70) v.y = h + 70;
+        const isSafeLane = v.lane <= currentStep && !(chicken.isHit && v.lane === currentStep);
+        const halfLen = (v.type && v.type.length ? v.type.length : 54) / 2;
+        if (isSafeLane) {
+          const topStop = barrierTopY - 8 - halfLen;
+          const botStop = barrierBotY + 8 + halfLen;
+          if (v.speed > 0) {
+            if (v.y <= topStop) {
+              v.y = Math.min(topStop, v.y + v.speed * 60 * dt);
+            } else if (v.y < botStop) {
+              v.y = topStop;
+            } else {
+              // Already past crossing zone: exit off the bottom cleanly, then wrap behind upper barrier
+              v.y += v.speed * 60 * dt;
+              if (v.y > h + 70) v.y = -70;
+            }
+          } else {
+            if (v.y >= botStop) {
+              v.y = Math.max(botStop, v.y + v.speed * 60 * dt);
+            } else if (v.y > topStop) {
+              v.y = botStop;
+            } else {
+              // Already past crossing zone: exit off the top cleanly, then wrap behind lower barrier
+              v.y += v.speed * 60 * dt;
+              if (v.y < -70) v.y = h + 70;
+            }
+          }
+        } else {
+          const speedBoost = (chicken.isHit && v.lane === currentStep) ? 1.85 : 1;
+          v.y += v.speed * speedBoost * 60 * dt;
+          if (v.speed > 0 && v.y > h + 70) v.y = -70;
+          if (v.speed < 0 && v.y < -70) v.y = h + 70;
+        }
         const vx = sidewalkWidth + (v.lane * laneWidth) + (laneWidth / 2);
         drawCar(v, vx, v.y);
       });
@@ -1072,6 +1121,12 @@
         currentStep = nextStep;
         chicken.targetX = getLaneCenterX(Math.min(nextStep, NUM_LANES - 1));
         chicken.isHit = true;
+        // Bring the car on the trap lane right into the collision zone
+        const trapCar = traffic.find(v => v.lane === Math.min(nextStep, NUM_LANES - 1));
+        if (trapCar) {
+          const ch = canvas.height / window.devicePixelRatio;
+          trapCar.y = trapCar.speed > 0 ? Math.max(0, ch / 2 - 48) : Math.min(ch, ch / 2 + 48);
+        }
         soundCrash();
         showToast('CRASHED! Chicken got hit');
         if (typeof stepRes.newBalance === 'number') { serverBalance = stepRes.newBalance; showBalance(); }

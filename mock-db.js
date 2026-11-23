@@ -28,6 +28,9 @@ function createMockPool() {
       total_bonus_awarded: 0,
       updated_at: new Date()
     },
+    sms_agents: [],
+    cbe_transactions: [],
+    telebirr_transactions: [],
     seq: 1
   };
 
@@ -299,10 +302,16 @@ function createMockPool() {
     if (low.startsWith('insert into universal_bets')) {
       const isInFlight = low.includes("'in_flight'");
       if (isInFlight) {
-        const [bet_id, game_name, user_id, username, bet_amount, game_data, flight_start] = params;
+        let bet_id, game_name, user_id, username, bet_amount, tier_applied, game_data, flight_start;
+        if (params.length >= 8) {
+          [bet_id, game_name, user_id, username, bet_amount, tier_applied, game_data, flight_start] = params;
+        } else {
+          [bet_id, game_name, user_id, username, bet_amount, game_data, flight_start] = params;
+          tier_applied = game_name === 'ChickenRoad2' ? 'Chicken' : 'Crash';
+        }
         db.universal_bets.unshift({
           bet_id, game_name, user_id: String(user_id), username, bet_amount: Number(bet_amount),
-          rng_roll: 0, tier_applied: game_name === 'ChickenRoad2' ? 'Chicken' : 'Crash',
+          rng_roll: 0, tier_applied,
           multiplier: 0, payout: 0, house_profit: 0, status: 'IN_FLIGHT',
           game_data, flight_start: flight_start || new Date(), created_at: new Date()
         });
@@ -378,8 +387,15 @@ function createMockPool() {
       return b ? { rows: [{ ...b }], rowCount: 1 } : { rows: [], rowCount: 0 };
     }
     if (low.startsWith('select bet_id,user_id from universal_bets')) {
-      const rows = [];
-      return { rows, rowCount: 0 };
+      if (low.includes('where game_name=$1')) {
+        const cutoff = Date.now() - 10 * 60 * 1000;
+        const rows = db.universal_bets
+          .filter(x => x.game_name === params[0] && x.status === 'IN_FLIGHT' && x.flight_start && new Date(x.flight_start).getTime() < cutoff)
+          .slice(0, 100)
+          .map(x => ({ bet_id: x.bet_id, user_id: x.user_id }));
+        return { rows, rowCount: rows.length };
+      }
+      return { rows: [], rowCount: 0 };
     }
     if (low.startsWith('update universal_bets set status=$1,multiplier=$2,payout=$3,house_profit=$4 where bet_id=$5')) {
       const b = db.universal_bets.find(x => x.bet_id === params[4]);
@@ -841,6 +857,154 @@ function createMockPool() {
     if (low.startsWith('delete from chat_messages')) {
       if (db.chat_messages.length > 100) db.chat_messages = db.chat_messages.slice(-100);
       return { rows: [], rowCount: 0 };
+    }
+
+    // ---- sms_agents & agent_deposits & cbe_transactions & telebirr_transactions ----
+    if (low.startsWith('select id, name from sms_agents where token=$1')) {
+      const a = db.sms_agents.find(x => x.token === params[0] && x.active);
+      return a ? { rows: [{ id: a.id, name: a.name }], rowCount: 1 } : { rows: [], rowCount: 0 };
+    }
+    if (low.startsWith('select id, name, match_text from sms_agents')) {
+      const rows = db.sms_agents.filter(x => x.active && x.match_text).map(x => ({ id: x.id, name: x.name, match_text: x.match_text }));
+      return { rows, rowCount: rows.length };
+    }
+    if (low.startsWith('select id, name, token, match_text, active, created_at from sms_agents')) {
+      const rows = [...db.sms_agents].sort((a, b) => a.id - b.id);
+      return { rows, rowCount: rows.length };
+    }
+    if (low.startsWith('insert into sms_agents')) {
+      const [name, token, match_text] = params;
+      if (db.sms_agents.some(x => x.token === token)) throw dupErr();
+      const row = { id: db.seq++, name, token, match_text: match_text || '', active: true, created_at: new Date() };
+      db.sms_agents.push(row);
+      return { rows: [{ ...row }], rowCount: 1 };
+    }
+    if (low.includes('from sms_agents a left join agent_deposits d')) {
+      const todayKey = new Date().toISOString().slice(0, 10);
+      const deposits = [
+        ...db.cbe_transactions.filter(x => x.tx_type === 'Received').map(x => ({ ...x, bank: 'CBE' })),
+        ...db.telebirr_transactions.filter(x => x.tx_type === 'Received').map(x => ({ ...x, bank: 'Telebirr' }))
+      ];
+      const rows = [...db.sms_agents].sort((a, b) => a.id - b.id).map(a => {
+        const list = deposits.filter(d => d.agent_id === a.id);
+        const total_in = list.reduce((s, x) => s + Number(x.amount), 0);
+        const today_in = list.filter(x => new Date(x.created_at).toISOString().slice(0, 10) === todayKey).reduce((s, x) => s + Number(x.amount), 0);
+        return { id: a.id, name: a.name, active: a.active, total_in, count_in: list.length, today_in };
+      });
+      return { rows, rowCount: rows.length };
+    }
+    if (low.includes('from agent_deposits where agent_id = $1')) {
+      const [agentId, from, to, limitN] = params;
+      const all = [
+        ...db.cbe_transactions.filter(x => x.tx_type === 'Received' && x.agent_id === Number(agentId)).map(x => ({ bank: 'CBE', tx_id: x.id, amount: x.amount, ref_no: x.ref_no, sender_name: x.sender_name, balance: x.balance, status: x.status, created_at: x.created_at })),
+        ...db.telebirr_transactions.filter(x => x.tx_type === 'Received' && x.agent_id === Number(agentId)).map(x => ({ bank: 'Telebirr', tx_id: x.id, amount: x.amount, ref_no: x.ref_no, sender_name: x.sender_name, balance: x.balance, status: x.status, created_at: x.created_at }))
+      ]
+        .filter(x => {
+          const d = new Date(x.created_at).toISOString().slice(0, 10);
+          return d >= String(from) && d <= String(to);
+        })
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, Number(limitN || 50));
+      return { rows: all, rowCount: all.length };
+    }
+
+    if (low.startsWith('insert into cbe_transactions')) {
+      const [tx_type, sender_name, amount, ref_no, raw_sms, status, category, balance, v2_code, agent_id] = params;
+      if ((ref_no && db.cbe_transactions.some(x => x.ref_no === ref_no)) || (v2_code && db.cbe_transactions.some(x => x.v2_code === v2_code))) {
+        return { rows: [], rowCount: 0 };
+      }
+      const row = {
+        id: db.seq++, tx_type, sender_name, amount: Number(amount), ref_no: ref_no || null, raw_sms, status,
+        category: category || null, balance: balance != null ? Number(balance) : null, v2_code: v2_code || null,
+        resolve_attempts: 0, agent_id: agent_id || null, created_at: new Date()
+      };
+      db.cbe_transactions.push(row);
+      return { rows: [{ id: row.id }], rowCount: 1 };
+    }
+    if (low.startsWith('insert into telebirr_transactions')) {
+      const [tx_type, sender_name, amount, ref_no, raw_sms, status, category, balance, agent_id] = params;
+      if (ref_no && db.telebirr_transactions.some(x => x.ref_no === ref_no)) {
+        return { rows: [], rowCount: 0 };
+      }
+      const row = {
+        id: db.seq++, tx_type, sender_name, amount: Number(amount), ref_no, raw_sms, status,
+        category: category || null, balance: balance != null ? Number(balance) : null,
+        agent_id: agent_id || null, created_at: new Date()
+      };
+      db.telebirr_transactions.push(row);
+      return { rows: [{ id: row.id }], rowCount: 1 };
+    }
+    if (low.startsWith('select id, ref_no from cbe_transactions where v2_code=$1')) {
+      const r = db.cbe_transactions.find(x => x.v2_code === params[0]);
+      return r ? { rows: [{ id: r.id, ref_no: r.ref_no }], rowCount: 1 } : { rows: [], rowCount: 0 };
+    }
+    if (low.startsWith('select id from cbe_transactions where v2_code=$1 and ref_no is null')) {
+      const r = db.cbe_transactions.find(x => x.v2_code === params[0] && !x.ref_no);
+      return r ? { rows: [{ id: r.id }], rowCount: 1 } : { rows: [], rowCount: 0 };
+    }
+    if (low.startsWith('update cbe_transactions set ref_no=$1 where id=$2 and ref_no is null')) {
+      if (db.cbe_transactions.some(x => x.ref_no === params[0])) throw dupErr();
+      const r = db.cbe_transactions.find(x => x.id === Number(params[1]) && !x.ref_no);
+      if (r) r.ref_no = params[0];
+      return { rows: [], rowCount: r ? 1 : 0 };
+    }
+    if (low.startsWith('delete from cbe_transactions where id=$1 and ref_no is null')) {
+      const before = db.cbe_transactions.length;
+      db.cbe_transactions = db.cbe_transactions.filter(x => !(x.id === Number(params[0]) && !x.ref_no));
+      return { rows: [], rowCount: before - db.cbe_transactions.length };
+    }
+    if (low.includes('from cbe_transactions where ref_no is null and v2_code is not null')) {
+      const rows = db.cbe_transactions
+        .filter(x => !x.ref_no && x.v2_code && (x.resolve_attempts || 0) < 40)
+        .sort((a, b) => a.id - b.id)
+        .slice(0, 10)
+        .map(x => ({ id: x.id, v2_code: x.v2_code }));
+      return { rows, rowCount: rows.length };
+    }
+    if (low.startsWith('update cbe_transactions set resolve_attempts')) {
+      const r = db.cbe_transactions.find(x => x.id === Number(params[0]));
+      if (r) r.resolve_attempts = (r.resolve_attempts || 0) + 1;
+      return { rows: [], rowCount: r ? 1 : 0 };
+    }
+    if (low.includes('from cbe_transactions where ref_no is null order by id desc')) {
+      const rows = db.cbe_transactions
+        .filter(x => !x.ref_no)
+        .sort((a, b) => b.id - a.id)
+        .slice(0, 50)
+        .map(x => ({ id: x.id, v2_code: x.v2_code, amount: x.amount, sender_name: x.sender_name, attempts: x.resolve_attempts || 0 }));
+      return { rows, rowCount: rows.length };
+    }
+    if (low.startsWith('select * from cbe_transactions where ref_no = $1')) {
+      const r = db.cbe_transactions.find(x => x.ref_no === params[0]);
+      return r ? { rows: [{ ...r }], rowCount: 1 } : { rows: [], rowCount: 0 };
+    }
+    if (low.startsWith('select * from cbe_transactions where v2_code = $1')) {
+      const r = db.cbe_transactions.find(x => x.v2_code === params[0]);
+      return r ? { rows: [{ ...r }], rowCount: 1 } : { rows: [], rowCount: 0 };
+    }
+    if (low.startsWith('select * from telebirr_transactions where ref_no = $1')) {
+      const r = db.telebirr_transactions.find(x => x.ref_no === params[0]);
+      return r ? { rows: [{ ...r }], rowCount: 1 } : { rows: [], rowCount: 0 };
+    }
+    if (low.startsWith("update cbe_transactions set status = 'used' where id = $1")) {
+      const r = db.cbe_transactions.find(x => x.id === Number(params[0]));
+      if (r) r.status = 'Used';
+      return { rows: [], rowCount: r ? 1 : 0 };
+    }
+    if (low.startsWith("update telebirr_transactions set status = 'used' where id = $1")) {
+      const r = db.telebirr_transactions.find(x => x.id === Number(params[0]));
+      if (r) r.status = 'Used';
+      return { rows: [], rowCount: r ? 1 : 0 };
+    }
+    if (low.includes('from cbe_transactions order by id desc limit $1')) {
+      const lim = Number(params[0] || 20);
+      const rows = [...db.cbe_transactions].sort((a, b) => b.id - a.id).slice(0, lim);
+      return { rows, rowCount: rows.length };
+    }
+    if (low.includes('from telebirr_transactions order by id desc limit $1')) {
+      const lim = Number(params[0] || 20);
+      const rows = [...db.telebirr_transactions].sort((a, b) => b.id - a.id).slice(0, lim);
+      return { rows, rowCount: rows.length };
     }
 
     return { rows: [], rowCount: 0 };

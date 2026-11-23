@@ -1099,7 +1099,9 @@
     const ctx = canvas.getContext('2d');
 
     let boardPins = [];
+    let pinsByRow = [];
     let bucketPositions = [];
+    let pinSpacingGlobal = 20;
     let activeBalls = [];
     let bucketHighlights = new Array(17).fill(0);
 
@@ -1160,39 +1162,44 @@
 
     function buildPins(w, h) {
       boardPins = [];
+      pinsByRow = [];
       bucketPositions = [];
 
       const topMargin = 78;
-      const bottomMargin = 40;
-      const availableH = h - topMargin - bottomMargin;
+      const bottomMargin = 42;
+      const availableH = Math.max(180, h - topMargin - bottomMargin);
       const rowSpacing = availableH / ROWS;
+      const pinSpacing = Math.min(22, (w * 0.90) / (ROWS + 1.6));
+      pinSpacingGlobal = pinSpacing;
 
-      for (let r = 0; r <= ROWS; r++) {
+      for (let r = 0; r < ROWS; r++) {
         const pinCount = r + 1;
-        const pinSpacing = Math.min(23, (w * 0.88) / (ROWS + 1));
         const startX = (w / 2) - ((pinCount - 1) * pinSpacing) / 2;
         const y = topMargin + r * rowSpacing;
+        const rowArr = [];
 
         for (let c = 0; c < pinCount; c++) {
-          boardPins.push({
+          const p = {
             x: startX + c * pinSpacing,
             y: y,
             radius: 2.5,
             row: r,
             col: c
-          });
+          };
+          boardPins.push(p);
+          rowArr.push(p);
         }
+        pinsByRow.push(rowArr);
       }
 
-      const lastRowPins = boardPins.filter(p => p.row === ROWS);
-      for (let i = 0; i < lastRowPins.length - 1; i++) {
-        const p1 = lastRowPins[i];
-        const p2 = lastRowPins[i + 1];
-        const midX = (p1.x + p2.x) / 2;
-        const bW = (p2.x - p1.x) * 0.94;
+      const bucketCount = ROWS + 1; // 17 buckets (indices 0..16)
+      const bucketY = topMargin + (ROWS - 1) * rowSpacing + rowSpacing * 0.72;
+      const bW = pinSpacing * 0.93;
+      for (let i = 0; i < bucketCount; i++) {
+        const cx = (w / 2) + (i - ROWS / 2) * pinSpacing;
         bucketPositions.push({
-          x: midX,
-          y: p1.y + rowSpacing * 0.48,
+          x: cx,
+          y: bucketY,
           width: bW,
           height: 18,
           index: i
@@ -1204,22 +1211,23 @@
     class PlinkoBall {
       constructor(opts) {
         this.unitBet = opts.unitBet;
-        this.targetBucket = opts.bucket;
+        this.targetBucket = Math.max(0, Math.min(ROWS, Number(opts.bucket) || 0));
         this.ballMultiplier = opts.ballMultiplier || 1;
         this.payout = opts.payout;
         this.serverMultiplier = opts.serverMultiplier;
         this.onDone = opts.onDone || null;
 
         this.pathDirs = Array.isArray(opts.path) && opts.path.length === ROWS
-          ? opts.path
+          ? opts.path.map(d => (Number(d) === 1 ? 1 : 0))
           : this.generatePath(this.targetBucket);
 
         this.currentStep = 0;
+        this.pinCol = 0;
         const rect = canvas.parentElement.getBoundingClientRect();
-        this.x = rect.width / 2 + (Math.random() - 0.5) * 3;
+        this.x = rect.width / 2 + (Math.random() - 0.5) * 2;
         this.y = drumCenterY + drumRadius + 2;
-        this.vx = (Math.random() - 0.5) * 0.6;
-        this.vy = 2.0;
+        this.vx = (Math.random() - 0.5) * 0.4;
+        this.vy = 2.1;
         this.radius = 5.2;
 
         this.color = this.getColor();
@@ -1253,34 +1261,66 @@
 
       update() {
         if (this.isDone) {
-          this.alpha -= 0.04;
+          this.alpha -= 0.045;
           return;
         }
 
-        this.vy += 0.22;
+        const bucketY = (bucketPositions[0]?.y || 400);
+
+        if (this.currentStep < ROWS) {
+          const rowArr = pinsByRow[this.currentStep];
+          const pin = rowArr && rowArr[Math.min(this.pinCol, rowArr.length - 1)];
+          if (pin) {
+            // Subtle steering toward the exact next peg so a fast fall or jitter never misses a row
+            this.vx += (pin.x - this.x) * 0.045;
+            this.vx = Math.max(-3.6, Math.min(3.6, this.vx));
+          }
+        } else {
+          const bSlot = bucketPositions[this.targetBucket];
+          if (bSlot) {
+            this.vx += (bSlot.x - this.x) * 0.09;
+            this.vx = Math.max(-4.2, Math.min(4.2, this.vx));
+          }
+        }
+
+        this.vy += 0.23;
+        this.vy = Math.min(this.vy, 7.5);
         this.y += this.vy;
         this.x += this.vx;
-        this.vx *= 0.985;
+        this.vx *= 0.94;
 
-        const currentTargetRow = this.currentStep;
-        if (currentTargetRow < ROWS) {
-          const rowPins = boardPins.filter(p => p.row === currentTargetRow);
-          for (let p of rowPins) {
+        if (this.currentStep < ROWS) {
+          const rowArr = pinsByRow[this.currentStep];
+          const p = rowArr && rowArr[Math.min(this.pinCol, rowArr.length - 1)];
+          if (p) {
             const dx = this.x - p.x;
             const dy = this.y - p.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
-            if (dist < this.radius + p.radius + 3 && this.vy > 0) {
-              const dir = this.pathDirs[currentTargetRow];
-              this.vx = (dir === 1 ? 1.38 : -1.38) + (Math.random() - 0.5) * 0.25;
-              this.vy = -1.6;
+            const hitPin = (dist < this.radius + p.radius + 3.5 && this.vy > 0);
+            const passedRow = this.y >= p.y + 1;
+            if (hitPin || passedRow) {
+              const dir = this.pathDirs[this.currentStep] ? 1 : 0;
+              const nextCol = this.pinCol + dir;
+              const nextRow = pinsByRow[this.currentStep + 1];
+              const nextTarget = nextRow
+                ? nextRow[Math.min(nextCol, nextRow.length - 1)]
+                : bucketPositions[this.targetBucket];
+              const targetX = nextTarget ? nextTarget.x : (p.x + (dir === 1 ? pinSpacingGlobal * 0.5 : -pinSpacingGlobal * 0.5));
+              this.vx = Math.max(-3.4, Math.min(3.4, (targetX - this.x) * 0.14 + (dir === 1 ? 0.45 : -0.45) + (Math.random() - 0.5) * 0.15));
+              this.vy = passedRow && !hitPin ? 0.8 : -1.45;
+              if (this.y > p.y) this.y = p.y;
+              this.pinCol = nextCol;
               this.currentStep++;
-              playPegBounce(currentTargetRow);
-              break;
+              playPegBounce(this.currentStep - 1);
             }
           }
         }
 
-        if (this.currentStep >= ROWS - 1 && this.y >= (bucketPositions[0]?.y || 400) - 6) {
+        // Unconditional landing check at the bottom buckets so balls can never hang mid-board or fall past buckets
+        if (this.y >= bucketY - 4) {
+          const bSlot = bucketPositions[this.targetBucket];
+          if (bSlot) this.x = bSlot.x;
+          this.y = bucketY;
           this.isDone = true;
           this.onLanded();
           if (this.onDone) this.onDone();
@@ -1421,15 +1461,32 @@
       c.restore();
     }
 
-    /* Main Render Loop */
+    /* Main Render Loop (fixed 60Hz substep accumulator so 120Hz phones & drops stay deterministic) */
     let hasNotifiedRoundActive = false;
     let pendingBallSpawns = 0;
-    function animate() {
+    let lastAnimAt = 0;
+    let physicsAccum = 0;
+    const STEP_MS = 1000 / 60;
+    function animate(now) {
+      if (!lastAnimAt) lastAnimAt = now || performance.now();
+      const elapsed = Math.min(60, Math.max(0, (now || performance.now()) - lastAnimAt));
+      lastAnimAt = now || performance.now();
+      physicsAccum += elapsed;
+
       const rect = canvas.parentElement.getBoundingClientRect();
       ctx.clearRect(0, 0, rect.width, rect.height);
 
-      // 1. Update & Render Top Drum
-      updateDrumPhysics();
+      while (physicsAccum >= STEP_MS) {
+        updateDrumPhysics();
+        for (let i = activeBalls.length - 1; i >= 0; i--) {
+          const ball = activeBalls[i];
+          ball.update();
+          if (ball.alpha <= 0) activeBalls.splice(i, 1);
+        }
+        physicsAccum -= STEP_MS;
+      }
+
+      // 1. Render Top Drum
       drawDrum(ctx, rect.width / 2, drumCenterY, drumRadius);
 
       // 2. Draw Pins
@@ -1467,7 +1524,7 @@
         ctx.fill();
 
         ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 8px -apple-system, sans-serif";
+        ctx.font = "bold 7.5px -apple-system, sans-serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.shadowBlur = 0;
@@ -1479,14 +1536,9 @@
         ctx.restore();
       }
 
-      // 4. Update & Draw Falling Balls
-      for (let i = activeBalls.length - 1; i >= 0; i--) {
-        const ball = activeBalls[i];
-        ball.update();
-        ball.draw(ctx);
-        if (ball.alpha <= 0) {
-          activeBalls.splice(i, 1);
-        }
+      // 4. Draw Falling Balls
+      for (let i = 0; i < activeBalls.length; i++) {
+        activeBalls[i].draw(ctx);
       }
 
       if (hasNotifiedRoundActive && activeBalls.length === 0 && inFlightRequests === 0 && pendingBallSpawns === 0) {
@@ -1540,6 +1592,10 @@
       if (!res || !res.success) {
         showToast(res?.message || "Connection error");
         stopAutoplay();
+        if (activeBalls.length === 0 && inFlightRequests === 0 && pendingBallSpawns === 0) {
+          hasNotifiedRoundActive = false;
+          postParent({ type: 'BET_ENDED' });
+        }
         return;
       }
 
@@ -1585,9 +1641,11 @@
         // Fallback for single or bulk results without granular array
         const unitPayout = (Number(res.payout) || 0) / ballCount;
         const multipliers = BUCKETS[riskMode];
+        pendingBallSpawns += ballCount;
 
         for (let i = 0; i < ballCount; i++) {
           setTimeout(() => {
+            pendingBallSpawns = Math.max(0, pendingBallSpawns - 1);
             let ballMult = 1;
             if (serverMult >= 10 && serverMult % 10 === 0) ballMult = 10;
             else if (serverMult >= 5 && serverMult % 5 === 0) ballMult = 5;

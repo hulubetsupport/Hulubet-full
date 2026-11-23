@@ -1135,6 +1135,7 @@
         }
         ready = true;
         refreshBalance();
+        resumeOpenRound();
       }
       if (d.type === 'UPDATE_BALANCE') {
         if (Number.isFinite(Number(d.balance))) {
@@ -1291,13 +1292,13 @@
     let autoPlayActive = false;
     let autoPlayTimer = null;
 
-    // Settlement state returned by server
+    let currentBetId = null;
+    let isStepPending = false;
     let roundOutcome = {
       isWin: false,
       multiplier: 0,
       payout: 0,
-      newBalance: 0,
-      maxSafeBlocks: 0
+      newBalance: 0
     };
 
     // Current step in the interactive round
@@ -1562,7 +1563,7 @@
     // Animation Loop
     let lastTime = performance.now();
     function animate(now) {
-      const dt = (now - lastTime) / 1000;
+      const dt = Math.min(0.05, Math.max(0.001, (now - lastTime) / 1000));
       lastTime = now;
 
       ctx.clearRect(0, 0, canvasW, canvasH);
@@ -1614,10 +1615,9 @@
 
       // Crane and Swinging Block (Sticky to top)
       const craneAnchorX = centerX;
-      const craneAnchorY = 10;
 
-      // Update swinging physics
-      craneAngle += craneSpeed;
+      // Update swinging physics (frame-rate independent)
+      craneAngle += craneSpeed * (dt * 60);
       const swingX = craneAnchorX + Math.sin(craneAngle) * craneSwingRange;
 
       if (!swingingBlock.isFalling) {
@@ -1634,11 +1634,10 @@
           swingingBlock.crashRotation += swingingBlock.crashVr * dt;
           swingingBlock.x += swingingBlock.vx * dt;
           if (swingingBlock.fallingY > canvasH + 100) {
-            // Finished crashing
             swingingBlock.isFalling = false;
+            swingingBlock.isCrashed = false;
           }
         } else if (swingingBlock.fallingY >= targetLandY) {
-          // Block successfully landed!
           swingingBlock.isFalling = false;
           onBlockLanded();
         }
@@ -1699,8 +1698,16 @@
     requestAnimationFrame(animate);
 
     /* ==========================================================================
-       9. GAMEPLAY LOGIC (INTEGRATED WITH SPEC)
+       9. INTERACTIVE STEP-BY-STEP GAMEPLAY LOGIC (NO AUTO-STOP)
        ========================================================================== */
+    (async () => {
+      const cfg = await api('/api/games/mega-block/config');
+      if (cfg && cfg.success && cfg.ladders) {
+        Object.assign(LADDERS, cfg.ladders);
+        if (!isRoundActive) renderLadder();
+      }
+    })();
+
     function setControlsActive(active) {
       btnBetPlus.disabled = !active;
       btnBetMinus.disabled = !active;
@@ -1726,7 +1733,49 @@
       }
     }
 
-    // Start a new round by calling /api/bet/play (Spec Section 5)
+    async function resumeOpenRound() {
+      if (isRoundActive || isRequestInFlight) return;
+      const d = await api('/api/games/mega-block/active');
+      if (!d || !d.success || !d.active) return;
+      const a = d.active;
+      const diffKey = LADDERS[a.difficulty] ? a.difficulty : 'EASY';
+      currentDifficulty = diffKey;
+      uiDifficulty.textContent = diffKey;
+      betAmount = Number(a.betAmount) || betAmount;
+      uiBetAmount.textContent = betAmount;
+      if (Array.isArray(a.mults)) LADDERS[diffKey] = a.mults;
+
+      currentBetId = a.betId;
+      isRoundActive = true;
+      currentStep = Number(a.step || 0);
+      towerBlocks = [];
+      const groundY = canvasH - 120;
+      for (let i = 0; i < currentStep; i++) {
+        const landedY = groundY - towerBlocks.length * (BLOCK_HEIGHT - 6) - (BLOCK_HEIGHT / 2);
+        towerBlocks.push({ x: canvasW / 2, y: landedY });
+      }
+      targetCameraOffsetY = towerBlocks.length >= 2 ? (towerBlocks.length - 1) * (BLOCK_HEIGHT - 8) : 0;
+      renderLadder();
+      setControlsActive(false);
+      updateMainButtonUI('GO');
+
+      if (currentStep > 0) {
+        const ladder = LADDERS[currentDifficulty];
+        const curMult = ladder[Math.min(currentStep - 1, ladder.length - 1)];
+        const currentCashoutETB = (betAmount * curMult).toFixed(2);
+        btnCashout.disabled = false;
+        btnCashout.classList.add('active');
+        cashoutText.textContent = `Cashout: ${currentCashoutETB} ETB`;
+      } else {
+        btnCashout.disabled = true;
+        btnCashout.classList.remove('active');
+        cashoutText.textContent = 'Cashout';
+      }
+      postParent({ type: 'BET_STARTED' });
+      showToast('Resumed your open MegaBlock tower');
+    }
+
+    // Start a new round via /api/games/mega-block/start
     async function startRound() {
       if (isRequestInFlight || isRoundActive) return;
 
@@ -1742,13 +1791,11 @@
 
       postParent({ type: 'BET_STARTED' });
 
-      // Call Hulu Bet Game Type C endpoint
-      const res = await api('/api/bet/play', {
+      const res = await api('/api/games/mega-block/start', {
         method: 'POST',
         body: JSON.stringify({
-          gameName: 'MegaBlock',
           betAmount: betAmount,
-          clientData: { difficulty: currentDifficulty }
+          difficulty: currentDifficulty
         })
       });
 
@@ -1759,29 +1806,25 @@
         updateMainButtonUI('PLAY');
         setControlsActive(true);
         postParent({ type: 'BET_ENDED' });
+        if (/finish your current/i.test(res?.message || '')) resumeOpenRound();
         return;
       }
 
-      // Authoritative round results
-      roundOutcome = {
-        isWin: Boolean(res.isWin && res.multiplier > 0),
-        multiplier: Number(res.multiplier) || 0,
-        payout: Number(res.payout) || 0,
-        newBalance: Number(res.newBalance),
-        maxSafeBlocks: (res.visualOutcome && typeof res.visualOutcome.maxSafeBlocks === 'number')
-          ? res.visualOutcome.maxSafeBlocks
-          : (res.isWin ? findStepForMultiplier(res.multiplier) : Math.floor(Math.random() * 3))
-      };
+      if (Array.isArray(res.mults)) LADDERS[currentDifficulty] = res.mults;
+      if (Number.isFinite(Number(res.newBalance))) {
+        serverBalance = Number(res.newBalance);
+        showBalance();
+      }
 
-      // Deduct balance authoritatively
-      serverBalance = roundOutcome.newBalance - (roundOutcome.isWin ? roundOutcome.payout : 0);
-      showBalance();
-
-      // Begin interactive round
+      currentBetId = res.betId;
       isRoundActive = true;
+      isStepPending = false;
       currentStep = 0;
       towerBlocks = [];
       targetCameraOffsetY = 0;
+      swingingBlock.isFalling = false;
+      swingingBlock.isCrashed = false;
+      roundOutcome = { isWin: false, multiplier: 0, payout: 0, newBalance: serverBalance };
       renderLadder();
 
       updateMainButtonUI('GO');
@@ -1796,30 +1839,44 @@
       }
     }
 
-    function findStepForMultiplier(mult) {
-      const ladder = LADDERS[currentDifficulty];
-      for (let i = 0; i < ladder.length; i++) {
-        if (ladder[i] >= mult) return i + 1;
-      }
-      return ladder.length;
-    }
+    // Triggered when user taps "GO" to drop the swinging block (calls /api/games/mega-block/step)
+    async function dropBlock() {
+      if (!isRoundActive || !currentBetId || isStepPending || swingingBlock.isFalling) return;
+      isStepPending = true;
+      btnMainAction.disabled = true;
+      btnCashout.disabled = true;
 
-    // Triggered when user taps "GO" to drop the swinging block
-    function dropBlock() {
-      if (!isRoundActive || swingingBlock.isFalling) return;
+      const res = await api('/api/games/mega-block/step', {
+        method: 'POST',
+        body: JSON.stringify({ betId: currentBetId })
+      });
+
+      if (!res || !res.success) {
+        isStepPending = false;
+        btnMainAction.disabled = false;
+        if (currentStep > 0) btnCashout.disabled = false;
+        showToast(res?.message || 'Drop failed, try again');
+        return;
+      }
+
+      roundOutcome = {
+        state: res.state,
+        isWin: res.state === 'GOAL',
+        multiplier: Number(res.multiplier) || 0,
+        payout: Number(res.payout) || 0,
+        newBalance: Number.isFinite(Number(res.newBalance)) ? Number(res.newBalance) : serverBalance
+      };
 
       audio.playDrop();
       swingingBlock.isFalling = true;
       swingingBlock.fallingY = swingingBlock.y;
       swingingBlock.fallingVy = 160;
 
-      const isSafe = (currentStep < roundOutcome.maxSafeBlocks);
-
-      if (isSafe) {
+      if (res.state === 'SAFE' || res.state === 'GOAL') {
         swingingBlock.isCrashed = false;
         swingingBlock.vx = 0;
       } else {
-        // Will topple / crash on this drop
+        // Actual HIT: block topples & round ends
         swingingBlock.isCrashed = true;
         swingingBlock.vx = (Math.random() > 0.5 ? 1 : -1) * (180 + Math.random() * 100);
         swingingBlock.crashRotation = 0;
@@ -1833,6 +1890,7 @@
     function onBlockLanded() {
       audio.playLand();
       currentStep++;
+      isStepPending = false;
 
       const groundY = canvasH - 120;
       const landedY = groundY - towerBlocks.length * (BLOCK_HEIGHT - 6) - (BLOCK_HEIGHT / 2);
@@ -1841,7 +1899,6 @@
         y: landedY
       });
 
-      // Shift camera upwards smoothly as tower climbs
       if (towerBlocks.length >= 2) {
         targetCameraOffsetY = (towerBlocks.length - 1) * (BLOCK_HEIGHT - 8);
       }
@@ -1852,33 +1909,57 @@
       const curMult = ladder[Math.min(currentStep - 1, ladder.length - 1)];
       const currentCashoutETB = (betAmount * curMult).toFixed(2);
 
+      btnMainAction.disabled = false;
       btnCashout.disabled = false;
       btnCashout.classList.add('active');
       cashoutText.textContent = `Cashout: ${currentCashoutETB} ETB`;
 
-      // Check if player has reached the final win target
-      if (currentStep >= roundOutcome.maxSafeBlocks && roundOutcome.isWin) {
-        setTimeout(handleRoundWin, 350);
+      if (roundOutcome.state === 'GOAL') {
+        setTimeout(() => handleRoundWin(roundOutcome.payout, roundOutcome.newBalance), 350);
       } else if (autoPlayActive && isRoundActive) {
         scheduleNextAutoDrop();
       }
     }
 
-    // User taps Cashout
-    function cashoutNow() {
-      if (!isRoundActive || swingingBlock.isFalling) return;
-      handleRoundWin();
+    // User taps Cashout -> calls /api/games/mega-block/cashout
+    async function cashoutNow() {
+      if (!isRoundActive || !currentBetId || currentStep < 1 || isStepPending || swingingBlock.isFalling) return;
+      isStepPending = true;
+      btnMainAction.disabled = true;
+      btnCashout.disabled = true;
+
+      const res = await api('/api/games/mega-block/cashout', {
+        method: 'POST',
+        body: JSON.stringify({ betId: currentBetId })
+      });
+
+      if (!res || !res.success) {
+        isStepPending = false;
+        btnMainAction.disabled = false;
+        btnCashout.disabled = false;
+        showToast(res?.message || 'Cashout failed, try again');
+        return;
+      }
+      isStepPending = false;
+      handleRoundWin(Number(res.payout), Number(res.newBalance));
     }
 
     // Win celebration modal & balance settle
-    function handleRoundWin() {
+    function handleRoundWin(payoutAmt, finalBalance) {
+      clearTimeout(autoPlayTimer);
       isRoundActive = false;
+      isStepPending = false;
+      currentBetId = null;
       audio.playWin();
 
-      serverBalance = roundOutcome.newBalance;
-      showBalance();
+      if (Number.isFinite(finalBalance)) {
+        serverBalance = finalBalance;
+        showBalance();
+      }
 
-      const finalETB = roundOutcome.payout > 0 ? roundOutcome.payout.toFixed(2) : (betAmount * LADDERS[currentDifficulty][currentStep - 1]).toFixed(2);
+      const ladder = LADDERS[currentDifficulty];
+      const fallbackAmt = betAmount * ladder[Math.max(0, Math.min(currentStep - 1, ladder.length - 1))];
+      const finalETB = (Number(payoutAmt) > 0 ? Number(payoutAmt) : fallbackAmt).toFixed(2);
       uiLastWin.textContent = `${finalETB} ETB`;
       winModalAmount.textContent = `${finalETB} ETB`;
       winModal.classList.add('open');
@@ -1893,11 +1974,17 @@
 
     // Loss handling
     function handleCrashLoss() {
+      clearTimeout(autoPlayTimer);
       isRoundActive = false;
+      isStepPending = false;
+      currentBetId = null;
+      autoPlayActive = false;
       showToast('Tower collapsed! Better luck next time.');
 
-      serverBalance = roundOutcome.newBalance;
-      showBalance();
+      if (Number.isFinite(roundOutcome.newBalance)) {
+        serverBalance = roundOutcome.newBalance;
+        showBalance();
+      }
 
       updateMainButtonUI('PLAY');
       btnCashout.disabled = true;
@@ -1911,7 +1998,7 @@
     function scheduleNextAutoDrop() {
       clearTimeout(autoPlayTimer);
       autoPlayTimer = setTimeout(() => {
-        if (isRoundActive && !swingingBlock.isFalling) {
+        if (isRoundActive && !isStepPending && !swingingBlock.isFalling) {
           dropBlock();
         }
       }, 900);
