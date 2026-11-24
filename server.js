@@ -238,6 +238,10 @@ const userView = (u, isNew) => ({
 // ---------------------------------------------------------------- schema + settings
 async function ensureSchema() {
   const S = [
+    `CREATE TABLE IF NOT EXISTS casino_vault (id INTEGER PRIMARY KEY DEFAULT 1,vault_balance NUMERIC(14,2) DEFAULT 200000.00,total_wagered NUMERIC(14,2) DEFAULT 0,total_payouts NUMERIC(14,2) DEFAULT 0,gross_profit NUMERIC(14,2) DEFAULT 0,total_bonus_awarded NUMERIC(14,2) DEFAULT 0,updated_at TIMESTAMPTZ DEFAULT NOW())`,
+    `CREATE TABLE IF NOT EXISTS users (user_id VARCHAR(64) PRIMARY KEY,telegram_username VARCHAR(128) DEFAULT '',full_name VARCHAR(128) DEFAULT 'Player',balance NUMERIC(14,2) DEFAULT 0,bonus_balance NUMERIC(14,2) DEFAULT 0,wager_requirement_left NUMERIC(14,2) DEFAULT 0,total_deposited NUMERIC(14,2) DEFAULT 0,total_wagered NUMERIC(14,2) DEFAULT 0,total_won NUMERIC(14,2) DEFAULT 0,first_deposit_completed VARCHAR(8) DEFAULT 'NO',referrer_id VARCHAR(64) DEFAULT '',referral_paid BOOLEAN DEFAULT FALSE,last_cashback_at TIMESTAMPTZ,last_spin_at TIMESTAMPTZ,cashback_settled_loss NUMERIC(14,2) DEFAULT 0,last_active_at TIMESTAMPTZ DEFAULT NOW(),role VARCHAR(24) DEFAULT 'player',status VARCHAR(24) DEFAULT 'active',created_at TIMESTAMPTZ DEFAULT NOW())`,
+    `CREATE TABLE IF NOT EXISTS transactions (txn_id VARCHAR(64) PRIMARY KEY,user_id VARCHAR(64) NOT NULL,username VARCHAR(128) DEFAULT '',type VARCHAR(32) NOT NULL,method VARCHAR(32) DEFAULT '',amount NUMERIC(14,2) NOT NULL,net_amount NUMERIC(14,2) DEFAULT 0,bank_txn_id VARCHAR(64),sender_account VARCHAR(128) DEFAULT '',agent_assigned VARCHAR(64) DEFAULT '',status VARCHAR(32) DEFAULT 'PENDING',remarks TEXT DEFAULT '',processed_by VARCHAR(64) DEFAULT '',created_at TIMESTAMPTZ DEFAULT NOW(),updated_at TIMESTAMPTZ DEFAULT NOW())`,
+    `CREATE TABLE IF NOT EXISTS universal_bets (bet_id VARCHAR(64) PRIMARY KEY,user_id VARCHAR(64) NOT NULL,username VARCHAR(128) DEFAULT '',game_name VARCHAR(64) NOT NULL,bet_amount NUMERIC(14,2) NOT NULL,multiplier NUMERIC(10,4) DEFAULT 0,payout NUMERIC(14,2) DEFAULT 0,house_profit NUMERIC(14,2) DEFAULT 0,status VARCHAR(24) DEFAULT 'IN_FLIGHT',flight_start TIMESTAMPTZ DEFAULT NOW(),created_at TIMESTAMPTZ DEFAULT NOW())`,
     `CREATE TABLE IF NOT EXISTS balance_audit_logs (id BIGSERIAL PRIMARY KEY,user_id VARCHAR(64),action_type VARCHAR(40),amount NUMERIC(14,2),balance_before NUMERIC(14,2),balance_after NUMERIC(14,2),reference_id VARCHAR(64),created_at TIMESTAMPTZ DEFAULT NOW())`,
     `CREATE TABLE IF NOT EXISTS system_settings (key VARCHAR(64) PRIMARY KEY,value TEXT)`,
     `CREATE TABLE IF NOT EXISTS admin_actions (id BIGSERIAL PRIMARY KEY,actor TEXT,action TEXT,detail TEXT,ip TEXT,created_at TIMESTAMPTZ DEFAULT NOW())`,
@@ -255,7 +259,7 @@ async function ensureSchema() {
     `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS bank_txn_id VARCHAR(64), ADD COLUMN IF NOT EXISTS processed_by VARCHAR(64), ADD COLUMN IF NOT EXISTS agent_assigned VARCHAR(64), ADD COLUMN IF NOT EXISTS sender_account VARCHAR(128), ADD COLUMN IF NOT EXISTS remarks TEXT`,
     `ALTER TABLE universal_bets ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS flight_start TIMESTAMPTZ`,
     `ALTER TABLE casino_vault ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`,
-    `INSERT INTO casino_vault (id) VALUES (1) ON CONFLICT DO NOTHING`,
+    `INSERT INTO casino_vault (id,vault_balance) VALUES (1,200000.00) ON CONFLICT DO NOTHING`,
     `UPDATE transactions SET bank_txn_id=NULL WHERE bank_txn_id=''`,
     `CREATE UNIQUE INDEX IF NOT EXISTS uq_txn_bank_ref ON transactions (bank_txn_id) WHERE bank_txn_id IS NOT NULL`,
     `CREATE UNIQUE INDEX IF NOT EXISTS uq_promo_user_code ON promo_redemptions (user_id, code)`,
@@ -1036,7 +1040,10 @@ const dashboard = h(async (_req, res) => {
         verifyMode: USE_EXTERNAL_VERIFI ? 'External Verify Server' : 'Built-in SMS Ledger',
         verifiUrl: USE_EXTERNAL_VERIFI ? VERIFI_URL : '(built-in /api/verify)',
         verifiTokenSet: USE_EXTERNAL_VERIFI ? Boolean(ENV.VERIFI_TOKEN) : true,
-        autoDepMax: AUTO_DEP_MAX
+        autoDepMax: AUTO_DEP_MAX,
+        sportsApiConfigured: Boolean(ENV.SPORTS_API_URL),
+        sportsApiUrl: String(ENV.SPORTS_API_URL || '(virtual sports engine)'),
+        sportsApiKeySet: Boolean(ENV.SPORTS_API_KEY)
       }
     };
   });
@@ -1116,6 +1123,24 @@ app.post('/api/admin/sms-parse-test', admin, h(async (req, res) => {
     v2Code: v2 || null,
     parsedInput: smsParsers.parseVerifyInput('', message)
   });
+}));
+
+app.post('/api/admin/reset-launch-db', admin, h(async (req, res) => {
+  if (String(req.body?.confirm || '').trim().toUpperCase() !== 'RESET 200K') {
+    throw new Biz('Type RESET 200K to confirm wiping test users/data and restoring the 200,000 ETB vault');
+  }
+  const vaultStart = Math.max(50000, Math.min(10000000, r2(req.body?.vaultBalance || 200000)));
+  await tx(async c => {
+    await c.query(`TRUNCATE TABLE promo_redemptions, balance_audit_logs, universal_bets, sports_bets, transactions, game_12h_reports, chat_messages, admin_actions, cbe_transactions, telebirr_transactions, users RESTART IDENTITY CASCADE`);
+    await c.query(`UPDATE casino_vault SET vault_balance=$1,total_wagered=0,total_payouts=0,gross_profit=0,total_bonus_awarded=0,updated_at=NOW() WHERE id=1`, [vaultStart]);
+    await c.query(`UPDATE promo_codes SET times_used=0`);
+  });
+  for (const k in vaultPending) vaultPending[k] = 0;
+  vaultBalanceCache = vaultStart;
+  flights.clear();
+  cache.invalidate('');
+  alog(req, 'reset-launch-db', `restored 0 users, vault=${vaultStart}`);
+  res.json({ success: true, vaultBalance: vaultStart, message: `Database restored for launch! All test accounts cleared and Casino Vault set to ${vaultStart.toLocaleString('en-US')} ETB.` });
 }));
 
 app.get('/api/admin/users', admin, h(async (req, res) => {

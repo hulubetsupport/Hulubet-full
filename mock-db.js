@@ -21,7 +21,7 @@ function createMockPool() {
     ],
     casino_vault: {
       id: 1,
-      vault_balance: 100000,
+      vault_balance: 200000,
       total_wagered: 0,
       total_payouts: 0,
       gross_profit: 0,
@@ -48,7 +48,33 @@ function createMockPool() {
       return { rows: [], rowCount: 0 };
     }
 
+    if (low.startsWith('truncate table')) {
+      db.users.clear();
+      db.universal_bets = [];
+      db.sports_bets = [];
+      db.game_12h_reports = [];
+      db.transactions = [];
+      db.balance_audit_logs = [];
+      db.admin_actions = [];
+      db.chat_messages = [];
+      db.promo_redemptions = [];
+      db.cbe_transactions = [];
+      db.telebirr_transactions = [];
+      db.seq = 1;
+      for (const p of db.promo_codes.values()) p.times_used = 0;
+      return { rows: [], rowCount: 1 };
+    }
+
     // ---- casino_vault ----
+    if (low.startsWith('insert into casino_vault') && low.includes('on conflict (id) do update')) {
+      db.casino_vault.vault_balance = Number(params[0] ?? 200000);
+      db.casino_vault.total_wagered = 0;
+      db.casino_vault.total_payouts = 0;
+      db.casino_vault.gross_profit = 0;
+      db.casino_vault.total_bonus_awarded = 0;
+      db.casino_vault.updated_at = new Date();
+      return { rows: [db.casino_vault], rowCount: 1 };
+    }
     if (low.startsWith('insert into casino_vault')) {
       return { rows: [db.casino_vault], rowCount: 1 };
     }
@@ -57,6 +83,15 @@ function createMockPool() {
     }
     if (low.startsWith('select * from casino_vault')) {
       return { rows: [{ ...db.casino_vault }], rowCount: 1 };
+    }
+    if (low.startsWith('update casino_vault set vault_balance=$1,total_wagered=0')) {
+      db.casino_vault.vault_balance = Number(params[0] ?? 200000);
+      db.casino_vault.total_wagered = 0;
+      db.casino_vault.total_payouts = 0;
+      db.casino_vault.gross_profit = 0;
+      db.casino_vault.total_bonus_awarded = 0;
+      db.casino_vault.updated_at = new Date();
+      return { rows: [{ vault_balance: db.casino_vault.vault_balance }], rowCount: 1 };
     }
     if (low.startsWith('update casino_vault set vault_balance=')) {
       db.casino_vault.vault_balance += Number(params[0] || 0);

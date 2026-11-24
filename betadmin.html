@@ -226,7 +226,15 @@ const ACT = {
     const r = await call('/api/admin/sms-parse-test', 'POST', v);
     if (!r.success) return toast(r.message || 'Parse test failed', true);
     toast(`${r.bank} | ${r.txType} | ${r.amount} ETB | Ref: ${r.ref || r.v2Code || 'N/A'} | Party: ${r.party}`);
-  }, 'Test Parse')
+  }, 'Test Parse'),
+  syncSportsFeed: () => act('/api/admin/sports/sync', {}),
+  resetLaunchDb: () => ask('Restore Database for Launch (200k Vault)', [
+    { k: 'vaultBalance', label: 'Starting Casino Vault (ETB)', type: 'number', value: '200000' },
+    { k: 'confirm', label: 'Type RESET 200K to wipe all test users, bets & logs', ph: 'RESET 200K' }
+  ], v => {
+    if (String(v.confirm || '').trim().toUpperCase() !== 'RESET 200K') return toast('Type RESET 200K exactly to confirm', true);
+    act('/api/admin/reset-launch-db', { confirm: v.confirm, vaultBalance: Number(v.vaultBalance || 200000) });
+  }, 'Reset & Restore 200k Vault')
 };
 document.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b && ACT[b.dataset.act]) ACT[b.dataset.act](b.dataset); });
 
@@ -320,7 +328,13 @@ const V = {
       <div class="li"><span>Verify Mode (<code>USE_EXTERNAL_VERIFI</code>)</span>${badge(sys.verifyMode || 'External Verify Server', 'in')}</div>
       <div class="li"><span>Verify Endpoint (<code>VERIFI_URL</code>)</span><code>${esc(sys.verifiUrl || 'https://verifi-server-milr.onrender.com/api/verify')}</code></div>
       <div class="li"><span>Verify Token (<code>VERIFI_TOKEN</code>)</span>${badge(sys.verifiTokenSet ? 'Configured' : 'Missing', sys.verifiTokenSet ? 'ok' : 'no')}</div>
-      <div style="margin-top:10px">${btn('Test Verify Gateway', 'testVerify', {}, 'g2')}${btn('Test SMS Parser (Dry Run)', 'testSmsParse', {})}</div>
+      <div class="li"><span>Sports API Feed (<code>SPORTS_API_URL</code>)</span>${badge(sys.sportsApiConfigured ? 'Live Feed Active' : 'Virtual Engine', sys.sportsApiConfigured ? 'ok' : 'in')}</div>
+      <div class="li"><span>Sports Endpoint</span><code>${esc(sys.sportsApiUrl || '(virtual sports engine)')}</code></div>
+      <div style="margin-top:10px">${btn('Test Verify Gateway', 'testVerify', {}, 'g2')}${btn('Test SMS Parser (Dry Run)', 'testSmsParse', {})}${btn('Sync Live Sports Feed', 'syncSportsFeed', {})}</div>
+    </div>
+    <div class="c" style="border-color:var(--rd)"><h2>Launch Database Restore (200,000 ETB Vault)</h2>
+      <p class="k">Wipes all test accounts, test bets, transactions &amp; audit logs and restores Casino Vault to <b>200,000.00 ETB</b> for production launch.</p>
+      ${btn('Restore 200k Launch DB', 'resetLaunchDb', {}, 'r')}
     </div>
     <div class="c"><h2>Limits (set in server.js)</h2><div class="li"><span>Deposit</span><span>${etb(s.minDep)} – ${etb(s.maxDep)}</span></div><div class="li"><span>Auto-Verify Limit</span><span>${etb(sys.autoDepMax ?? 2000)}</span></div><div class="li"><span>Withdrawal</span><span>${etb(s.minWd)} – ${etb(s.maxWd)}</span></div></div>`;
   },

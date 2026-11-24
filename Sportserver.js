@@ -9,8 +9,12 @@ const {
   evaluateMarketResult,
   computeCashoutValue
 } = require('./lib/sports-engine');
+const { fetchSportsFeed } = require('./lib/sports-feed');
 
 const SETTINGS_KEY = 'sports_fixtures_state';
+const SPORTS_API_URL = String(process.env.SPORTS_API_URL || '').trim();
+const SPORTS_API_KEY = String(process.env.SPORTS_API_KEY || '').trim();
+const SPORTS_POLL_MS = Math.max(60000, parseInt(process.env.SPORTS_POLL_MS || '120000', 10) || 120000);
 
 function registerSportsbook(app, ctx) {
   const {
@@ -175,17 +179,63 @@ function registerSportsbook(app, ctx) {
     }
   }
 
+  let lastFeedSyncAt = 0;
+  let lastFeedError = '';
+
+  async function syncExternalFeed(force = false) {
+    if (!SPORTS_API_URL) return { synced: 0, configured: false };
+    if (!force && Date.now() - lastFeedSyncAt < SPORTS_POLL_MS) {
+      return { synced: 0, configured: true, cached: true };
+    }
+    lastFeedSyncAt = Date.now();
+    try {
+      const incoming = await fetchSportsFeed(SPORTS_API_URL, SPORTS_API_KEY);
+      lastFeedError = '';
+      if (!incoming.length) return { synced: 0, configured: true };
+
+      const prevById = new Map(fixtures.map(f => [f.id, f]));
+      const newlyFinished = [];
+      const merged = incoming.map(nx => {
+        const prev = prevById.get(nx.id);
+        if (prev && prev.status === 'LIVE' && nx.status === 'FT') newlyFinished.push(nx);
+        return hydrateFixture(nx);
+      });
+      // Keep any local or open-ticket matches not yet finished
+      for (const old of fixtures) {
+        if (!merged.some(m => m.id === old.id) && old.id && !old.id.startsWith('EXT-')) {
+          if (merged.length < 12) merged.push(old);
+        }
+      }
+      fixtures = merged.slice(0, 12);
+      for (const fx of newlyFinished) {
+        await settleFixture(fx.id, 'EXT_FEED_FT', { homeScore: fx.homeScore, awayScore: fx.awayScore, home: fx.home, away: fx.away });
+      }
+      dirty = true;
+      await persistIfDirty(true);
+      broadcastUpdate();
+      return { synced: incoming.length, configured: true };
+    } catch (e) {
+      lastFeedError = e.message;
+      return { synced: 0, configured: true, error: e.message };
+    }
+  }
+
   // Live progression timer (started after DB schema/restore; DB writes batched every 2m unless FT/rotated)
   function startTick() {
     if (tickTimer) return;
+    if (SPORTS_API_URL) syncExternalFeed(true).catch(() => {});
     tickTimer = setInterval(async () => {
       try {
+        if (SPORTS_API_URL && Date.now() - lastFeedSyncAt >= SPORTS_POLL_MS) {
+          await syncExternalFeed(false);
+        }
         const now = Date.now();
         const finishedIds = [];
         let changed = false;
         let urgentPersist = false;
 
         fixtures = fixtures.map(f => {
+          if (f.id && f.id.startsWith('EXT-') && SPORTS_API_URL) return f;
           if (f.status === 'LIVE') {
             const next = tickMatch(f);
             changed = true;
@@ -447,14 +497,26 @@ function registerSportsbook(app, ctx) {
         message: `Settled ${matchId} (${out.fixture.score}): ${out.settledCount} tickets (${out.wonCount} won, ${out.totalPayout.toFixed(2)} ETB paid)`
       });
     }));
+
+    app.post('/api/admin/sports/sync', admin, h(async (req, res) => {
+      if (!SPORTS_API_URL) {
+        throw new Biz('Set SPORTS_API_URL in your server environment variables first (e.g. ESPN free scoreboard JSON URL).', 400);
+      }
+      const r = await syncExternalFeed(true);
+      if (r.error) throw new Biz(`Sports feed sync failed: ${r.error}`, 502);
+      if (alog) alog(req, 'sports-sync', `synced=${r.synced}`);
+      res.json({ success: true, synced: r.synced, message: `Synced ${r.synced} live fixtures from SPORTS_API_URL` });
+    }));
   }
 
   return {
     getFixtures: () => fixtures,
     settleFixture,
     restoreFixtures,
+    syncExternalFeed,
     startTick,
-    persistIfDirty
+    persistIfDirty,
+    getFeedStatus: () => ({ configured: Boolean(SPORTS_API_URL), url: SPORTS_API_URL || '(virtual engine)', lastFeedError })
   };
 }
 
