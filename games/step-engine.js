@@ -114,6 +114,7 @@ function createStepGameModule(ctx, shared, opts) {
       return { vd, body: { state: 'SAFE', step, multiplier: m[step - 1], potential, newBalance: await shared.balanceOf(c, uid) } };
     });
     o.vd.forEach(vaultAdd);
+    if (ctx.cacheInvalidate && (o.body.state === 'HIT' || o.body.state === 'GOAL')) ctx.cacheInvalidate(`userhist:${uid}:`);
     if (o.body.state === 'GOAL' && o.body.payout >= 500) io.emit('live_win', { user: mask(req.tg.username), game: gameName, win: o.body.payout });
     res.json({ success: true, ...o.body });
   });
@@ -147,6 +148,7 @@ function createStepGameModule(ctx, shared, opts) {
       return { vd, body };
     });
     o.vd.forEach(vaultAdd);
+    if (ctx.cacheInvalidate) ctx.cacheInvalidate(`userhist:${req.tg.id}:`);
     if (o.body.payout >= 500) io.emit('live_win', { user: mask(req.tg.username), game: gameName, win: o.body.payout });
     res.json({ success: true, ...o.body });
   });

@@ -172,6 +172,9 @@ function createCrashEngine(ctx) {
           await persistCrashLosses(step.crashedBets || [], gameName);
           if (cacheInvalidate && ((step.autoWins && step.autoWins.length) || (step.crashedBets && step.crashedBets.length))) {
             cacheInvalidate('feed:');
+            for (const b of [...(step.autoWins || []), ...(step.crashedBets || [])]) {
+              if (b.userId) cacheInvalidate(`userhist:${b.userId}:`);
+            }
           }
           if (hasPlayers) io.to(chan).emit('crash:phase', step.snapshot);
         } else if (step.event === 'NEW_ROUND') {
@@ -451,7 +454,10 @@ function createCrashEngine(ctx) {
       }
 
       vaultAdd({ bal: -settled.bet.payout, payouts: settled.bet.payout, profit: -settled.bet.payout });
-      if (cacheInvalidate) cacheInvalidate('feed:');
+      if (cacheInvalidate) {
+        cacheInvalidate('feed:');
+        cacheInvalidate(`userhist:${uid}:`);
+      }
       if (settled.bet.payout >= 500) {
         io.emit('live_win', { user: mask(out.uname), game: gameName, win: settled.bet.payout });
       }

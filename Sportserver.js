@@ -150,7 +150,10 @@ function registerSportsbook(app, ctx) {
         vaultAdd({ bal: -out.totalPayout, payouts: out.totalPayout, profit: -out.totalPayout });
       }
       await persistFixtures();
-      if (cacheInvalidate) cacheInvalidate('admin:dashboard');
+      if (cacheInvalidate) {
+        cacheInvalidate('admin:dashboard');
+        cacheInvalidate('userhist:');
+      }
       broadcastUpdate();
       if (io) {
         io.emit('sports:settled', {
@@ -354,7 +357,10 @@ function registerSportsbook(app, ctx) {
     });
 
     vaultAdd({ bal: -out.cashVal, payouts: out.cashVal, profit: -out.cashVal });
-    if (cacheInvalidate) cacheInvalidate('admin:dashboard');
+    if (cacheInvalidate) {
+      cacheInvalidate('admin:dashboard');
+      cacheInvalidate(`userhist:${uid}:`);
+    }
     res.json({ success: true, ticketId, payout: out.cashVal, newBalance: out.after });
   }));
 

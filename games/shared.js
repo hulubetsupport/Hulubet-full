@@ -74,6 +74,7 @@ function createSharedHelpers(ctx) {
 
     vaultAdd({ bal: out.profit, wagered: out.wager, payouts: out.payout, profit: out.profit });
     if (cacheInvalidate) {
+      cacheInvalidate(`userhist:${uid}:`);
       if (out.payout >= 100) cacheInvalidate('feed:');
       if (gameName === 'KenoFast') cacheInvalidate('keno_results:');
     }
@@ -246,6 +247,7 @@ function createSharedHelpers(ctx) {
     });
     res2.vd.forEach(vaultAdd);
     const out = res2.r;
+    if (cacheInvalidate && out.state !== 'FLYING') cacheInvalidate(`userhist:${req.tg.id}:`);
     if (out.state === 'WON' && out.payout >= 500) io.emit('live_win', { user: mask(req.tg.username), game: 'Crash', win: out.payout });
     res.json({ success: true, ...out });
   }

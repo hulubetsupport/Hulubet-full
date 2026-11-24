@@ -30,6 +30,7 @@ const { registerTelegramBot } = require('./lib/telegram-bot');
 const { mountAllGames, CRASH_GAMES } = require('./games');
 const { registerSportsbook } = require('./Sportserver');
 const { createSmsVerifyService } = require('./lib/sms-verify-server');
+const { normalizePeriod, periodCutoffMs, buildBestWinsPeriods, buildUserHistorySummary } = require('./lib/stats-engine');
 
 const ENV = process.env;
 const HAS_DB = Boolean(ENV.DATABASE_URL);
@@ -306,16 +307,23 @@ async function notify(chatId, text) {
 const notifyAdmins = text => ENV.ADMIN_CHAT_ID ? notify(ENV.ADMIN_CHAT_ID, text) : null;
 const fmt = n => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-// ---- Unified payment gateway (Telebirr / CBE): uses integrated verify engine by default, or external if USE_EXTERNAL_VERIFI=1
+// ---- Unified payment gateway (Telebirr / CBE): uses external verify server when configured, or built-in SMS ledger as fallback
 const AUTO_DEP_MAX = Number(ENV.AUTO_DEP_MAX || 2000);   // verified deposits above this wait for a cashier instead of auto-crediting
+const DEFAULT_VERIFI_URL = 'https://verifi-server-milr.onrender.com/api/verify';
+const VERIFI_URL = String(ENV.VERIFI_URL || DEFAULT_VERIFI_URL).trim();
+const USE_EXTERNAL_VERIFI = ENV.USE_EXTERNAL_VERIFI === '1' || (ENV.USE_EXTERNAL_VERIFI !== '0' && Boolean(ENV.VERIFI_TOKEN));
 const smsVerifier = createSmsVerifyService({ pool, env: ENV, admin, h });
 async function verifyWithGateway(ref, amount) {
-  if (ENV.USE_EXTERNAL_VERIFI === '1' && ENV.VERIFI_URL && ENV.VERIFI_TOKEN) {
-    const u = new URL(ENV.VERIFI_URL);
+  if (USE_EXTERNAL_VERIFI) {
+    if (!ENV.VERIFI_TOKEN) throw new Biz('Automatic verification is not available right now. Use "Send Deposit Request".', 503);
+    const u = new URL(VERIFI_URL);
     u.searchParams.set('token', ENV.VERIFI_TOKEN); u.searchParams.set('ref', ref); u.searchParams.set('amount', String(amount));
     const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 25000);
     try {
       const r = await fetch(u, { signal: ctl.signal }), text = await r.text();
+      if (r.status === 401 || r.status === 403) {
+        throw new Biz('Verification gateway rejected server token. Contact support or use "Send Deposit Request".', 503);
+      }
       let body = {}; try { body = JSON.parse(text); } catch (e) {}
       return { ok: r.ok, body, raw: text.slice(0, 200) };
     } finally { clearTimeout(timer); }
@@ -328,7 +336,7 @@ const gatewayAmount = b => { const n = Number(b && (b.amount ?? (b.data && b.dat
 
 // ---------------------------------------------------------------- static frontend + modular games + sportsbook + telegram bot
 app.get('/', (_q, res) => res.sendFile(path.join(__dirname, 'homepage.html'), { maxAge: 60 * 1000 }));
-app.get(['/admin', '/betadmin.html'], (_q, res) => res.sendFile(path.join(__dirname, 'betadmin.html'), { maxAge: 60 * 1000 }));
+app.get(['/admin', '/betadmin', '/betadmin.html'], (_q, res) => res.sendFile(path.join(__dirname, 'betadmin.html'), { maxAge: 60 * 1000 }));
 app.get('/homepage.html', (_q, res) => res.sendFile(path.join(__dirname, 'homepage.html'), { maxAge: 60 * 1000 }));
 app.get('/game-bridge.js', (_q, res) => res.sendFile(path.join(__dirname, 'game-bridge.js'), { maxAge: 300 * 1000 }));
 
@@ -356,14 +364,23 @@ app.get('/api/agents', h(async (_q, res) => {
   });
   res.json({ success: true, agents });
 }));
-app.get('/api/user/history', userAuth, h(async (req, res) => {
-  const r = await pool.query(
-    `SELECT bet_id,game_name,bet_amount,multiplier,payout,status,game_data,created_at FROM universal_bets WHERE user_id=$1 AND status<>'IN_FLIGHT' ORDER BY created_at DESC LIMIT 30`,
-    [req.tg.id]
-  ).catch(() => ({ rows: [] }));
-  res.json({
-    success: true,
-    history: r.rows.map(b => {
+app.get('/api/user/history', userAuth, limit('uhist', 120, 60e3), h(async (req, res) => {
+  const uid = req.tg.id;
+  const period = normalizePeriod(req.query.period, 'all');
+  const payload = await cache.getOrLoad(`userhist:${uid}:${period}`, 15000, async () => {
+    const cutoff = new Date(periodCutoffMs(period));
+    const [casinoRes, sportsRes] = await Promise.all([
+      pool.query(
+        `SELECT bet_id,game_name,bet_amount,multiplier,payout,status,game_data,created_at FROM universal_bets WHERE user_id=$1 AND status<>'IN_FLIGHT' AND created_at>=$2 ORDER BY created_at DESC LIMIT 60`,
+        [uid, cutoff]
+      ).catch(() => ({ rows: [] })),
+      pool.query(
+        `SELECT COALESCE(ticket_id,bet_id) AS bet_id,match_title,market,odds,stake,payout,status,created_at FROM sports_bets WHERE user_id=$1 AND status<>'IN_PLAY' AND created_at>=$2 ORDER BY created_at DESC LIMIT 30`,
+        [uid, cutoff]
+      ).catch(() => ({ rows: [] }))
+    ]);
+
+    const casinoItems = casinoRes.rows.map(b => {
       const gd = parseJson(b.game_data);
       const amount = num(b.bet_amount);
       const win = num(b.payout);
@@ -383,8 +400,38 @@ app.get('/api/user/history', userAuth, h(async (req, res) => {
         drawnNumbers: Array.isArray(gd.drawnNumbers) ? gd.drawnNumbers : undefined,
         hits: gd.hits !== undefined ? Number(gd.hits) : undefined
       };
-    })
+    });
+
+    const sportsItems = sportsRes.rows.map(s => {
+      const amount = num(s.stake);
+      const win = num(s.payout);
+      return {
+        betId: s.bet_id,
+        roundId: s.bet_id,
+        game: 'Sportsbook',
+        matchTitle: s.match_title,
+        market: s.market,
+        betAmount: amount,
+        amount,
+        multiplier: num(s.odds),
+        payout: win,
+        win,
+        status: s.status,
+        createdAt: s.created_at,
+        time: new Date(s.created_at).getTime()
+      };
+    });
+
+    const combined = [...casinoItems, ...sportsItems].sort((a, b) => b.time - a.time);
+    const summary = buildUserHistorySummary(combined);
+    return {
+      success: true,
+      period,
+      summary,
+      history: combined.slice(0, 40)
+    };
   });
+  res.json(payload);
 }));
 
 // ---- Bonuses & Live Chat ----
@@ -560,6 +607,84 @@ app.get('/api/public/feed', limit('feed', 240, 60e3), h(async (req, res) => {
   res.json(payload);
 }));
 
+app.get('/api/public/best-wins', limit('bestwins', 120, 60e3), h(async (_req, res) => {
+  const payload = await cache.getOrLoad('public:best-wins', 60000, async () => {
+    const [gRes, rRes, sRes, wRes] = await Promise.all([
+      pool.query(`SELECT game_name,
+        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day') AS b1,
+        COUNT(*) FILTER (WHERE status='WON' AND created_at >= NOW() - INTERVAL '1 day') AS w1,
+        COALESCE(SUM(bet_amount) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day'), 0) AS wag1,
+        COALESCE(SUM(payout) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day'), 0) AS pay1,
+        COALESCE(MAX(payout) FILTER (WHERE status='WON' AND created_at >= NOW() - INTERVAL '1 day'), 0) AS maxp1,
+        COALESCE(MAX(multiplier) FILTER (WHERE status='WON' AND created_at >= NOW() - INTERVAL '1 day'), 0) AS maxm1,
+        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') AS b7,
+        COUNT(*) FILTER (WHERE status='WON' AND created_at >= NOW() - INTERVAL '7 days') AS w7,
+        COALESCE(SUM(bet_amount) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days'), 0) AS wag7,
+        COALESCE(SUM(payout) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days'), 0) AS pay7,
+        COALESCE(MAX(payout) FILTER (WHERE status='WON' AND created_at >= NOW() - INTERVAL '7 days'), 0) AS maxp7,
+        COALESCE(MAX(multiplier) FILTER (WHERE status='WON' AND created_at >= NOW() - INTERVAL '7 days'), 0) AS maxm7,
+        COUNT(*) AS b30,
+        COUNT(*) FILTER (WHERE status='WON') AS w30,
+        COALESCE(SUM(bet_amount), 0) AS wag30,
+        COALESCE(SUM(payout), 0) AS pay30,
+        COALESCE(MAX(payout) FILTER (WHERE status='WON'), 0) AS maxp30,
+        COALESCE(MAX(multiplier) FILTER (WHERE status='WON'), 0) AS maxm30
+        FROM universal_bets WHERE status IN ('WON','LOST') AND created_at >= NOW() - INTERVAL '30 days' GROUP BY game_name`
+      ).catch(() => ({ rows: [] })),
+      pool.query(`SELECT game_name,
+        COALESCE(SUM(total_bets) FILTER (WHERE COALESCE(period_end, created_at) >= NOW() - INTERVAL '1 day'), 0) AS b1,
+        COALESCE(SUM(won_bets) FILTER (WHERE COALESCE(period_end, created_at) >= NOW() - INTERVAL '1 day'), 0) AS w1,
+        COALESCE(SUM(total_wagered) FILTER (WHERE COALESCE(period_end, created_at) >= NOW() - INTERVAL '1 day'), 0) AS wag1,
+        COALESCE(SUM(total_payout) FILTER (WHERE COALESCE(period_end, created_at) >= NOW() - INTERVAL '1 day'), 0) AS pay1,
+        COALESCE(SUM(total_bets) FILTER (WHERE COALESCE(period_end, created_at) >= NOW() - INTERVAL '7 days'), 0) AS b7,
+        COALESCE(SUM(won_bets) FILTER (WHERE COALESCE(period_end, created_at) >= NOW() - INTERVAL '7 days'), 0) AS w7,
+        COALESCE(SUM(total_wagered) FILTER (WHERE COALESCE(period_end, created_at) >= NOW() - INTERVAL '7 days'), 0) AS wag7,
+        COALESCE(SUM(total_payout) FILTER (WHERE COALESCE(period_end, created_at) >= NOW() - INTERVAL '7 days'), 0) AS pay7,
+        COALESCE(SUM(total_bets), 0) AS b30,
+        COALESCE(SUM(won_bets), 0) AS w30,
+        COALESCE(SUM(total_wagered), 0) AS wag30,
+        COALESCE(SUM(total_payout), 0) AS pay30
+        FROM game_12h_reports WHERE COALESCE(period_end, created_at) >= NOW() - INTERVAL '30 days' GROUP BY game_name`
+      ).catch(() => ({ rows: [] })),
+      pool.query(`SELECT
+        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day') AS b1,
+        COUNT(*) FILTER (WHERE status IN ('WON','CASHED_OUT') AND created_at >= NOW() - INTERVAL '1 day') AS w1,
+        COALESCE(SUM(stake) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day'), 0) AS wag1,
+        COALESCE(SUM(payout) FILTER (WHERE created_at >= NOW() - INTERVAL '1 day'), 0) AS pay1,
+        COALESCE(MAX(payout) FILTER (WHERE status IN ('WON','CASHED_OUT') AND created_at >= NOW() - INTERVAL '1 day'), 0) AS maxp1,
+        COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days') AS b7,
+        COUNT(*) FILTER (WHERE status IN ('WON','CASHED_OUT') AND created_at >= NOW() - INTERVAL '7 days') AS w7,
+        COALESCE(SUM(stake) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days'), 0) AS wag7,
+        COALESCE(SUM(payout) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days'), 0) AS pay7,
+        COALESCE(MAX(payout) FILTER (WHERE status IN ('WON','CASHED_OUT') AND created_at >= NOW() - INTERVAL '7 days'), 0) AS maxp7,
+        COUNT(*) AS b30,
+        COUNT(*) FILTER (WHERE status IN ('WON','CASHED_OUT')) AS w30,
+        COALESCE(SUM(stake), 0) AS wag30,
+        COALESCE(SUM(payout), 0) AS pay30,
+        COALESCE(MAX(payout) FILTER (WHERE status IN ('WON','CASHED_OUT')), 0) AS maxp30
+        FROM sports_bets WHERE status IN ('WON','LOST','CASHED_OUT') AND created_at >= NOW() - INTERVAL '30 days'`
+      ).catch(() => ({ rows: [] })),
+      pool.query(
+        `SELECT username,game_name,bet_amount,multiplier,payout,created_at FROM universal_bets WHERE status='WON' AND payout>0 AND created_at>=NOW()-INTERVAL '30 days' ORDER BY payout DESC,created_at DESC LIMIT 24`
+      ).catch(() => ({ rows: [] }))
+    ]);
+    return {
+      success: true,
+      cachedAt: Date.now(),
+      ttlSeconds: 60,
+      periods: buildBestWinsPeriods({
+        gameRows: gRes.rows,
+        reportRows: rRes.rows,
+        sportsSummary: sRes.rows[0] || null,
+        topWinRows: wRes.rows,
+        maskFn: mask
+      })
+    };
+  });
+  res.set('Cache-Control', 'public, max-age=30');
+  res.json(payload);
+}));
+
 // ---------------------------------------------------------------- 1. user init (1 pooled SELECT fast-path for existing users; TX only on registration)
 const initHandler = h(async (req, res) => {
   const { id, username, name } = req.tg;
@@ -661,7 +786,7 @@ app.post('/api/cashier/verify-deposit', userAuth, limit('verify', 12, 600e3), h(
   const raw = String(req.body.ref || '').trim(), ref = raw.toUpperCase(), amt = r2(req.body.amount), uid = req.tg.id;
   if (!/^[A-Za-z0-9-]{6,40}$/.test(raw)) throw new Biz('Enter the transaction reference exactly as it appears in your payment message');
   if (!(amt >= CONFIG.MIN_DEP && amt <= CONFIG.MAX_DEP)) throw new Biz(`Deposit must be between ${CONFIG.MIN_DEP} and ${CONFIG.MAX_DEP} ETB`);
-  if (ENV.USE_EXTERNAL_VERIFI === '1' && !ENV.VERIFI_TOKEN) throw new Biz('Automatic verification is not available right now. Use "Send Deposit Request".', 503);
+  if (USE_EXTERNAL_VERIFI && !ENV.VERIFI_TOKEN) throw new Biz('Automatic verification is not available right now. Use "Send Deposit Request".', 503);
   const u = await pool.query('SELECT status FROM users WHERE user_id=$1', [uid]);
   if (!u.rows.length) throw new Biz('User not found', 404);
   if (['banned', 'suspended'].includes(String(u.rows[0].status).toLowerCase())) throw new Biz('Account is restricted. Contact support.', 403);
@@ -892,6 +1017,15 @@ const dashboard = h(async (_req, res) => {
         cashbackPercent: CASHBACK.percent,
         cashbackMinLoss: CASHBACK.minLoss,
         minDep: CONFIG.MIN_DEP, maxDep: CONFIG.MAX_DEP, minWd: CONFIG.MIN_WTH, maxWd: CONFIG.MAX_WTH
+      },
+      system: {
+        databaseConnected: HAS_DB,
+        botConfigured: HAS_BOT_TOKEN,
+        customAdminPin: Boolean(ENV.ADMIN_PIN && ENV.ADMIN_PIN.length >= 8),
+        verifyMode: USE_EXTERNAL_VERIFI ? 'External Verify Server' : 'Built-in SMS Ledger',
+        verifiUrl: USE_EXTERNAL_VERIFI ? VERIFI_URL : '(built-in /api/verify)',
+        verifiTokenSet: USE_EXTERNAL_VERIFI ? Boolean(ENV.VERIFI_TOKEN) : true,
+        autoDepMax: AUTO_DEP_MAX
       }
     };
   });
@@ -921,6 +1055,29 @@ app.post('/api/admin/run-12h-audit', admin, h(async (req, res) => {
     ...out,
     message: `12h Audit complete: ${out.reportsCreated} summaries created, ${out.purgedBets} bets & ${out.purgedAuditLogs} audit logs pruned`
   });
+}));
+
+app.post('/api/admin/test-verify', admin, h(async (_req, res) => {
+  if (!USE_EXTERNAL_VERIFI) {
+    return res.json({ success: true, mode: 'local', message: 'Built-in SMS verification engine active on this server.' });
+  }
+  if (!ENV.VERIFI_TOKEN) {
+    throw new Biz('VERIFI_TOKEN is not set in server environment variables.', 400);
+  }
+  try {
+    const g = await verifyWithGateway('TESTPING0000', 100);
+    const st = String(g.body?.status || 'Reachable');
+    res.json({
+      success: true,
+      mode: 'external',
+      url: VERIFI_URL,
+      gatewayStatus: st,
+      message: `Connected to verify server (${VERIFI_URL}) — status: ${st}`
+    });
+  } catch (e) {
+    if (e instanceof Biz) throw e;
+    throw new Biz(`Could not reach verify server (${VERIFI_URL}): ${e.message}`, 503);
+  }
 }));
 
 app.get('/api/admin/users', admin, h(async (req, res) => {

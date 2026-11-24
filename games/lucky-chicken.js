@@ -80,6 +80,7 @@ module.exports = function createLuckyChickenModule(ctx, shared) {
       return { vd, body: { state: 'SAFE', step, multiplier: m[step - 1], potential: r2(wager * m[step - 1]), newBalance: await shared.balanceOf(c, uid) } };
     });
     o.vd.forEach(vaultAdd);
+    if (ctx.cacheInvalidate && (o.body.state === 'HIT' || o.body.state === 'GOAL')) ctx.cacheInvalidate(`userhist:${uid}:`);
     if (o.body.state === 'GOAL' && o.body.payout >= 500) io.emit('live_win', { user: mask(req.tg.username), game: GAME_NAME, win: o.body.payout });
     res.json({ success: true, ...o.body });
   });
@@ -111,6 +112,7 @@ module.exports = function createLuckyChickenModule(ctx, shared) {
       return { vd, body };
     });
     o.vd.forEach(vaultAdd);
+    if (ctx.cacheInvalidate) ctx.cacheInvalidate(`userhist:${req.tg.id}:`);
     res.json({ success: true, ...o.body });
   });
 

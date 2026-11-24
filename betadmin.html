@@ -26,9 +26,9 @@ button.a{border:0;border-radius:8px;padding:8px 12px;margin:2px;cursor:pointer;c
 button.a.g2{background:var(--ac)}button.a.r{background:var(--rd)}button.a.m{background:var(--mu)}button.a:disabled{opacity:.5}
 input,select,textarea{width:100%;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:10px;font:inherit;font-size:16px;margin:4px 0 8px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bd)}
+.li{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--bd)}
 .bar{height:8px;background:var(--bd);border-radius:4px;margin:4px 0 10px}.bar i{display:block;height:8px;border-radius:4px;background:var(--ac)}
-code{font-family:ui-monospace,monospace;background:var(--bg);padding:2px 6px;border-radius:6px}
+code{font-family:ui-monospace,monospace;background:var(--bg);padding:2px 6px;border-radius:6px;word-break:break-all;max-width:100%}
 #md{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:9;padding:16px}
 #md>div{background:var(--card);border-radius:12px;padding:16px;width:100%;max-width:420px;max-height:88%;overflow:auto}
 #ts{position:fixed;top:64px;left:50%;transform:translateX(-50%);background:var(--ac);color:#fff;padding:8px 16px;border-radius:20px;display:none;z-index:10;max-width:92%;text-align:center}
@@ -49,7 +49,7 @@ td::before{content:attr(data-l);color:var(--mu);font-size:12px;text-align:left}}
 <div id="md"><div id="mb"></div></div><div id="ts"></div>
 
 <script>
-const API = (() => { try { const q = new URLSearchParams(location.search).get('api'); if (q && /^https?:\/\//i.test(q)) return q.replace(/\/+$/, ''); } catch (_) {} return window.location.origin; })();
+const API = (() => { try { const q = new URLSearchParams(location.search).get('api'); if (q && /^https?:\/\//i.test(q)) return q.replace(/\/+$/, ''); } catch (_) {} if (location.hostname.endsWith('.github.io')) return 'https://hulubetserver.app.aletcloud.com'; return window.location.origin; })();
 let PIN = "", ACTOR = "Admin", D = null, U = null, SQ = "", AL = [], BOT = null, SM = null, page = "Overview", prev = { d: 0, w: 0 };
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -164,7 +164,8 @@ const ACT = {
     'Run 12-Hour Audit & Prune?',
     'Summarizes settled bets older than 12 hours into permanent 12h reports and prunes expired raw rows & audit logs.',
     () => act('/api/admin/run-12h-audit', {})
-  )
+  ),
+  testVerify: () => act('/api/admin/test-verify', {})
 };
 document.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b && ACT[b.dataset.act]) ACT[b.dataset.act](b.dataset); });
 
@@ -242,7 +243,7 @@ const V = {
     <div class="c"><h2>Bonuses</h2><p class="k">Cashback pays only on new net loss since the last run, so running it twice never double-pays. All bonuses carry wagering.</p>${btn('Distribute cashback', 'cashback', {}, 'g2')}${btn('Reward players', 'reward')}</div>`;
   },
   Settings() {
-    const s = D.settings;
+    const s = D.settings, sys = D.system || {};
     return `<div class="c"><h2>RTP &amp; Bonus Settings</h2>
       <label class="k">Target RTP % (Crash, Slots, Plinko, Chicken, Avia — 50–99%)</label><input id="s_rtp" type="number" step="0.5" value="${s.targetRtp}">
       <label class="k">Keno RTP % (Fast Keno &amp; Classic Keno — 50–99%)</label><input id="s_krtp" type="number" step="0.5" value="${s.kenoRtp ?? 70}">
@@ -251,7 +252,16 @@ const V = {
       <label class="k">Referral Bonus (ETB — 0–1000)</label><input id="s_rb" type="number" step="1" value="${s.referralBonus ?? 50}">
       <label class="k">Daily Cashback % (1–50%)</label><input id="s_cb" type="number" step="1" value="${s.cashbackPercent ?? 10}">
       ${btn('Save settings', 'saveSet', {}, 'g2')}</div>
-    <div class="c"><h2>Limits (set in server.js)</h2><div class="li"><span>Deposit</span><span>${etb(s.minDep)} – ${etb(s.maxDep)}</span></div><div class="li"><span>Withdrawal</span><span>${etb(s.minWd)} – ${etb(s.maxWd)}</span></div></div>`;
+    <div class="c"><h2>Server &amp; Deposit Verify Gateway</h2>
+      <div class="li"><span>Database (<code>DATABASE_URL</code>)</span>${badge(sys.databaseConnected ? 'PostgreSQL Connected' : 'Demo Memory DB', sys.databaseConnected ? 'ok' : 'wa')}</div>
+      <div class="li"><span>Telegram Bot (<code>BOT_TOKEN</code>)</span>${badge(sys.botConfigured ? 'Connected' : 'Demo / Not Set', sys.botConfigured ? 'ok' : 'wa')}</div>
+      <div class="li"><span>Admin PIN (<code>ADMIN_PIN</code>)</span>${badge(sys.customAdminPin ? 'Custom PIN Active' : 'Default Demo PIN', sys.customAdminPin ? 'ok' : 'wa')}</div>
+      <div class="li"><span>Verify Mode (<code>USE_EXTERNAL_VERIFI</code>)</span>${badge(sys.verifyMode || 'External Verify Server', 'in')}</div>
+      <div class="li"><span>Verify Endpoint (<code>VERIFI_URL</code>)</span><code>${esc(sys.verifiUrl || 'https://verifi-server-milr.onrender.com/api/verify')}</code></div>
+      <div class="li"><span>Verify Token (<code>VERIFI_TOKEN</code>)</span>${badge(sys.verifiTokenSet ? 'Configured' : 'Missing', sys.verifiTokenSet ? 'ok' : 'no')}</div>
+      <div style="margin-top:10px">${btn('Test Verify Gateway', 'testVerify', {}, 'g2')}</div>
+    </div>
+    <div class="c"><h2>Limits (set in server.js)</h2><div class="li"><span>Deposit</span><span>${etb(s.minDep)} – ${etb(s.maxDep)}</span></div><div class="li"><span>Auto-Verify Limit</span><span>${etb(sys.autoDepMax ?? 2000)}</span></div><div class="li"><span>Withdrawal</span><span>${etb(s.minWd)} – ${etb(s.maxWd)}</span></div></div>`;
   },
   Audit() { return `<div class="c"><h2>Admin actions</h2>${AL.length ? tbl(['When', 'Admin', 'Action', 'Detail', 'IP'], AL.map(a => [new Date(a.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }), esc(a.actor), esc(a.action), esc(a.detail), esc(a.ip)])) : empty('Loading…')}</div>`; },
   '12h Audit'() {

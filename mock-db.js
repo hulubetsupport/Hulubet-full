@@ -442,6 +442,14 @@ function createMockPool() {
       db.universal_bets.forEach(b => { if (b.status === 'IN_FLIGHT' && !b.flight_start) { b.status = 'LOST'; b.house_profit = b.bet_amount; n++; } });
       return { rows: [], rowCount: n };
     }
+    if (low.startsWith("select username,game_name,bet_amount,multiplier,payout,created_at from universal_bets")) {
+      const cutoff = Date.now() - 30 * 86400e3;
+      const rows = db.universal_bets
+        .filter(b => b.status === 'WON' && b.payout > 0 && new Date(b.created_at).getTime() >= cutoff)
+        .sort((a, b) => b.payout - a.payout || new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 24);
+      return { rows, rowCount: rows.length };
+    }
     if (low.startsWith("select username,game_name,payout,multiplier from universal_bets")) {
       const rows = db.universal_bets.filter(b => b.status === 'WON' && b.payout >= 100).slice(0, 15);
       return { rows, rowCount: rows.length };
@@ -452,7 +460,10 @@ function createMockPool() {
       return { rows, rowCount: rows.length };
     }
     if (low.startsWith("select bet_id,game_name,bet_amount,multiplier,payout,status") && low.includes("from universal_bets where user_id=$1")) {
-      const rows = db.universal_bets.filter(b => b.user_id === String(params[0]) && b.status !== 'IN_FLIGHT').slice(0, 30);
+      const cutoff = params[1] ? new Date(params[1]).getTime() : 0;
+      const rows = db.universal_bets
+        .filter(b => b.user_id === String(params[0]) && b.status !== 'IN_FLIGHT' && new Date(b.created_at).getTime() >= cutoff)
+        .slice(0, 60);
       return { rows, rowCount: rows.length };
     }
     if (low.startsWith("select * from universal_bets where status<>'in_flight'")) {
@@ -478,6 +489,39 @@ function createMockPool() {
         if (!['WON', 'LOST'].includes(b.status)) continue;
         const cur = map.get(b.game_name) || { game_name: b.game_name, bets: 0, wagered: 0, paid: 0 };
         cur.bets++; cur.wagered += b.bet_amount; cur.paid += b.payout;
+        map.set(b.game_name, cur);
+      }
+      const rows = [...map.values()];
+      return { rows, rowCount: rows.length };
+    }
+    if (low.startsWith('select game_name, count(*) filter')) {
+      const now = Date.now();
+      const c1 = now - 86400e3;
+      const c7 = now - 7 * 86400e3;
+      const c30 = now - 30 * 86400e3;
+      const map = new Map();
+      for (const b of db.universal_bets) {
+        if (!['WON', 'LOST'].includes(b.status)) continue;
+        const ts = new Date(b.created_at).getTime();
+        if (ts < c30) continue;
+        const cur = map.get(b.game_name) || {
+          game_name: b.game_name,
+          b1: 0, w1: 0, wag1: 0, pay1: 0, maxp1: 0, maxm1: 0,
+          b7: 0, w7: 0, wag7: 0, pay7: 0, maxp7: 0, maxm7: 0,
+          b30: 0, w30: 0, wag30: 0, pay30: 0, maxp30: 0, maxm30: 0
+        };
+        const isWon = b.status === 'WON';
+        const addWin = s => {
+          cur['b' + s]++; cur['wag' + s] += b.bet_amount; cur['pay' + s] += b.payout;
+          if (isWon) {
+            cur['w' + s]++;
+            if (b.payout > cur['maxp' + s]) cur['maxp' + s] = b.payout;
+            if (b.multiplier > cur['maxm' + s]) cur['maxm' + s] = b.multiplier;
+          }
+        };
+        addWin('30');
+        if (ts >= c7) addWin('7');
+        if (ts >= c1) addWin('1');
         map.set(b.game_name, cur);
       }
       const rows = [...map.values()];
@@ -545,6 +589,35 @@ function createMockPool() {
       const rows = db.game_12h_reports.slice(0, lim);
       return { rows, rowCount: rows.length };
     }
+    if (low.startsWith('select game_name, coalesce(sum(total_bets) filter')) {
+      const now = Date.now();
+      const c1 = now - 86400e3;
+      const c7 = now - 7 * 86400e3;
+      const c30 = now - 30 * 86400e3;
+      const map = new Map();
+      for (const r of db.game_12h_reports) {
+        const ts = new Date(r.period_end || r.created_at).getTime();
+        if (ts < c30) continue;
+        const cur = map.get(r.game_name) || {
+          game_name: r.game_name,
+          b1: 0, w1: 0, wag1: 0, pay1: 0,
+          b7: 0, w7: 0, wag7: 0, pay7: 0,
+          b30: 0, w30: 0, wag30: 0, pay30: 0
+        };
+        const addWin = s => {
+          cur['b' + s] += Number(r.total_bets || 0);
+          cur['w' + s] += Number(r.won_bets || 0);
+          cur['wag' + s] += Number(r.total_wagered || 0);
+          cur['pay' + s] += Number(r.total_payout || 0);
+        };
+        addWin('30');
+        if (ts >= c7) addWin('7');
+        if (ts >= c1) addWin('1');
+        map.set(r.game_name, cur);
+      }
+      const rows = [...map.values()];
+      return { rows, rowCount: rows.length };
+    }
     if (low.startsWith('select game_name,coalesce(sum(total_bets),0)')) {
       const map = new Map();
       for (const r of db.game_12h_reports) {
@@ -580,6 +653,14 @@ function createMockPool() {
       db.sports_bets.unshift(row);
       return { rows: [{ ...row }], rowCount: 1 };
     }
+    if (low.startsWith('select coalesce(ticket_id,bet_id) as bet_id,match_title,market,odds,stake,payout,status,created_at from sports_bets where user_id=$1')) {
+      const cutoff = params[1] ? new Date(params[1]).getTime() : 0;
+      const rows = db.sports_bets
+        .filter(s => s.user_id === String(params[0]) && s.status !== 'IN_PLAY' && new Date(s.created_at).getTime() >= cutoff)
+        .slice(0, 30)
+        .map(s => ({ bet_id: s.ticket_id || s.bet_id, match_title: s.match_title, market: s.market, odds: s.odds, stake: s.stake, payout: s.payout, status: s.status, created_at: s.created_at }));
+      return { rows, rowCount: rows.length };
+    }
     if (low.startsWith('select * from sports_bets where user_id=$1')) {
       const rows = db.sports_bets.filter(s => s.user_id === String(params[0])).slice(0, 40);
       return { rows, rowCount: rows.length };
@@ -591,6 +672,27 @@ function createMockPool() {
     if (low.startsWith("select match_id,stake,potential_win from sports_bets where status='in_play'")) {
       const rows = db.sports_bets.filter(s => s.status === 'IN_PLAY').map(s => ({ match_id: s.match_id, stake: s.stake, potential_win: s.potential_win }));
       return { rows, rowCount: rows.length };
+    }
+    if (low.startsWith("select count(*) filter")) {
+      const now = Date.now();
+      const c1 = now - 86400e3;
+      const c7 = now - 7 * 86400e3;
+      const c30 = now - 30 * 86400e3;
+      const acc = { b1: 0, w1: 0, wag1: 0, pay1: 0, maxp1: 0, b7: 0, w7: 0, wag7: 0, pay7: 0, maxp7: 0, b30: 0, w30: 0, wag30: 0, pay30: 0, maxp30: 0 };
+      for (const s of db.sports_bets) {
+        if (!['WON', 'LOST', 'CASHED_OUT'].includes(s.status)) continue;
+        const ts = new Date(s.created_at).getTime();
+        if (ts < c30) continue;
+        const isWin = s.status === 'WON' || s.status === 'CASHED_OUT';
+        const addWin = k => {
+          acc['b' + k]++; acc['wag' + k] += s.stake; acc['pay' + k] += s.payout;
+          if (isWin) { acc['w' + k]++; if (s.payout > acc['maxp' + k]) acc['maxp' + k] = s.payout; }
+        };
+        addWin('30');
+        if (ts >= c7) addWin('7');
+        if (ts >= c1) addWin('1');
+      }
+      return { rows: [acc], rowCount: 1 };
     }
     if (low.startsWith("select count(*) bets,coalesce(sum(stake),0) wagered,coalesce(sum(payout),0) paid from sports_bets")) {
       const list = db.sports_bets.filter(s => ['WON', 'LOST', 'CASHED_OUT'].includes(s.status));
