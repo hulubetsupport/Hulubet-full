@@ -9,12 +9,14 @@ const {
   evaluateMarketResult,
   computeCashoutValue
 } = require('./lib/sports-engine');
-const { fetchSportsFeed } = require('./lib/sports-feed');
+const { fetchSportsFeedDetailed, isOddsApiUrl } = require('./lib/sports-feed');
 
 const SETTINGS_KEY = 'sports_fixtures_state';
 const SPORTS_API_URL = String(process.env.SPORTS_API_URL || '').trim();
 const SPORTS_API_KEY = String(process.env.SPORTS_API_KEY || '').trim();
-const SPORTS_POLL_MS = Math.max(60000, parseInt(process.env.SPORTS_POLL_MS || '120000', 10) || 120000);
+const RAW_POLL_MS = Math.max(60000, parseInt(process.env.SPORTS_POLL_MS || '120000', 10) || 120000);
+// The Odds API free tier grants 500 credits/mo (~16/day); guard auto-polling to >=90 min so credits last all month
+const SPORTS_POLL_MS = isOddsApiUrl(SPORTS_API_URL) ? Math.max(RAW_POLL_MS, 5400000) : RAW_POLL_MS;
 
 function registerSportsbook(app, ctx) {
   const {
@@ -181,17 +183,19 @@ function registerSportsbook(app, ctx) {
 
   let lastFeedSyncAt = 0;
   let lastFeedError = '';
+  let lastFeedRemaining = null;
 
   async function syncExternalFeed(force = false) {
     if (!SPORTS_API_URL) return { synced: 0, configured: false };
     if (!force && Date.now() - lastFeedSyncAt < SPORTS_POLL_MS) {
-      return { synced: 0, configured: true, cached: true };
+      return { synced: 0, configured: true, cached: true, remainingRequests: lastFeedRemaining };
     }
     lastFeedSyncAt = Date.now();
     try {
-      const incoming = await fetchSportsFeed(SPORTS_API_URL, SPORTS_API_KEY);
+      const { fixtures: incoming, remainingRequests } = await fetchSportsFeedDetailed(SPORTS_API_URL, SPORTS_API_KEY);
+      if (remainingRequests != null) lastFeedRemaining = remainingRequests;
       lastFeedError = '';
-      if (!incoming.length) return { synced: 0, configured: true };
+      if (!incoming.length) return { synced: 0, configured: true, remainingRequests: lastFeedRemaining };
 
       const prevById = new Map(fixtures.map(f => [f.id, f]));
       const newlyFinished = [];
@@ -213,10 +217,10 @@ function registerSportsbook(app, ctx) {
       dirty = true;
       await persistIfDirty(true);
       broadcastUpdate();
-      return { synced: incoming.length, configured: true };
+      return { synced: incoming.length, configured: true, remainingRequests: lastFeedRemaining };
     } catch (e) {
       lastFeedError = e.message;
-      return { synced: 0, configured: true, error: e.message };
+      return { synced: 0, configured: true, error: e.message, remainingRequests: lastFeedRemaining };
     }
   }
 
@@ -500,12 +504,13 @@ function registerSportsbook(app, ctx) {
 
     app.post('/api/admin/sports/sync', admin, h(async (req, res) => {
       if (!SPORTS_API_URL) {
-        throw new Biz('Set SPORTS_API_URL in your server environment variables first (e.g. ESPN free scoreboard JSON URL).', 400);
+        throw new Biz('Set SPORTS_API_URL in your server environment variables first (e.g. The Odds API or ESPN URL).', 400);
       }
       const r = await syncExternalFeed(true);
       if (r.error) throw new Biz(`Sports feed sync failed: ${r.error}`, 502);
       if (alog) alog(req, 'sports-sync', `synced=${r.synced}`);
-      res.json({ success: true, synced: r.synced, message: `Synced ${r.synced} live fixtures from SPORTS_API_URL` });
+      const quotaNote = r.remainingRequests != null ? ` (${r.remainingRequests} API credits left)` : '';
+      res.json({ success: true, synced: r.synced, remainingRequests: r.remainingRequests, message: `Synced ${r.synced} live/upcoming fixtures${quotaNote}` });
     }));
   }
 
@@ -516,7 +521,7 @@ function registerSportsbook(app, ctx) {
     syncExternalFeed,
     startTick,
     persistIfDirty,
-    getFeedStatus: () => ({ configured: Boolean(SPORTS_API_URL), url: SPORTS_API_URL || '(virtual engine)', lastFeedError })
+    getFeedStatus: () => ({ configured: Boolean(SPORTS_API_URL), url: SPORTS_API_URL || '(virtual engine)', lastFeedError, remainingRequests: lastFeedRemaining, pollMs: SPORTS_POLL_MS })
   };
 }
 
