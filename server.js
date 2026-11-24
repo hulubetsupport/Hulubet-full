@@ -29,22 +29,27 @@ const { runTwelveHourAuditAndPrune, getRetentionStats, getReports12h } = require
 const { registerTelegramBot } = require('./lib/telegram-bot');
 const { mountAllGames, CRASH_GAMES } = require('./games');
 const { registerSportsbook } = require('./Sportserver');
-const { createSmsVerifyService } = require('./lib/sms-verify-server');
+const { createSmsVerifyService, parsers: smsParsers } = require('./lib/sms-verify-server');
 const { normalizePeriod, periodCutoffMs, buildBestWinsPeriods, buildUserHistorySummary } = require('./lib/stats-engine');
 
 const ENV = process.env;
 const HAS_DB = Boolean(ENV.DATABASE_URL);
 const HAS_BOT_TOKEN = Boolean(ENV.BOT_TOKEN);
-const ADMIN_PIN = (ENV.ADMIN_PIN && ENV.ADMIN_PIN.length >= 8) ? ENV.ADMIN_PIN : '12345678';
+const RAW_ADMIN_PIN = String(ENV.ADMIN_PIN || '').trim();
+const ADMIN_PIN = RAW_ADMIN_PIN.length >= 4 ? RAW_ADMIN_PIN : '12345678';
 if (!HAS_DB) console.warn('[AI Studio] DATABASE_URL not set — using in-memory mock database');
 if (!HAS_BOT_TOKEN) console.warn('[AI Studio] BOT_TOKEN not set — demo browser session enabled');
-if (!ENV.ADMIN_PIN || ENV.ADMIN_PIN.length < 8) console.warn('[AI Studio] ADMIN_PIN not set (or <8 chars) — using default demo PIN 12345678');
+if (RAW_ADMIN_PIN.length < 4) console.warn('[AI Studio] ADMIN_PIN not set (or <4 chars) — using default demo PIN 12345678');
 
 const app = express();
 app.set('trust proxy', 1);
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' }, perMessageDeflate: false });
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'x-admin-token', 'x-telegram-init-data', 'x-verify-token', 'x-webhook-token', 'Authorization']
+}));
 app.use(compression({ threshold: 1024 }));
 app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: false }));
@@ -191,11 +196,14 @@ const adminFails = new Map();
 const sha = s => crypto.createHash('sha256').update(String(s)).digest();
 function adminAuth(req, res, next) {
   const f = adminFails.get(req.ip) || { n: 0, t: 0 }, fresh = Date.now() - f.t < 15 * 60e3;
-  if (fresh && f.n >= 5) return res.status(429).json({ success: false, message: 'Locked. Try again in 15 minutes.' });
-  const given = req.headers['x-admin-token'] || req.body?.pin || (ENV.ALLOW_QUERY_PIN === '1' ? req.query.pin : '') || '';
+  if (fresh && f.n >= 5) return res.status(429).json({ success: false, message: 'Locked for 15 minutes after 5 failed attempts.' });
+  const given = String(req.headers['x-admin-token'] || req.body?.pin || (ENV.ALLOW_QUERY_PIN === '1' ? req.query.pin : '') || '').trim();
+  if (!given) return res.status(403).json({ success: false, message: 'Please enter your Admin PIN.' });
   if (!crypto.timingSafeEqual(sha(given), sha(ADMIN_PIN))) {
-    adminFails.set(req.ip, { n: (fresh ? f.n : 0) + 1, t: Date.now() });
-    return res.status(403).json({ success: false, message: 'Invalid Admin PIN!' });
+    const nextN = (fresh ? f.n : 0) + 1;
+    adminFails.set(req.ip, { n: nextN, t: Date.now() });
+    const left = Math.max(0, 5 - nextN);
+    return res.status(403).json({ success: false, message: left > 0 ? `Invalid Admin PIN! (${left} tries left)` : 'Invalid Admin PIN! Locked for 15 minutes.' });
   }
   adminFails.delete(req.ip); req.actor = String(req.body?.actor || 'Admin').slice(0, 40); next();
 }
@@ -318,7 +326,7 @@ async function verifyWithGateway(ref, amount) {
     if (!ENV.VERIFI_TOKEN) throw new Biz('Automatic verification is not available right now. Use "Send Deposit Request".', 503);
     const u = new URL(VERIFI_URL);
     u.searchParams.set('token', ENV.VERIFI_TOKEN); u.searchParams.set('ref', ref); u.searchParams.set('amount', String(amount));
-    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 25000);
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 35000);
     try {
       const r = await fetch(u, { signal: ctl.signal }), text = await r.text();
       if (r.status === 401 || r.status === 403) {
@@ -783,8 +791,11 @@ app.post('/api/cashier/deposit', userAuth, limit('dep', 20, 60e3), h(async (req,
 
 app.post('/api/cashier/verify-deposit', userAuth, limit('verify', 12, 600e3), h(async (req, res) => {
   const method = PAY_METHODS.includes(req.body.method) ? req.body.method : 'Telebirr';
-  const raw = String(req.body.ref || '').trim(), ref = raw.toUpperCase(), amt = r2(req.body.amount), uid = req.tg.id;
-  if (!/^[A-Za-z0-9-]{6,40}$/.test(raw)) throw new Biz('Enter the transaction reference exactly as it appears in your payment message');
+  const rawInput = String(req.body.ref || '').trim();
+  const parsedInput = smsParsers.parseVerifyInput(rawInput, rawInput);
+  const raw = parsedInput ? parsedInput.value : rawInput;
+  const ref = raw.toUpperCase(), amt = r2(req.body.amount), uid = req.tg.id;
+  if (!/^[A-Za-z0-9_-]{6,64}$/.test(raw)) throw new Biz('Enter the transaction reference or receipt link from your payment message');
   if (!(amt >= CONFIG.MIN_DEP && amt <= CONFIG.MAX_DEP)) throw new Biz(`Deposit must be between ${CONFIG.MIN_DEP} and ${CONFIG.MAX_DEP} ETB`);
   if (USE_EXTERNAL_VERIFI && !ENV.VERIFI_TOKEN) throw new Biz('Automatic verification is not available right now. Use "Send Deposit Request".', 503);
   const u = await pool.query('SELECT status FROM users WHERE user_id=$1', [uid]);
@@ -1021,7 +1032,7 @@ const dashboard = h(async (_req, res) => {
       system: {
         databaseConnected: HAS_DB,
         botConfigured: HAS_BOT_TOKEN,
-        customAdminPin: Boolean(ENV.ADMIN_PIN && ENV.ADMIN_PIN.length >= 8),
+        customAdminPin: Boolean(RAW_ADMIN_PIN.length >= 4),
         verifyMode: USE_EXTERNAL_VERIFI ? 'External Verify Server' : 'Built-in SMS Ledger',
         verifiUrl: USE_EXTERNAL_VERIFI ? VERIFI_URL : '(built-in /api/verify)',
         verifiTokenSet: USE_EXTERNAL_VERIFI ? Boolean(ENV.VERIFI_TOKEN) : true,
@@ -1078,6 +1089,33 @@ app.post('/api/admin/test-verify', admin, h(async (_req, res) => {
     if (e instanceof Biz) throw e;
     throw new Biz(`Could not reach verify server (${VERIFI_URL}): ${e.message}`, 503);
   }
+}));
+
+app.post('/api/admin/sms-parse-test', admin, h(async (req, res) => {
+  const message = String(req.body?.message || '');
+  const sender = String(req.body?.sender || '');
+  if (!message.trim()) throw new Biz('Paste a sample Telebirr or CBE SMS message to test');
+  const c = smsParsers.classify(message, sender);
+  const amount = smsParsers.extractAmount(c.msg);
+  const balance = smsParsers.extractBalance(c.msg);
+  const party = smsParsers.extractParty(c.msg, c.isIncoming, c.bank);
+  const category = smsParsers.detectCategory(c.msg, c.isIncoming);
+  const ft = c.isCbe ? smsParsers.extractDirectFt(c.msg) : null;
+  const v2 = c.isCbe ? smsParsers.extractV2Code(c.msg) : null;
+  const tbRef = !c.isCbe ? smsParsers.extractTelebirrRef(c.msg) : null;
+  res.json({
+    success: true,
+    dryRun: true,
+    bank: c.bank,
+    txType: c.isIncoming ? 'Received' : (c.isOutgoing ? 'Transferred' : 'Ignored'),
+    category,
+    amount,
+    balance,
+    party,
+    ref: ft || tbRef || null,
+    v2Code: v2 || null,
+    parsedInput: smsParsers.parseVerifyInput('', message)
+  });
 }));
 
 app.get('/api/admin/users', admin, h(async (req, res) => {

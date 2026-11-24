@@ -33,15 +33,44 @@ code{font-family:ui-monospace,monospace;background:var(--bg);padding:2px 6px;bor
 #md>div{background:var(--card);border-radius:12px;padding:16px;width:100%;max-width:420px;max-height:88%;overflow:auto}
 #ts{position:fixed;top:64px;left:50%;transform:translateX(-50%);background:var(--ac);color:#fff;padding:8px 16px;border-radius:20px;display:none;z-index:10;max-width:92%;text-align:center}
 #ts.err{background:var(--rd)}
-#login{max-width:340px;margin:12vh auto;padding:20px}
+#login{max-width:360px;margin:8vh auto;padding:20px}
+.pin-wrap{position:relative;display:flex;align-items:center;margin:4px 0 8px}
+.pin-wrap input{margin:0;padding-right:84px}
+.pin-actions{position:absolute;right:6px;display:flex;gap:4px}
+.pin-ico{border:0;background:var(--bd);color:var(--tx);border-radius:6px;min-width:32px;height:32px;cursor:pointer;font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0 10px}
+.pin-key{border:1px solid var(--bd);background:var(--bg);color:var(--tx);border-radius:8px;min-height:42px;font-size:16px;font-weight:700;cursor:pointer}
+.pin-key:active{background:var(--bd)}
+.pin-key.fn{font-size:13px;color:var(--mu)}
 @media(max-width:700px){table{min-width:0}tr.h{display:none}tr{display:block;border:1px solid var(--bd);border-radius:10px;margin-bottom:10px;padding:6px 10px}
 td{display:flex;justify-content:space-between;align-items:center;gap:10px;border:0;padding:4px 0;white-space:normal;text-align:right;flex-wrap:wrap}
 td::before{content:attr(data-l);color:var(--mu);font-size:12px;text-align:left}}
 </style></head><body>
 <div id="login" class="c"><h2>🦁 Hulu Bet Admin</h2>
   <label class="k">Your name (shown in the audit log)</label><input id="lname" placeholder="e.g. Ak" autocomplete="off">
-  <label class="k">Admin PIN</label><input id="lpin" type="password" placeholder="ADMIN_PIN (default: 12345678)" autocomplete="off">
-  <button class="a g2" style="width:100%" id="lbtn">Sign in</button><p class="k" id="lerr" style="color:var(--rd)"></p></div>
+  <label class="k">Admin PIN (numbers or text)</label>
+  <div class="pin-wrap">
+    <input id="lpin" type="password" inputmode="text" placeholder="Enter Admin PIN" autocomplete="current-password">
+    <div class="pin-actions">
+      <button type="button" class="pin-ico" id="ltoggle" title="Show/Hide PIN" aria-label="Show or hide PIN">👁</button>
+      <button type="button" class="pin-ico" id="lclear" title="Clear PIN" aria-label="Clear PIN">✕</button>
+    </div>
+  </div>
+  <div class="pin-pad" id="lpad" aria-label="Admin PIN Keypad">
+    <button type="button" class="pin-key" data-k="1">1</button>
+    <button type="button" class="pin-key" data-k="2">2</button>
+    <button type="button" class="pin-key" data-k="3">3</button>
+    <button type="button" class="pin-key" data-k="4">4</button>
+    <button type="button" class="pin-key" data-k="5">5</button>
+    <button type="button" class="pin-key" data-k="6">6</button>
+    <button type="button" class="pin-key" data-k="7">7</button>
+    <button type="button" class="pin-key" data-k="8">8</button>
+    <button type="button" class="pin-key" data-k="9">9</button>
+    <button type="button" class="pin-key fn" data-k="clear">Clear</button>
+    <button type="button" class="pin-key" data-k="0">0</button>
+    <button type="button" class="pin-key fn" data-k="bksp">⌫</button>
+  </div>
+  <button class="a g2" style="width:100%;min-height:44px;font-weight:700" id="lbtn">Sign in</button><p class="k" id="lerr" style="color:var(--rd)"></p></div>
 <div id="app" style="display:none">
   <header><h1>🦁 Hulu Bet Admin</h1><span class="b in" id="upd">…</span><button class="a m" data-act="refresh">⟳</button><button class="a r" data-act="logout">Exit</button></header>
   <main id="v"></main><nav id="nav"></nav>
@@ -92,16 +121,40 @@ async function act(path, body) {
 // ---------- login ----------
 async function login() {
   PIN = $('#lpin').value.trim(); ACTOR = $('#lname').value.trim() || 'Admin';
-  if (!PIN) return;
+  if (!PIN) { $('#lerr').textContent = 'Enter your Admin PIN'; $('#lpin').focus(); return; }
   $('#lbtn').disabled = true; $('#lerr').textContent = 'Connecting… (first call can take ~20s)';
-  const d = await load(true);
-  $('#lbtn').disabled = false;
-  if (d.success) { try { sessionStorage.setItem('hb', JSON.stringify({ PIN, ACTOR })); } catch (e) {} $('#login').style.display = 'none'; $('#app').style.display = 'block'; R(); }
-  else { $('#lerr').textContent = d.message || 'Login failed'; PIN = ''; }
+  try {
+    const d = await load(true);
+    if (d.success) {
+      try { sessionStorage.setItem('hb', JSON.stringify({ PIN, ACTOR })); } catch (e) {}
+      $('#lerr').textContent = '';
+      $('#login').style.display = 'none'; $('#app').style.display = 'block'; R();
+    } else {
+      try { sessionStorage.removeItem('hb'); } catch (e) {}
+      $('#lerr').textContent = d.message || 'Login failed';
+      PIN = '';
+      $('#lpin').value = '';
+      $('#lpin').focus();
+    }
+  } finally {
+    $('#lbtn').disabled = false;
+  }
 }
-function logout() { PIN = ''; D = null; try { sessionStorage.removeItem('hb'); } catch (e) {} $('#app').style.display = 'none'; $('#login').style.display = 'block'; $('#lpin').value = ''; }
-$('#lbtn').onclick = login; $('#lpin').onkeydown = e => e.key === 'Enter' && login();
-try { const s = JSON.parse(sessionStorage.getItem('hb') || 'null'); if (s) { $('#lpin').value = s.PIN; $('#lname').value = s.ACTOR; login(); } } catch (e) {}
+function logout() { PIN = ''; D = null; try { sessionStorage.removeItem('hb'); } catch (e) {} $('#app').style.display = 'none'; $('#login').style.display = 'block'; $('#lpin').value = ''; $('#lerr').textContent = ''; }
+$('#lbtn').onclick = login;
+$('#lpin').onkeydown = e => { if (e.key === 'Enter') login(); };
+$('#ltoggle').onclick = () => { const i = $('#lpin'); const show = i.type === 'password'; i.type = show ? 'text' : 'password'; $('#ltoggle').textContent = show ? '🙈' : '👁'; i.focus(); };
+$('#lclear').onclick = () => { $('#lpin').value = ''; $('#lerr').textContent = ''; $('#lpin').focus(); };
+$('#lpad').onclick = e => {
+  const b = e.target.closest('[data-k]');
+  if (!b) return;
+  const k = b.dataset.k, inp = $('#lpin');
+  if (k === 'clear') inp.value = '';
+  else if (k === 'bksp') inp.value = inp.value.slice(0, -1);
+  else inp.value = inp.value + k;
+  inp.dispatchEvent(new Event('input', { bubbles: true }));
+};
+try { const s = JSON.parse(sessionStorage.getItem('hb') || 'null'); if (s && s.PIN) { $('#lpin').value = s.PIN; $('#lname').value = s.ACTOR || ''; login(); } } catch (e) {}
 
 // ---------- modal ----------
 const modalOpen = () => $('#md').style.display === 'flex';
@@ -165,7 +218,15 @@ const ACT = {
     'Summarizes settled bets older than 12 hours into permanent 12h reports and prunes expired raw rows & audit logs.',
     () => act('/api/admin/run-12h-audit', {})
   ),
-  testVerify: () => act('/api/admin/test-verify', {})
+  testVerify: () => act('/api/admin/test-verify', {}),
+  testSmsParse: () => ask('Dry-Run SMS Parser (Not Saved)', [
+    { k: 'sender', label: 'Sender (optional, e.g. 127 or CBE)', value: '' },
+    { k: 'message', label: 'Paste Telebirr or CBE SMS', long: 1, ph: 'Paste SMS text here to test extraction...' }
+  ], async v => {
+    const r = await call('/api/admin/sms-parse-test', 'POST', v);
+    if (!r.success) return toast(r.message || 'Parse test failed', true);
+    toast(`${r.bank} | ${r.txType} | ${r.amount} ETB | Ref: ${r.ref || r.v2Code || 'N/A'} | Party: ${r.party}`);
+  }, 'Test Parse')
 };
 document.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b && ACT[b.dataset.act]) ACT[b.dataset.act](b.dataset); });
 
@@ -259,7 +320,7 @@ const V = {
       <div class="li"><span>Verify Mode (<code>USE_EXTERNAL_VERIFI</code>)</span>${badge(sys.verifyMode || 'External Verify Server', 'in')}</div>
       <div class="li"><span>Verify Endpoint (<code>VERIFI_URL</code>)</span><code>${esc(sys.verifiUrl || 'https://verifi-server-milr.onrender.com/api/verify')}</code></div>
       <div class="li"><span>Verify Token (<code>VERIFI_TOKEN</code>)</span>${badge(sys.verifiTokenSet ? 'Configured' : 'Missing', sys.verifiTokenSet ? 'ok' : 'no')}</div>
-      <div style="margin-top:10px">${btn('Test Verify Gateway', 'testVerify', {}, 'g2')}</div>
+      <div style="margin-top:10px">${btn('Test Verify Gateway', 'testVerify', {}, 'g2')}${btn('Test SMS Parser (Dry Run)', 'testSmsParse', {})}</div>
     </div>
     <div class="c"><h2>Limits (set in server.js)</h2><div class="li"><span>Deposit</span><span>${etb(s.minDep)} – ${etb(s.maxDep)}</span></div><div class="li"><span>Auto-Verify Limit</span><span>${etb(sys.autoDepMax ?? 2000)}</span></div><div class="li"><span>Withdrawal</span><span>${etb(s.minWd)} – ${etb(s.maxWd)}</span></div></div>`;
   },

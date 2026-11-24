@@ -320,22 +320,57 @@ body, html {
   overflow: hidden;
   border: 1px solid rgba(0, 240, 118, 0.28);
   cursor: pointer;
-  aspect-ratio: 2.25 / 1;
-  background: #0a1422;
+  aspect-ratio: 2.71 / 1;
+  min-height: 100px;
+  max-height: 146px;
+  width: 100%;
+  background: #041c10;
+  touch-action: pan-y;
 }
-.hero-banner-card img {
+.hero-slider-track {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.55s var(--ease-2027);
+  will-change: transform;
+}
+.hero-slide {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+.hero-slide img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 0.45s var(--ease-2027);
 }
-.hero-banner-card:hover img { transform: scale(1.02); }
-.hero-corner-cta {
+.hero-dots {
   position: absolute;
-  bottom: 10px;
-  right: 10px;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  bottom: 6px;
+  right: 8px;
+  display: flex;
+  gap: 5px;
+  z-index: 3;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(3, 5, 8, 0.55);
+  backdrop-filter: blur(6px);
+}
+.hero-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  border: none;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.42);
+  cursor: pointer;
+  transition: width 0.24s var(--ease-2027), background 0.24s;
+}
+.hero-dot.active {
+  width: 18px;
+  background: var(--emerald-primary);
 }
 
 .cashback-banner-widget {
@@ -529,25 +564,63 @@ body, html {
 .swipe-snap-row::-webkit-scrollbar { display: none; }
 
 .best-game-slide {
-  flex: 0 0 185px;
+  flex: 0 0 228px;
   scroll-snap-align: start;
   background: var(--bg-deep);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
-  padding: 10px;
+  padding: 8px 10px;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
   cursor: pointer;
   transition: transform 0.22s var(--ease-2027), border-color 0.22s;
   animation: cardStaggerIn 0.34s var(--ease-2027) both;
 }
 .best-game-slide:hover { transform: translateY(-2px); border-color: var(--border-active); }
 .best-game-slide:active { transform: scale(0.97); }
+.best-game-thumb {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  border-radius: 11px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #10192b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.best-game-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.best-game-thumb .rank-badge {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 19px;
+  height: 16px;
+  border-radius: 5px;
+  font-size: 9px;
+  background: rgba(3, 5, 8, 0.84);
+  backdrop-filter: blur(4px);
+}
+.best-game-body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 .best-game-top {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 .rank-badge {
   width: 24px;
@@ -563,9 +636,9 @@ body, html {
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-muted);
 }
-.rank-badge.r1 { background: var(--gold-soft); color: var(--gold-primary); border: 1px solid rgba(245, 180, 0, 0.35); }
-.rank-badge.r2 { background: rgba(226, 232, 240, 0.12); color: #e2e8f0; }
-.rank-badge.r3 { background: rgba(217, 119, 6, 0.16); color: #fb923c; }
+.rank-badge.r1 { background: rgba(245, 180, 0, 0.22); color: var(--gold-primary); border: 1px solid rgba(245, 180, 0, 0.45); }
+.rank-badge.r2 { background: rgba(226, 232, 240, 0.2); color: #e2e8f0; }
+.rank-badge.r3 { background: rgba(217, 119, 6, 0.24); color: #fb923c; }
 .best-game-name {
   font-size: 12.5px;
   font-weight: 800;
@@ -582,9 +655,10 @@ body, html {
   gap: 6px;
 }
 .best-game-payout {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 800;
   color: var(--emerald-primary);
+  line-height: 1.15;
 }
 .best-wins-feed {
   display: flex;
@@ -599,13 +673,25 @@ body, html {
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  padding: 7px 10px;
+  padding: 6px 10px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   font-size: 11px;
   white-space: nowrap;
 }
+.win-ticker-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #10192b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.win-ticker-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 @keyframes cardStaggerIn {
   from { opacity: 0; transform: translateY(8px) scale(0.98); }
@@ -712,107 +798,36 @@ body, html {
 }
 
 /* ========================================================
-   12 VERIFIED GAMES GRID
-======================================================== */
-.games-dense-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  padding: 0 12px 18px;
-}
-@media (min-width: 540px) {
-  .games-dense-grid { grid-template-columns: repeat(4, 1fr); gap: 12px; }
-}
-@media (min-width: 820px) {
-  .games-dense-grid { grid-template-columns: repeat(6, 1fr); gap: 14px; }
-}
-
-.game-square-card {
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  border-radius: var(--radius-md);
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  padding: 6px;
-  cursor: pointer;
-  transition: transform 0.22s var(--ease-2027), border-color 0.22s;
-}
-.game-square-card:hover { transform: translateY(-2px); border-color: var(--border-strong); }
-.game-square-card:active { transform: scale(0.95); border-color: var(--emerald-primary); }
-.tall-thumb {
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: 11px;
-  overflow: hidden;
-  position: relative;
-  background: #0f1624;
-  border: 1px solid rgba(255,255,255,0.06);
-}
-.tall-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.tall-title {
-  font-size: 11px;
-  font-weight: 800;
-  color: #fff;
-  margin-top: 6px;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.live-corner {
-  position: absolute;
-  top: 5px;
-  left: 5px;
-  background: rgba(0, 240, 118, 0.92);
-  color: #021208;
-  font-size: 8px;
-  font-weight: 900;
-  padding: 2px 5px;
-  border-radius: 5px;
-  letter-spacing: 0.04em;
-}
-.new-corner {
-  position: absolute;
-  top: 5px;
-  right: 5px;
-  background: var(--red-accent);
-  color: #fff;
-  font-size: 8px;
-  font-weight: 900;
-  padding: 2px 5px;
-  border-radius: 5px;
-  letter-spacing: 0.04em;
-}
-
-/* ========================================================
-   COMING SOON GAMES APP STORE SHOWCASE (24 GAMES)
+   UNIFIED GAME APP SHOWCASE (12 LIVE GAMES + 24 COMING SOON)
 ======================================================== */
 .coming-soon-section {
   padding: 2px 0 18px;
 }
-.coming-soon-carousel {
+.coming-soon-carousel,
+.live-games-carousel {
   display: flex;
   gap: 11px;
-  padding: 4px 12px 10px;
+  padding: 4px 12px 12px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scroll-behavior: smooth;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
-.coming-soon-carousel::-webkit-scrollbar { display: none; }
-.coming-soon-grid {
+.coming-soon-carousel::-webkit-scrollbar,
+.live-games-carousel::-webkit-scrollbar { display: none; }
+.coming-soon-grid,
+.live-games-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  padding: 4px 12px 10px;
+  padding: 4px 12px 12px;
 }
 @media (min-width: 540px) {
-  .coming-soon-grid { grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .coming-soon-grid, .live-games-grid { grid-template-columns: repeat(4, 1fr); gap: 12px; }
 }
 @media (min-width: 820px) {
-  .coming-soon-grid { grid-template-columns: repeat(6, 1fr); gap: 14px; }
+  .coming-soon-grid, .live-games-grid { grid-template-columns: repeat(6, 1fr); gap: 14px; }
 }
 
 .soon-app-card {
@@ -827,11 +842,107 @@ body, html {
   scroll-snap-align: start;
   transition: transform 0.24s var(--ease-2027), border-color 0.24s;
 }
-.coming-soon-carousel .soon-app-card {
+.coming-soon-carousel .soon-app-card,
+.live-games-carousel .soon-app-card {
   flex: 0 0 116px;
 }
 .soon-app-card:hover { transform: translateY(-2px); border-color: rgba(245, 180, 0, 0.45); }
+.soon-app-card.is-live:hover { border-color: var(--border-active); }
 .soon-app-card:active { transform: scale(0.95); }
+.live-corner {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  background: rgba(0, 240, 118, 0.92);
+  color: #021208;
+  font-size: 8px;
+  font-weight: 900;
+  padding: 2px 6px;
+  border-radius: 5px;
+  letter-spacing: 0.04em;
+  z-index: 2;
+}
+.new-corner {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  background: var(--red-accent);
+  color: #fff;
+  font-size: 8px;
+  font-weight: 900;
+  padding: 2px 6px;
+  border-radius: 5px;
+  letter-spacing: 0.04em;
+  z-index: 2;
+}
+.live-play-chip {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(3, 5, 8, 0.72);
+  border: 1px solid rgba(0, 240, 118, 0.45);
+  color: var(--emerald-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  z-index: 2;
+}
+
+.game-loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(3, 5, 8, 0.94);
+  backdrop-filter: blur(14px);
+  z-index: 515;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+}
+.game-loading-overlay.active { display: flex; }
+.game-loading-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 2px solid rgba(0, 240, 118, 0.5);
+  box-shadow: 0 12px 30px rgba(0, 240, 118, 0.2);
+  background: #0f1624;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.game-loading-icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.game-loading-bar {
+  width: 170px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  position: relative;
+}
+.game-loading-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -45%;
+  width: 45%;
+  border-radius: 999px;
+  background: var(--emerald-gradient);
+  animation: gameLoadSweep 1.05s var(--ease-2027) infinite;
+}
+@keyframes gameLoadSweep {
+  from { transform: translateX(0); }
+  to { transform: translateX(320%); }
+}
 
 .soon-art-box {
   position: relative;
@@ -1406,14 +1517,15 @@ body.is-tg-app .browser-back-pill { display: none !important; }
     margin-right: auto;
   }
   .lobby-hero-grid {
-    grid-template-columns: 1.45fr 1fr;
+    grid-template-columns: minmax(320px, 410px) 1fr;
     align-items: stretch;
   }
   .hero-banner-card {
-    aspect-ratio: 2.35 / 1;
-    height: 100%;
+    height: 150px;
+    max-height: 150px;
   }
-  .coming-soon-carousel .soon-app-card {
+  .coming-soon-carousel .soon-app-card,
+  .live-games-carousel .soon-app-card {
     flex: 0 0 144px;
   }
 }
@@ -1474,9 +1586,19 @@ body.is-tg-app .browser-back-pill { display: none !important; }
   ======================================================== -->
   <div class="screen-view active" id="tab-casino">
     <div class="lobby-hero-grid">
-      <div class="hero-banner-card" onclick="openDepositScreen()">
-        <img src="https://i.postimg.cc/zBcMGpxz/20261003-183116.jpg" alt="HuluBet Official Promo" referrerpolicy="no-referrer">
-        <span class="btn-deposit-header hero-corner-cta" style="min-height:30px;padding:0 12px;font-size:11px;">Deposit</span>
+      <div class="hero-banner-card" id="heroBannerSlider" aria-label="Featured Promotions">
+        <div class="hero-slider-track" id="heroSliderTrack">
+          <div class="hero-slide" onclick="openDepositScreen()">
+            <img src="https://i.postimg.cc/k4Xb3GDv/20261124-154413.jpg" alt="HuluBet Promotion 1" referrerpolicy="no-referrer">
+          </div>
+          <div class="hero-slide" onclick="openPromoModal()">
+            <img src="https://i.postimg.cc/fT00h6Wq/20261124-154341.jpg" alt="HuluBet Promotion 2" referrerpolicy="no-referrer">
+          </div>
+        </div>
+        <div class="hero-dots" id="heroDots">
+          <button type="button" class="hero-dot active" onclick="event.stopPropagation(); setHeroSlide(0)" aria-label="Slide 1"></button>
+          <button type="button" class="hero-dot" onclick="event.stopPropagation(); setHeroSlide(1)" aria-label="Slide 2"></button>
+        </div>
       </div>
 
       <div class="cashback-banner-widget" id="cashbackBanner">
@@ -1568,61 +1690,20 @@ body.is-tg-app .browser-back-pill { display: none !important; }
       <input type="text" id="gameSearchInput" placeholder="Search 12 live games &amp; 24 upcoming releases...">
     </div>
 
-    <!-- All 12 Verified Live Games -->
+    <!-- All 12 Verified Live Games (App-Store Slide + Grid Layout) -->
     <div id="liveGamesBlock">
       <div class="section-header-title">
         <div class="sec-left"><i class="fa-solid fa-fire"></i> <span>12 Verified Live Games</span></div>
-        <span style="font-size:10.5px;font-weight:800;color:var(--emerald-primary);">Instant Play</span>
+        <div class="section-header-actions">
+          <button type="button" class="icon-circle-btn" onclick="scrollLiveGames(-1)" aria-label="Swipe Live Games Left"><i class="fa-solid fa-chevron-left"></i></button>
+          <button type="button" class="icon-circle-btn" onclick="scrollLiveGames(1)" aria-label="Swipe Live Games Right"><i class="fa-solid fa-chevron-right"></i></button>
+          <button type="button" class="icon-circle-btn active" id="btnToggleLiveLayout" onclick="toggleLiveGamesLayout()" title="Switch Slide / Grid view" aria-label="Toggle Live Games Grid View">
+            <i class="fa-solid fa-grip"></i>
+          </button>
+        </div>
       </div>
-      <div class="games-dense-grid" id="liveGamesGrid">
-        <div class="game-square-card" data-cat="crash" onclick="launchGameEngine('aviator','Aviator')">
-          <div class="tall-thumb"><img src="https://i.postimg.cc/FFPyRrqk/IMG-20260903-152505-514.jpg" alt="Aviator" referrerpolicy="no-referrer"><span class="live-corner">LIVE</span></div>
-          <div class="tall-title">Aviator</div>
-        </div>
-        <div class="game-square-card" data-cat="table" onclick="launchGameEngine('roulette','Roulette')">
-          <div class="tall-thumb"><img src="https://i.postimg.cc/yxRRmfBZ/Screenshot-20261004-192212-Plus(1).jpg" alt="Roulette" referrerpolicy="no-referrer"><span class="new-corner">NEW</span></div>
-          <div class="tall-title">Roulette</div>
-        </div>
-        <div class="game-square-card" data-cat="table" onclick="launchGameEngine('classickeno','Classic Keno')">
-          <div class="tall-thumb"><img src="https://i.postimg.cc/13BqrVhh/Screenshot-20261004-192546-Plus(1).jpg" alt="Classic Keno" referrerpolicy="no-referrer"><span class="new-corner">NEW</span></div>
-          <div class="tall-title">Classic Keno</div>
-        </div>
-        <div class="game-square-card" data-cat="table" onclick="launchGameEngine('plinko','Plinko')">
-          <div class="tall-thumb"><img src="https://i.postimg.cc/90y4Rrt1/Screenshot-20261004-192308-Plus(1).jpg" alt="Plinko" referrerpolicy="no-referrer"><span class="new-corner">NEW</span></div>
-          <div class="tall-title">Plinko</div>
-        </div>
-        <div class="game-square-card" data-cat="chicken" onclick="launchGameEngine('luckychicken','Lucky Chicken')">
-          <div class="tall-thumb"><img src="https://i.postimg.cc/cLFvnqY7/20261004-192938.jpg" alt="Lucky Chicken" referrerpolicy="no-referrer"><span class="new-corner">NEW</span></div>
-          <div class="tall-title">Lucky Chicken</div>
-        </div>
-        <div class="game-square-card" data-cat="chicken" onclick="launchGameEngine('roastedchicken','Roasted Chicken')">
-          <div class="tall-thumb"><img src="https://i.postimg.cc/KzMjwRWV/Screenshot-20261004-192212-Plus(2).jpg" alt="Roasted Chicken" referrerpolicy="no-referrer"><span class="new-corner">NEW</span></div>
-          <div class="tall-title">Roasted Chicken</div>
-        </div>
-        <div class="game-square-card" data-cat="table" onclick="launchGameEngine('megablock','Mega Block')">
-          <div class="tall-thumb"><img src="https://i.postimg.cc/RCwqTJKK/Screenshot-20261004-192726-Plus(1).jpg" alt="Mega Block" referrerpolicy="no-referrer"><span class="new-corner">NEW</span></div>
-          <div class="tall-title">Mega Block</div>
-        </div>
-        <div class="game-square-card" data-cat="table" onclick="launchGameEngine('keno','Fast Keno')">
-          <div class="tall-thumb"><img src="https://i.postimg.cc/Gt3xf95Q/IMG-20260903-152505-649.jpg" alt="Fast Keno" referrerpolicy="no-referrer"><span class="live-corner">LIVE</span></div>
-          <div class="tall-title">Fast Keno</div>
-        </div>
-        <div class="game-square-card" data-cat="crash" onclick="launchGameEngine('jetx','Jet-X')">
-          <div class="tall-thumb"><img src="https://i.postimg.cc/xTT6xFrG/IMG-20260903-152505-617.jpg" alt="Jet-X" referrerpolicy="no-referrer"><span class="live-corner">LIVE</span></div>
-          <div class="tall-title">Jet-X</div>
-        </div>
-        <div class="game-square-card" data-cat="chicken" onclick="launchGameEngine('road','Chicken Road 2')">
-          <div class="tall-thumb"><img src="https://i.postimg.cc/9fjTSrRH/IMG-20260903-152505-599.jpg" alt="Chicken Road 2" referrerpolicy="no-referrer"><span class="live-corner">LIVE</span></div>
-          <div class="tall-title">Chicken Road 2</div>
-        </div>
-        <div class="game-square-card" data-cat="table" onclick="launchGameEngine('slot','777 Multi Slot')">
-          <div class="tall-thumb"><img src="https://i.postimg.cc/59kzJPYp/IMG-20260903-152953-851.jpg" alt="777 Slot" referrerpolicy="no-referrer"><span class="live-corner">LIVE</span></div>
-          <div class="tall-title">777 Slot</div>
-        </div>
-        <div class="game-square-card" data-cat="crash" onclick="launchGameEngine('avia','Avia Masters')">
-          <div class="tall-thumb"><img src="https://i.postimg.cc/xCfmfh3p/IMG-20260903-152505-630.jpg" alt="Avia Masters" referrerpolicy="no-referrer"><span class="live-corner">LIVE</span></div>
-          <div class="tall-title">Avia Masters</div>
-        </div>
+      <div class="live-games-carousel" id="liveGamesContainer">
+        <!-- 12 Verified Live Game App Cards rendered dynamically via JS -->
       </div>
     </div>
 
@@ -2040,6 +2121,12 @@ body.is-tg-app .browser-back-pill { display: none !important; }
     <button type="button" class="browser-back-pill" id="browserBackPill" onclick="requestCloseGameViewport()" aria-label="Back to Lobby">
       <i class="fa-solid fa-arrow-left"></i><span>Back</span>
     </button>
+    <div class="game-loading-overlay" id="gameLoadingOverlay" aria-live="polite">
+      <div class="game-loading-icon" id="gameLoadingIcon"><i class="fa-solid fa-gamepad" style="font-size:28px;color:var(--emerald-primary);"></i></div>
+      <div style="font-family:'Outfit';font-size:17px;font-weight:900;color:#fff;" id="gameLoadingTitle">Connecting...</div>
+      <div style="font-size:11.5px;color:var(--text-muted);">Loading game server &amp; wallet sync...</div>
+      <div class="game-loading-bar"></div>
+    </div>
     <iframe class="viewport-iframe" id="gameIframe" src="about:blank" allow="autoplay; fullscreen"></iframe>
   </div>
 
@@ -2461,22 +2548,30 @@ async function syncDatabaseBalance(force = false) {
 }
 
 const GAME_ROUTES = {
-  aviator: { title: "Aviator", path: "/Aveiter/" },
-  keno: { title: "Fast Keno", path: "/Keno-fast/" },
-  jetx: { title: "Jet-X", path: "/Jet-x/" },
-  road: { title: "Chicken Road 2", path: "/Chekn-road/" },
-  slot: { title: "777 Multi Slot", path: "/Slot-777-/" },
-  avia: { title: "Avia Masters", path: "/Avia-master/" },
-  roulette: { title: "Roulette", path: "/Roulette/" },
-  classickeno: { title: "Classic Keno", path: "/Classic-Keno/" },
-  plinko: { title: "Plinko", path: "/Plinkok/" },
-  luckychicken: { title: "Lucky Chicken", path: "/Lucky-Chicken-/" },
-  roastedchicken: { title: "Roasted Chicken", path: "/Rosted-cheken/" },
-  megablock: { title: "Mega Block", path: "/Mega-block/" }
+  aviator: { key: "aviator", title: "Aviator", sub: "Crash Game", cat: "crash", badge: "LIVE", badgeCls: "live-corner", img: "https://i.postimg.cc/FFPyRrqk/IMG-20260903-152505-514.jpg", path: "/Aveiter/" },
+  roulette: { key: "roulette", title: "Roulette", sub: "European Wheel", cat: "table", badge: "NEW", badgeCls: "new-corner", img: "https://i.postimg.cc/yxRRmfBZ/Screenshot-20261004-192212-Plus(1).jpg", path: "/Roulette/" },
+  classickeno: { key: "classickeno", title: "Classic Keno", sub: "20/80 Draw", cat: "table", badge: "NEW", badgeCls: "new-corner", img: "https://i.postimg.cc/13BqrVhh/Screenshot-20261004-192546-Plus(1).jpg", path: "/Classic-Keno/" },
+  plinko: { key: "plinko", title: "Plinko", sub: "Peg Drop", cat: "table", badge: "NEW", badgeCls: "new-corner", img: "https://i.postimg.cc/90y4Rrt1/Screenshot-20261004-192308-Plus(1).jpg", path: "/Plinkok/" },
+  luckychicken: { key: "luckychicken", title: "Lucky Chicken", sub: "Step Crash", cat: "chicken", badge: "NEW", badgeCls: "new-corner", img: "https://i.postimg.cc/cLFvnqY7/20261004-192938.jpg", path: "/Lucky-Chicken-/" },
+  roastedchicken: { key: "roastedchicken", title: "Roasted Chicken", sub: "Hot Grill", cat: "chicken", badge: "NEW", badgeCls: "new-corner", img: "https://i.postimg.cc/KzMjwRWV/Screenshot-20261004-192212-Plus(2).jpg", path: "/Rosted-cheken/" },
+  megablock: { key: "megablock", title: "Mega Block", sub: "Tower Crash", cat: "table", badge: "NEW", badgeCls: "new-corner", img: "https://i.postimg.cc/RCwqTJKK/Screenshot-20261004-192726-Plus(1).jpg", path: "/Mega-block/" },
+  keno: { key: "keno", title: "Fast Keno", sub: "Instant Draw", cat: "table", badge: "LIVE", badgeCls: "live-corner", img: "https://i.postimg.cc/Gt3xf95Q/IMG-20260903-152505-649.jpg", path: "/Keno-fast/" },
+  jetx: { key: "jetx", title: "Jet-X", sub: "Supersonic Crash", cat: "crash", badge: "LIVE", badgeCls: "live-corner", img: "https://i.postimg.cc/xTT6xFrG/IMG-20260903-152505-617.jpg", path: "/Jet-x/" },
+  road: { key: "road", title: "Chicken Road 2", sub: "Street Dash", cat: "chicken", badge: "LIVE", badgeCls: "live-corner", img: "https://i.postimg.cc/9fjTSrRH/IMG-20260903-152505-599.jpg", path: "/Chekn-road/" },
+  slot: { key: "slot", title: "777 Slot", sub: "Multi Hot 777", cat: "table", badge: "LIVE", badgeCls: "live-corner", img: "https://i.postimg.cc/59kzJPYp/IMG-20260903-152953-851.jpg", path: "/Slot-777-/" },
+  avia: { key: "avia", title: "Avia Masters", sub: "Flight Crash", cat: "crash", badge: "LIVE", badgeCls: "live-corner", img: "https://i.postimg.cc/xCfmfh3p/IMG-20260903-152505-630.jpg", path: "/Avia-master/" }
 };
+const LIVE_GAMES_LIST = Object.values(GAME_ROUTES);
 const getGameUrl = key => GAME_ORIGIN + (GAME_ROUTES[key] || GAME_ROUTES.aviator).path;
 
-let currentLoadedGame = null, isGameRoundActive = false, lastInitSentAt = 0;
+function getGameThumbUrl(routeKey, displayName) {
+  if (routeKey && GAME_ROUTES[routeKey]) return GAME_ROUTES[routeKey].img;
+  const low = String(displayName || '').toLowerCase();
+  const found = LIVE_GAMES_LIST.find(g => g.title.toLowerCase() === low || low.includes(g.title.toLowerCase()));
+  return found ? found.img : '';
+}
+
+let currentLoadedGame = null, isGameRoundActive = false, lastInitSentAt = 0, _gameLoadTimer = null;
 const gameWin = () => document.getElementById('gameIframe')?.contentWindow;
 const sendInit = (force = false) => {
   const now = Date.now();
@@ -2496,24 +2591,49 @@ const sendInit = (force = false) => {
   } catch (e) {}
 };
 
+function showGameLoading(key, title) {
+  clearTimeout(_gameLoadTimer);
+  const ov = document.getElementById('gameLoadingOverlay');
+  const tEl = document.getElementById('gameLoadingTitle');
+  const iEl = document.getElementById('gameLoadingIcon');
+  const info = GAME_ROUTES[key] || {};
+  if (tEl) tEl.textContent = title || info.title || 'Loading Game';
+  if (iEl) {
+    iEl.innerHTML = info.img
+      ? `<img src="${escHtml(info.img)}" alt="${escHtml(title || info.title || '')}" referrerpolicy="no-referrer">`
+      : `<i class="fa-solid fa-gamepad" style="font-size:28px;color:var(--emerald-primary);"></i>`;
+  }
+  if (ov) ov.classList.add('active');
+  _gameLoadTimer = setTimeout(hideGameLoading, 6500);
+}
+function hideGameLoading() {
+  clearTimeout(_gameLoadTimer);
+  document.getElementById('gameLoadingOverlay')?.classList.remove('active');
+}
+
 async function launchGameEngine(key, title) {
   if (!INIT_DATA) return toast("Open the app from Telegram", 'error');
   if (NEEDS_BACKEND_SETUP) return openModal('modalServerConnect');
   haptic('medium');
-  if (currentBalance === null) await syncDatabaseBalance(true);
   const iframe = document.getElementById('gameIframe');
   document.getElementById('gameViewport').style.display = 'flex';
+  showGameLoading(key, title);
   syncBackButton();
+  if (currentBalance === null) await syncDatabaseBalance(true);
   const targetUrl = getGameUrl(key);
   if (currentLoadedGame === key && iframe.src && iframe.src === targetUrl) {
     sendInit(true);
     try { gameWin()?.postMessage({ type: 'UPDATE_BALANCE', balance: currentBalance }, GAME_ORIGIN); } catch (_) {}
+    setTimeout(hideGameLoading, 320);
     return;
   }
   currentLoadedGame = key;
   isGameRoundActive = false;
   lastInitSentAt = 0;
-  iframe.onload = () => sendInit(true);
+  iframe.onload = () => {
+    sendInit(true);
+    setTimeout(hideGameLoading, 420);
+  };
   iframe.src = targetUrl;
 }
 
@@ -2536,6 +2656,7 @@ function confirmCloseGameViewport() {
 
 async function closeGameViewport() {
   haptic('light');
+  hideGameLoading();
   closeModal('modalConfirmExit');
   const hadActiveRound = isGameRoundActive;
   isGameRoundActive = false;
@@ -2559,7 +2680,7 @@ async function closeGameViewport() {
 window.addEventListener('message', e => {
   if (e.source !== gameWin() || e.origin !== GAME_ORIGIN) return;
   const d = e.data || {};
-  if (d.type === 'GAME_READY') sendInit(false);
+  if (d.type === 'GAME_READY') { sendInit(false); setTimeout(hideGameLoading, 180); }
   else if (d.type === 'BET_STARTED') isGameRoundActive = true;
   else if (d.type === 'BET_ENDED') {
     const wasActive = isGameRoundActive;
@@ -2631,7 +2752,7 @@ function navigateToTab(t, swipeDir = '') {
     if (!el) return;
     el.addEventListener('touchstart', e => {
       if (e.touches.length !== 1) return;
-      touchInsideCarousel = Boolean(e.target.closest('.swipe-snap-row, .coming-soon-carousel, .lobby-filter-bar, .sport-pills-row, .best-wins-feed'));
+      touchInsideCarousel = Boolean(e.target.closest('.hero-banner-card, .swipe-snap-row, .live-games-carousel, .coming-soon-carousel, .lobby-filter-bar, .sport-pills-row, .best-wins-feed'));
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
     }, { passive: true });
@@ -2648,6 +2769,40 @@ function navigateToTab(t, swipeDir = '') {
   };
   attachSwipe(document.getElementById('tab-casino'), () => navigateToTab('sports', 'right'), null);
   attachSwipe(document.getElementById('tab-sports'), null, () => navigateToTab('casino', 'left'));
+}
+
+/* ========================================================
+   AUTOMATIC COMPACT HERO BANNER SLIDER
+======================================================== */
+let heroSlideIdx = 0, heroTimer = null, heroPaused = false;
+function setHeroSlide(idx) {
+  const track = document.getElementById('heroSliderTrack');
+  const dots = document.querySelectorAll('#heroDots .hero-dot');
+  const count = dots.length || 2;
+  heroSlideIdx = ((idx % count) + count) % count;
+  if (track) track.style.transform = `translateX(-${heroSlideIdx * 100}%)`;
+  dots.forEach((d, i) => d.classList.toggle('active', i === heroSlideIdx));
+}
+{
+  const heroEl = document.getElementById('heroBannerSlider');
+  if (heroEl) {
+    let sx = 0;
+    heroEl.addEventListener('mouseenter', () => { heroPaused = true; });
+    heroEl.addEventListener('mouseleave', () => { heroPaused = false; });
+    heroEl.addEventListener('touchstart', e => { heroPaused = true; sx = e.touches[0]?.clientX || 0; }, { passive: true });
+    heroEl.addEventListener('touchend', e => {
+      const ex = e.changedTouches[0]?.clientX || 0;
+      if (sx && Math.abs(ex - sx) > 36) setHeroSlide(heroSlideIdx + (ex < sx ? 1 : -1));
+      sx = 0;
+      setTimeout(() => { heroPaused = false; }, 2200);
+    }, { passive: true });
+  }
+  const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!prefersReduced) {
+    heroTimer = setInterval(() => {
+      if (!document.hidden && !heroPaused && currentActiveTab === 'casino') setHeroSlide(heroSlideIdx + 1);
+    }, 4000);
+  }
 }
 
 const openWalletScreen = () => { navigateToTab('wallet'); loadHistoryList(); };
@@ -2715,16 +2870,23 @@ function renderBestWins(period) {
         const onclickAttr = g.routeKey
           ? `onclick="launchGameEngine('${escHtml(g.routeKey)}','${escHtml(g.displayName)}')"`
           : `onclick="navigateToTab('sports')"`;
+        const thumbUrl = getGameThumbUrl(g.routeKey, g.displayName);
+        const thumbHtml = thumbUrl
+          ? `<img src="${escHtml(thumbUrl)}" alt="${escHtml(g.displayName)}" loading="lazy" referrerpolicy="no-referrer">`
+          : `<i class="fa-solid fa-futbol" style="font-size:18px;color:var(--emerald-primary);"></i>`;
         return `
           <div class="best-game-slide" style="animation-delay:${i * 35}ms" ${onclickAttr}>
-            <div class="best-game-top">
+            <div class="best-game-thumb">
+              ${thumbHtml}
               <div class="rank-badge ${rankCls}">#${i + 1}</div>
-              <div class="best-game-name">${escHtml(g.displayName)}</div>
             </div>
-            <div class="best-game-payout tabular">${Number(g.totalWon || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB</div>
-            <div class="best-game-meta">
-              <span>${Number(g.bets || 0)} bets</span>
-              <span>${g.bestMult ? 'Best ' + Number(g.bestMult).toFixed(2) + 'x' : Number(g.rtp || 0).toFixed(1) + '% RTP'}</span>
+            <div class="best-game-body">
+              <div class="best-game-name">${escHtml(g.displayName)}</div>
+              <div class="best-game-payout tabular">${Number(g.totalWon || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB</div>
+              <div class="best-game-meta">
+                <span>${Number(g.bets || 0)} bets</span>
+                <span>${g.bestMult ? 'Best ' + Number(g.bestMult).toFixed(2) + 'x' : Number(g.rtp || 0).toFixed(1) + '% RTP'}</span>
+              </div>
             </div>
           </div>`;
       }).join('');
@@ -2736,15 +2898,42 @@ function renderBestWins(period) {
     if (!data.bestWins || !data.bestWins.length) {
       ticker.innerHTML = '';
     } else {
-      ticker.innerHTML = data.bestWins.map(w => `
-        <div class="win-ticker-card">
-          <i class="fa-solid fa-crown" style="color:var(--gold-primary);font-size:11px;"></i>
-          <b style="color:#fff;">${escHtml(w.user)}</b>
-          <span style="color:var(--text-muted);">· ${escHtml(w.displayName)}</span>
-          <b class="tabular" style="color:var(--emerald-primary);">+${Number(w.payout).toFixed(2)} ETB</b>
-          ${w.mult > 0 ? `<span class="tabular" style="color:var(--gold-primary);font-size:10px;">${Number(w.mult).toFixed(2)}x</span>` : ''}
-        </div>
-      `).join('');
+      ticker.innerHTML = data.bestWins.map(w => {
+        const tUrl = getGameThumbUrl(w.routeKey, w.displayName);
+        const iconHtml = tUrl
+          ? `<span class="win-ticker-thumb"><img src="${escHtml(tUrl)}" alt="${escHtml(w.displayName)}" loading="lazy" referrerpolicy="no-referrer"></span>`
+          : `<i class="fa-solid fa-crown" style="color:var(--gold-primary);font-size:11px;"></i>`;
+        return `
+          <div class="win-ticker-card">
+            ${iconHtml}
+            <b style="color:#fff;">${escHtml(w.user)}</b>
+            <span style="color:var(--text-muted);">· ${escHtml(w.displayName)}</span>
+            <b class="tabular" style="color:var(--emerald-primary);">+${Number(w.payout).toFixed(2)} ETB</b>
+            ${w.mult > 0 ? `<span class="tabular" style="color:var(--gold-primary);font-size:10px;">${Number(w.mult).toFixed(2)}x</span>` : ''}
+          </div>`;
+      }).join('');
+    }
+  }
+}
+
+/* Smooth Left-Sliding Auto-Scroll for Best Win Games List */
+{
+  const bwRow = document.getElementById('bestGamesCarousel');
+  let bwPaused = false;
+  if (bwRow) {
+    bwRow.addEventListener('mouseenter', () => { bwPaused = true; });
+    bwRow.addEventListener('mouseleave', () => { bwPaused = false; });
+    bwRow.addEventListener('touchstart', () => { bwPaused = true; }, { passive: true });
+    bwRow.addEventListener('touchend', () => { setTimeout(() => { bwPaused = false; }, 2600); }, { passive: true });
+    const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!prefersReduced) {
+      setInterval(() => {
+        if (document.hidden || bwPaused || currentActiveTab !== 'casino') return;
+        const maxLeft = bwRow.scrollWidth - bwRow.clientWidth;
+        if (maxLeft <= 8) return;
+        if (bwRow.scrollLeft >= maxLeft - 8) bwRow.scrollTo({ left: 0, behavior: 'smooth' });
+        else bwRow.scrollBy({ left: 238, behavior: 'smooth' });
+      }, 3200);
     }
   }
 }
@@ -2898,9 +3087,62 @@ function toggleComingSoonNotifyFromModal() {
 }
 
 /* ========================================================
-   CATEGORY FILTER & SEARCH
+   UNIFIED LIVE GAMES RENDERER + CATEGORY FILTER & SEARCH
 ======================================================== */
+let liveGamesGridMode = false;
 let currentLobbyCategory = 'all';
+
+function renderLiveGames(filterText = '', cat = currentLobbyCategory) {
+  const box = document.getElementById('liveGamesContainer');
+  if (!box) return;
+  const q = filterText.toLowerCase().trim();
+  const list = LIVE_GAMES_LIST.filter(g => {
+    const matchCat = cat === 'all' || g.cat === cat;
+    const matchText = !q || g.title.toLowerCase().includes(q) || g.sub.toLowerCase().includes(q);
+    return matchCat && matchText;
+  });
+
+  const useGrid = liveGamesGridMode || Boolean(q) || cat !== 'all';
+  box.className = useGrid ? 'live-games-grid' : 'live-games-carousel';
+  if (!list.length) {
+    box.innerHTML = `<div style="grid-column:1/-1;width:100%;text-align:center;color:var(--text-muted);padding:16px;font-size:12px;">No live games match "${escHtml(q || cat)}"</div>`;
+    return;
+  }
+
+  box.innerHTML = list.map((g, idx) => `
+    <div class="soon-app-card is-live" style="animation:cardStaggerIn 0.28s var(--ease-2027) ${Math.min(idx, 12) * 20}ms both" onclick="launchGameEngine('${escHtml(g.key)}','${escHtml(g.title)}')">
+      <div class="soon-art-box">
+        <img src="${escHtml(g.img)}" alt="${escHtml(g.title)}" loading="lazy" referrerpolicy="no-referrer">
+        <div class="soon-art-scrim"></div>
+        <span class="${escHtml(g.badgeCls)}">${escHtml(g.badge)}</span>
+        <span class="live-play-chip" aria-hidden="true"><i class="fa-solid fa-play"></i></span>
+      </div>
+      <div class="soon-card-footer">
+        <div class="soon-card-title">${escHtml(g.title)}</div>
+        <div class="soon-card-cat">${escHtml(g.sub)}</div>
+      </div>
+    </div>`).join('');
+}
+
+function toggleLiveGamesLayout() {
+  haptic('light');
+  liveGamesGridMode = !liveGamesGridMode;
+  const btn = document.getElementById('btnToggleLiveLayout');
+  if (btn) {
+    btn.classList.toggle('active', liveGamesGridMode);
+    btn.innerHTML = liveGamesGridMode ? '<i class="fa-solid fa-arrows-left-right"></i>' : '<i class="fa-solid fa-grip"></i>';
+  }
+  renderLiveGames(document.getElementById('gameSearchInput')?.value || '', currentLobbyCategory);
+}
+
+function scrollLiveGames(dir) {
+  haptic('light');
+  const box = document.getElementById('liveGamesContainer');
+  if (!box) return;
+  if (liveGamesGridMode) toggleLiveGamesLayout();
+  box.scrollBy({ left: dir * 260, behavior: 'smooth' });
+}
+
 function filterLobbyCategory(cat, btnEl) {
   haptic('light');
   currentLobbyCategory = cat;
@@ -2917,22 +3159,12 @@ function filterLobbyCategory(cat, btnEl) {
   }
   if (liveBlock) liveBlock.style.display = 'block';
   if (soonBlock) soonBlock.style.display = cat === 'all' ? 'block' : 'none';
-
-  const q = (document.getElementById('gameSearchInput')?.value || '').toLowerCase().trim();
-  document.querySelectorAll('#liveGamesGrid .game-square-card').forEach(c => {
-    const matchCat = cat === 'all' || c.dataset.cat === cat;
-    const matchText = !q || c.innerText.toLowerCase().includes(q);
-    c.style.display = (matchCat && matchText) ? 'flex' : 'none';
-  });
+  renderLiveGames(document.getElementById('gameSearchInput')?.value || '', cat);
 }
 
 document.getElementById('gameSearchInput')?.addEventListener('input', e => {
   const q = e.target.value.toLowerCase().trim();
-  document.querySelectorAll('#liveGamesGrid .game-square-card').forEach(c => {
-    const matchCat = currentLobbyCategory === 'all' || c.dataset.cat === currentLobbyCategory;
-    const matchText = !q || c.innerText.toLowerCase().includes(q);
-    c.style.display = (matchCat && matchText) ? 'flex' : 'none';
-  });
+  renderLiveGames(q, currentLobbyCategory);
   renderComingSoonGames(q);
 });
 
@@ -2954,7 +3186,9 @@ function enableDragScroll(el) {
   });
 }
 enableDragScroll(document.getElementById('bestGamesCarousel'));
+enableDragScroll(document.getElementById('liveGamesContainer'));
 enableDragScroll(document.getElementById('comingSoonContainer'));
+renderLiveGames();
 
 /* ========================================================
    PROMO, DEPOSIT & WITHDRAWAL LOGIC
