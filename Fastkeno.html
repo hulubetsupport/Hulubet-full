@@ -248,12 +248,12 @@ header.brand-bar{display:flex;justify-content:space-between;align-items:center;m
 .table-leaders td:first-child{border-radius:7px 0 0 7px;color:#66c995}
 .table-leaders td:last-child{border-radius:0 7px 7px 0;color:#f2df4b!important;font-weight:800}
 
-/* TOAST */
-.toast-overlay{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:calc(100% - 38px);max-width:440px;z-index:1200;display:none}
-.toast-box{position:relative;display:flex;align-items:center;justify-content:center;gap:10px;min-height:70px;padding:16px 20px;border-radius:12px;font-size:clamp(18px,4.5vw,26px);font-weight:900;letter-spacing:.3px;text-transform:uppercase}
-.toast-box.success{background:linear-gradient(145deg,#347f57,#1b5138);border:1px solid #69d99c;color:#f4fff8}
-.toast-box.error{background:linear-gradient(145deg,#562c2e,#351b1c);border:1px solid #a74f52;color:#ffe5e5}
-.toast-close{position:absolute;right:8px;top:8px;background:none;border:none;color:inherit;cursor:pointer}
+/* CLEAN TOP PILL TOAST */
+.toast-overlay{position:fixed;top:56px;left:50%;transform:translateX(-50%);width:auto;max-width:90%;z-index:1200;display:none}
+.toast-box{position:relative;display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 14px;border-radius:999px;font-size:12px;font-weight:800;letter-spacing:.2px;box-shadow:0 6px 18px rgba(0,0,0,.55);white-space:nowrap}
+.toast-box.success{background:#14532d;border:1px solid #4ade80;color:#f0fdf4}
+.toast-box.error{background:#45181b;border:1px solid #f87171;color:#ffe5e5}
+.toast-close{display:none}
 
 /* MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(3,7,6,.85);backdrop-filter:blur(6px);z-index:999;display:none;align-items:center;justify-content:center;padding:14px}
@@ -356,6 +356,9 @@ header.brand-bar{display:flex;justify-content:space-between;align-items:center;m
         <div class="quick-chips">
           <button class="quick-chip" onclick="multiplyBet(2)">X2</button>
           <button class="quick-chip" onclick="setMaxBet()">MAX</button>
+          <button class="quick-chip" onclick="openRulesModal()" aria-label="Settings and paytable" title="Settings">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
         </div>
       </div>
       <button class="main-bet-btn" id="btn-bet" onclick="placeKenoTicket()"><span id="btn-bet-label">BET</span></button>
@@ -647,13 +650,16 @@ function renderBalanceDisplay() {
 }
 
 // ---------------- 7. Selection Grid & Swipe Animation ----------------
+const HOT_SET = new Set([11, 16, 21, 34, 71]);
+const COLD_SET = new Set([8, 17, 26, 33, 80]);
 function buildGrid() {
   const g = $('keno-grid');
   if (!g) return;
   g.innerHTML = '';
   for (let i = 1; i <= 80; i++) {
     const c = document.createElement('div');
-    c.className = 'grid-cell'; c.id = 'cell-' + i; c.textContent = i;
+    c.className = 'grid-cell'; c.id = 'cell-' + i;
+    c.innerHTML = `<span>${i}</span>${HOT_SET.has(i) ? '<span class="cell-dot dot-hot"></span>' : ''}${COLD_SET.has(i) ? '<span class="cell-dot dot-cold"></span>' : ''}`;
     c.onclick = () => togglePick(i);
     g.appendChild(c);
   }
@@ -1035,23 +1041,19 @@ async function settleRoundLive(roundId, drawn) {
     if (el && userPickedAll.has(b)) el.classList.add('hit');
   });
 
-  // 🌟 #draw-result receives ONLY title (balls remain in #drawn-tray, NO DUPLICATION!)
   const resContainer = $('draw-result');
   if (resContainer) {
     if (!hasUserPlayed) {
-      // ሰውዬው ካልተጫወተ ምንም ጽሁፍም ሆነ toast የለም
       resContainer.innerHTML = '';
     } else if (totalWin > 0) {
       resContainer.innerHTML = `
         <div class="draw-result-title win">YOU WIN</div>
-        <div class="draw-result-amt">${totalWin}</div>
+        <div class="draw-result-amt">${Number(totalWin).toFixed(2).replace(/\.00$/, '')}</div>
       `;
-      showToast(`YOU WIN +${totalWin} ETB`, 'success');
     } else {
       resContainer.innerHTML = `
         <div class="draw-result-title try-again">TRY AGAIN</div>
       `;
-      showToast('Try Again', 'error');
     }
   }
 
@@ -1214,13 +1216,15 @@ async function renderHistoryView() {
   const c = $('history-container');
   if (!c) return;
 
-  try {
-    const sHist = await api('/api/user/history');
-    if (sHist && sHist.success && Array.isArray(sHist.history) && sHist.history.length > 0) {
-      const kenoHist = sHist.history.filter(h => Array.isArray(h?.picks) && h.picks.length > 0);
-      if (kenoHist.length > 0) fullHistory = kenoHist;
-    }
-  } catch (e) {}
+  if (INIT_DATA) {
+    try {
+      const sHist = await api('/api/user/history');
+      if (sHist && sHist.success && Array.isArray(sHist.history) && sHist.history.length > 0) {
+        const kenoHist = sHist.history.filter(h => Array.isArray(h?.picks) && h.picks.length > 0);
+        if (kenoHist.length > 0) fullHistory = kenoHist;
+      }
+    } catch (e) {}
+  }
 
   const validHistory = (Array.isArray(fullHistory) ? fullHistory : []).filter(h => Array.isArray(h?.picks));
   if (!validHistory.length) {

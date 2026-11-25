@@ -65,7 +65,11 @@ module.exports = function createLuckyChickenModule(ctx, shared) {
       if (!r.rows.length) throw new Biz('Round not found', 404);
       const b = r.rows[0], gd = parseJson(b.game_data), wager = num(b.bet_amount);
       if (b.status !== 'IN_FLIGHT') throw new Biz('This round is already finished');
-      const m = math.CHICKEN[gd.difficulty], step = gd.step + 1, alive = gd.u < gd.S[step - 1];
+      const m = math.CHICKEN[gd.difficulty];
+      if (!m) throw new Biz('Invalid difficulty');
+      const curStep = Number(gd.step || 0);
+      if (curStep >= m.length) throw new Biz('This round is already finished');
+      const step = curStep + 1, alive = gd.u < (gd.S[step - 1] ?? 0);
       if (!alive) {
         await c.query(`UPDATE universal_bets SET status='LOST',multiplier=0,payout=0,house_profit=$1,game_data=$2 WHERE bet_id=$3`, [wager, JSON.stringify({ ...gd, step }), betId]);
         return { vd, body: { state: 'HIT', step, payout: 0, newBalance: await shared.balanceOf(c, uid) } };

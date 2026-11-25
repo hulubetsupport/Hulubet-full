@@ -688,12 +688,18 @@
     };
 
     const CAR_TYPES = [
-      { color: '#ef4444', length: 50, width: 26 },                     // Red car
-      { color: '#1e3a8a', length: 52, width: 28, isPolice: true },      // Police
-      { color: '#eab308', length: 94, width: 32, isBus: true },         // School Bus
-      { color: '#2563eb', length: 48, width: 26 },                     // Blue sedan
-      { color: '#9ca3af', length: 58, width: 30 }                      // SUV
-    ];
+      { src: '/assets/aistudio/yellow_taxi_8ac34cb2.png', color: '#eab308', length: 68, width: 32 },
+      { src: '/assets/aistudio/police_car_8b902f78.png',  color: '#1e3a8a', length: 68, width: 32 },
+      { src: '/assets/aistudio/truck2_bd1dc0c4.png',      color: '#f59e0b', length: 88, width: 36 },
+      { src: '/assets/aistudio/ice_cream_9167f9c5.png',   color: '#38bdf8', length: 82, width: 34 },
+      { src: '/assets/aistudio/fireengine_d52986f1.png',  color: '#dc2626', length: 88, width: 36 },
+      { src: '/assets/aistudio/green_truck_8b497334.png', color: '#22c55e', length: 86, width: 36 },
+      { src: '/assets/aistudio/taxi2_3ab5f259.png',       color: '#facc15', length: 68, width: 32 }
+    ].map(t => {
+      const img = new Image();
+      img.src = t.src;
+      return { ...t, img };
+    });
 
     let traffic = [];
 
@@ -712,7 +718,7 @@
       traffic = [];
       const h = document.getElementById('viewport').clientHeight;
       for (let i = 0; i < NUM_LANES; i++) {
-        const type = CAR_TYPES[i % CAR_TYPES.length];
+        const type = CAR_TYPES[(i * 2) % CAR_TYPES.length];
         const dir = (i % 2 === 0) ? 1 : -1;
         traffic.push({
           lane: i,
@@ -745,39 +751,21 @@
     function drawCar(v, x, y) {
       ctx.save();
       ctx.translate(x, y);
+      // All 7 PNG sprites face downward; flip 180deg only when lane moves upward (speed < 0)
       if (v.speed < 0) ctx.scale(1, -1);
 
       const w = v.type.width;
       const l = v.type.length;
 
-      // Shadow
-      ctx.fillStyle = "rgba(0,0,0,0.35)";
-      ctx.fillRect(-w/2 + 3, -l/2 + 4, w, l);
-
-      // Body
-      ctx.fillStyle = v.type.color;
-      ctx.beginPath();
-      ctx.roundRect(-w/2, -l/2, w, l, 6);
-      ctx.fill();
-
-      // Cabin
-      ctx.fillStyle = "#1e2129";
-      ctx.beginPath();
-      ctx.roundRect(-w/2 + 3, -l/2 + 10, w - 6, l - 22, 4);
-      ctx.fill();
-
-      // Windshields
-      ctx.fillStyle = "#60a5fa";
-      ctx.fillRect(-w/2 + 4, -l/2 + 11, w - 8, 7);
-      ctx.fillRect(-w/2 + 4, l/2 - 18, w - 8, 6);
-
-      // Police emergency flashers
-      if (v.type.isPolice) {
-        v.flash = (v.flash + 0.2) % 2;
-        ctx.fillStyle = v.flash > 1 ? "#ef4444" : "#3b82f6";
-        ctx.fillRect(-w/2 + 5, -2, 6, 4);
-        ctx.fillStyle = v.flash > 1 ? "#3b82f6" : "#ef4444";
-        ctx.fillRect(w/2 - 11, -2, 6, 4);
+      if (v.type.img && v.type.img.complete && v.type.img.naturalWidth > 0) {
+        ctx.drawImage(v.type.img, -w / 2, -l / 2, w, l);
+      } else {
+        ctx.fillStyle = "rgba(0,0,0,0.35)";
+        ctx.fillRect(-w/2 + 3, -l/2 + 4, w, l);
+        ctx.fillStyle = v.type.color;
+        ctx.beginPath();
+        ctx.roundRect(-w/2, -l/2, w, l, 6);
+        ctx.fill();
       }
       ctx.restore();
     }

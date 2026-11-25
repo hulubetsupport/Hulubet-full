@@ -108,6 +108,28 @@
       z-index: 1;
     }
 
+    /* Top Circular Home & Menu Bar matching 14:31 screenshot */
+    .slot-top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 4px 8px;
+    }
+    .circle-nav-btn {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: rgba(6, 31, 22, 0.85);
+      border: 1.5px solid rgba(255, 255, 255, 0.16);
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+    }
+    .circle-nav-btn:active { transform: scale(0.94); }
+
     /* Reels Header Labels */
     .reels-labels {
       display: flex;
@@ -658,26 +680,28 @@
       to { transform: scale(1.08); }
     }
 
-    /* Toast */
+    /* Sleek Top Pill Toast */
     #toast {
       position: fixed;
-      bottom: 24px;
+      top: 14px;
       left: 50%;
-      transform: translateX(-50%) translateY(100px);
-      background: #1f2722;
-      border: 1px solid var(--gold);
+      transform: translateX(-50%) translateY(-20px);
+      background: rgba(6, 31, 22, 0.94);
+      border: 1px solid rgba(16, 229, 135, 0.55);
       color: #fff;
-      padding: 10px 20px;
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 700;
+      padding: 8px 18px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 800;
       z-index: 999;
       opacity: 0;
-      transition: all 0.3s ease;
-      box-shadow: 0 6px 16px rgba(0,0,0,0.7);
+      transition: all 0.25s ease;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.65);
+      backdrop-filter: blur(10px);
       pointer-events: none;
       text-align: center;
       max-width: 90%;
+      white-space: nowrap;
     }
     #toast.show {
       transform: translateX(-50%) translateY(0);
@@ -699,7 +723,15 @@
   </div>
 
   <div id="app">
-    <!-- Top Labels (Lobby Header Removed) -->
+    <div class="slot-top-bar">
+      <button type="button" class="circle-nav-btn" aria-label="Back to Lobby" onclick="postParent({ type: 'EXIT_GAME' })">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </button>
+      <button type="button" class="circle-nav-btn" aria-label="Paytable and Rules" onclick="openRulesModal()">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="5" y1="7" x2="19" y2="7"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="7" y1="17" x2="17" y2="17"/></svg>
+      </button>
+    </div>
+    <!-- Top Labels -->
     <div class="reels-labels">
       <span>MULTIPLIER</span>
       <div style="display:flex; align-items:center; gap:8px;">
@@ -1407,13 +1439,7 @@
     }
 
     function triggerBigWinOverlay(amt) {
-      const ov = document.getElementById('celebration-overlay');
-      const num = document.getElementById('celebration-amount');
-      num.textContent = `${amt.toFixed(2)} ETB`;
-      ov.style.display = 'flex';
-      setTimeout(() => {
-        ov.style.display = 'none';
-      }, 2400);
+      showToast(`BIG WIN +${amt.toFixed(2)} ETB!`);
     }
 
     /* =====================================================================

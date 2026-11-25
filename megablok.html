@@ -815,24 +815,27 @@
       fill: none;
     }
 
-    /* Error Toast */
+    /* Sleek Top Pill Toast */
     .toast-box {
       position: absolute;
-      top: 65px;
+      top: 14px;
       left: 50%;
       transform: translateX(-50%) translateY(-20px);
-      background: rgba(220, 38, 38, 0.95);
+      background: rgba(15, 23, 34, 0.94);
+      border: 1px solid rgba(255, 255, 255, 0.16);
       color: #ffffff;
-      padding: 8px 16px;
-      border-radius: 8px;
+      padding: 8px 18px;
+      border-radius: 999px;
       font-size: 12px;
       font-weight: 700;
       z-index: 120;
       opacity: 0;
       pointer-events: none;
       transition: all 0.25s ease;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(10px);
       max-width: 90%;
+      white-space: nowrap;
       text-align: center;
     }
 

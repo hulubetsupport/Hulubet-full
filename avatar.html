@@ -397,9 +397,9 @@
     }
     .action-bet-btn:active { transform: scale(0.97); }
     .btn-state-bet { background: var(--spribe-green); color: #fff; box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4); }
-    .btn-state-cancel { background: var(--spribe-orange); color: #fff; }
+    .btn-state-cancel { background: #dc2626; color: #fff; box-shadow: 0 4px 14px rgba(220, 38, 38, 0.4); }
     .btn-state-cashout { background: var(--spribe-orange); color: #fff; box-shadow: 0 4px 15px rgba(255, 119, 0, 0.4); }
-    .btn-state-waiting { background: #3b220c; color: #ff9800; border: 1px dashed #ff9800; }
+    .btn-state-waiting { background: #dc2626; color: #fff; box-shadow: 0 4px 14px rgba(220, 38, 38, 0.4); }
     .action-bet-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
     .btn-main-title { font-size: 15px; font-weight: 900; text-transform: uppercase; line-height: 1.1; }
@@ -492,12 +492,46 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 2px 12px;
+      padding: 4px 12px 2px;
       flex-shrink: 0;
     }
+    .bets-avatars-stack {
+      display: flex;
+      align-items: center;
+      margin-bottom: 3px;
+    }
+    .bets-avatar-dot {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1.5px solid #22c55e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 900;
+      color: #fff;
+      margin-left: -6px;
+      background: #1e293b;
+    }
+    .bets-avatar-dot:first-child { margin-left: 0; }
     .bets-count-text { font-size: 11px; font-weight: 800; color: #fff; }
+    .bets-progress-rail {
+      height: 3px;
+      margin: 2px 12px 4px;
+      background: #1c1e24;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .bets-progress-fill {
+      height: 100%;
+      width: 45%;
+      background: #4ade80;
+      border-radius: 999px;
+      transition: width 0.3s ease;
+    }
     .total-win-block { text-align: right; }
-    .total-win-sum { font-size: 13px; font-weight: 900; color: var(--spribe-green); }
+    .total-win-sum { font-size: 13px; font-weight: 900; color: #ffffff; }
 
     /* Previous Round Highlight Header (Screenshot 1 & 5) */
     .prev-round-banner {
@@ -669,9 +703,12 @@
     <div class="brand-logo">Aviator</div>
     <div class="brand-right">
       <span class="live-balance-tag"><span id="lblUserBalance">0.00</span> ETB</span>
-      <div class="menu-btn-icon" onclick="toggleSidebar(true)">
+      <button type="button" class="menu-btn-icon" style="background:none;border:none;padding:2px;" onclick="toggleSidebar(true)" aria-label="Menu">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-      </div>
+      </button>
+      <button type="button" class="menu-btn-icon" style="background:none;border:none;padding:2px;" onclick="showToast('Live Aviator Room Active')" aria-label="Chat">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </button>
     </div>
   </header>
 
@@ -813,12 +850,20 @@
       </div>
 
       <div class="bets-meta-bar">
-        <div class="bets-count-text" id="lblBetsCount">0 Bets</div>
+        <div>
+          <div class="bets-avatars-stack" aria-hidden="true">
+            <span class="bets-avatar-dot" style="background:#0284c7;">A</span>
+            <span class="bets-avatar-dot" style="background:#16a34a;">S</span>
+            <span class="bets-avatar-dot" style="background:#9333ea;">M</span>
+          </div>
+          <div class="bets-count-text" id="lblBetsCount">0 Bets</div>
+        </div>
         <div class="total-win-block">
-          <span style="font-size:10px; color:#888;">Total win: </span>
-          <span class="total-win-sum" id="lblTotalWin">0.00 ETB</span>
+          <div class="total-win-sum" id="lblTotalWin">0.00</div>
+          <div style="font-size:10px; color:#888;">Total win ETB</div>
         </div>
       </div>
+      <div class="bets-progress-rail"><div class="bets-progress-fill" id="betsProgressFill"></div></div>
 
       <div class="table-col-labels">
         <span>Player</span>
@@ -1065,7 +1110,7 @@
 
     if (p.betId && !p.settled && gameState === "FLYING") {
       btn.className = "action-bet-btn btn-state-cashout";
-      mainLbl.innerText = "CASH OUT";
+      mainLbl.innerText = "Cash Out";
       subLbl.innerText = `${(p.stake * currentMultiplier).toFixed(2)} ETB`;
     } else if (p.betId && !p.settled && gameState === "WAITING") {
       btn.className = "action-bet-btn btn-state-cancel";
@@ -1076,8 +1121,8 @@
       mainLbl.innerText = "WON!";
     } else if (p.nextQueued) {
       btn.className = "action-bet-btn btn-state-waiting";
-      mainLbl.innerText = "WAITING...";
-      subLbl.innerText = "Next Round (Cancel)";
+      mainLbl.innerText = "Cancel";
+      subLbl.innerText = "Waiting for next round";
     } else {
       btn.className = "action-bet-btn btn-state-bet";
       mainLbl.innerText = "Bet";
@@ -1772,8 +1817,14 @@
       list.innerHTML = '<div style="text-align:center;padding:18px;color:#64748b;font-size:11px;font-weight:700;">Place a bet to join this live multiplayer round</div>';
     }
 
-    document.getElementById("lblBetsCount").innerText = `${data.length} Bets • ${playersOnline} Online`;
-    document.getElementById("lblTotalWin").innerText = `${total.toFixed(2)} ETB`;
+    const totalBetsNum = Math.max(data.length, playersOnline);
+    document.getElementById("lblBetsCount").innerText = `${data.length}/${totalBetsNum} Bets`;
+    document.getElementById("lblTotalWin").innerText = total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const bar = document.getElementById("betsProgressFill");
+    if (bar) {
+      const pct = totalBetsNum > 0 ? Math.max(12, Math.min(100, Math.round((data.length / totalBetsNum) * 100))) : 25;
+      bar.style.width = pct + "%";
+    }
   }
 
   /* =====================================================================

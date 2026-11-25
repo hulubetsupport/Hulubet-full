@@ -546,74 +546,105 @@
       filter: brightness(0.25) sepia(1) hue-rotate(-30deg) saturate(5) drop-shadow(0 0 16px #f97316);
     }
 
-    /* Win Popup (Exact to Screenshot 3) */
+    /* Finish Goal Zone (All difficulties) */
+    .finish-area {
+      width: 140px;
+      height: 100%;
+      position: relative;
+      flex-shrink: 0;
+      border-left: 5px solid #22c55e;
+      background: linear-gradient(90deg, rgba(34, 197, 94, 0.16) 0%, #161825 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .finish-goal-badge {
+      background: #16a34a;
+      color: #fff;
+      font-weight: 900;
+      font-size: 0.78rem;
+      letter-spacing: 1px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 2px solid #86efac;
+      box-shadow: 0 4px 14px rgba(34, 197, 94, 0.35);
+    }
+
+    /* Clean Non-blocking Top Win Banner */
     #win-modal {
       position: absolute;
-      top: 45%;
+      top: 18px;
       left: 50%;
-      transform: translate(-50%, -50%) scale(0.7);
-      background: #242940;
-      border: 1px solid #3e476c;
-      border-radius: 18px;
-      padding: 16px 28px;
+      transform: translateX(-50%) scale(0.8);
+      background: #1f3d2b;
+      border: 2px solid #34d399;
+      border-radius: 999px;
+      padding: 7px 20px;
       display: flex;
-      flex-direction: column;
+      flex-direction: row;
       align-items: center;
-      box-shadow: 0 16px 40px rgba(0,0,0,0.7);
+      gap: 10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.55);
       z-index: 80;
       opacity: 0;
       pointer-events: none;
-      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      white-space: nowrap;
     }
     #win-modal.show {
-      transform: translate(-50%, -50%) scale(1);
+      transform: translateX(-50%) scale(1);
       opacity: 1;
     }
     .win-header-title {
-      font-size: 1.55rem;
+      background: #f5b026;
+      color: #111;
+      font-size: 0.7rem;
       font-weight: 900;
-      color: #ffffff;
-      letter-spacing: 0.5px;
-      margin-bottom: 2px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      margin-bottom: 0;
     }
     .win-mult-sub {
-      font-size: 0.95rem;
-      font-weight: 800;
-      color: #f59e0b;
-      margin-bottom: 6px;
+      font-size: 0.88rem;
+      font-weight: 900;
+      color: #fde047;
+      margin-bottom: 0;
     }
     .win-cash-val {
-      font-size: 1.15rem;
+      font-size: 0.98rem;
       font-weight: 900;
-      color: #22c55e;
+      color: #ffffff;
       display: flex;
       align-items: center;
       gap: 5px;
     }
 
-    /* Toast Notification */
+    /* Clean Pill Toast Notification */
     #toast {
       position: absolute;
-      top: 56px;
-      right: 12px;
-      background: #ef4444;
+      top: 52px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-16px);
+      background: rgba(24, 27, 42, 0.96);
+      border: 1px solid #ef4444;
       color: #fff;
-      border-radius: 8px;
-      padding: 8px 12px;
-      font-size: 0.84rem;
-      font-weight: 700;
+      border-radius: 999px;
+      padding: 7px 14px;
+      font-size: 0.8rem;
+      font-weight: 800;
       display: flex;
       align-items: center;
-      gap: 8px;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+      gap: 7px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.45);
       z-index: 120;
-      transform: translateY(-20px);
       opacity: 0;
       pointer-events: none;
-      transition: all 0.25s ease;
+      transition: all 0.22s ease;
+      white-space: nowrap;
+      max-width: 90%;
     }
     #toast.show {
-      transform: translateY(0);
+      transform: translateX(-50%) translateY(0);
       opacity: 1;
       pointer-events: auto;
     }
@@ -777,6 +808,12 @@
       color: #c5ccdf;
       cursor: pointer;
       flex-shrink: 0;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .btn-refresh.active {
+      background: #14532d;
+      border-color: #22c55e;
+      color: #86efac;
     }
     .btn-refresh:active {
       background: #444b68;
@@ -887,7 +924,7 @@
     <div class="header-right">
       <div class="balance-pill">
         <span id="bal-text">0.00</span>
-        <div class="coin-badge">Br</div>
+        <span>ETB</span>
       </div>
 
       <!-- Hamburger Menu Button -->
@@ -901,7 +938,7 @@
     </div>
   </header>
 
-  <!-- Live Win & Online Users Ticker (Screenshot 1-6) -->
+  <!-- Live Win & Online Users Ticker (Screenshot 14:26) -->
   <div class="live-feed-bar">
     <div class="live-stats">
       <span>Live wins</span>
@@ -918,8 +955,7 @@
       </div>
       <span class="player-name">distraught frog</span>
       <div class="player-win-val">
-        <div class="coin-badge" style="width:13px; height:13px; font-size:0.42rem;">Br</div>
-        <span id="ticker-win-amount">3.87</span>
+        <span id="ticker-win-amount">3.87 ETB</span>
       </div>
     </div>
   </div>
@@ -994,13 +1030,13 @@
 
   <!-- Game Canvas / World Viewport -->
   <div id="world-viewport">
-    <!-- Win Popup (Screenshot 3) -->
+    <!-- Win Popup (Clean non-blocking pill) -->
     <div id="win-modal">
       <div class="win-header-title">WIN!</div>
       <div class="win-mult-sub" id="win-mult-text">x1.50</div>
       <div class="win-cash-val">
         <span id="win-cash-text">+3.00</span>
-        <div class="coin-badge" style="width:16px; height:16px; font-size:0.5rem;">Br</div>
+        <span style="font-size:0.78rem;font-weight:900;">ETB</span>
       </div>
     </div>
 
@@ -1028,19 +1064,23 @@
     <!-- Stepper Row -->
     <div class="stepper-row">
       <button class="step-btn" onclick="setBet('MIN')">MIN</button>
-      <input type="number" id="bet-input" class="bet-input-box" value="2" min="1" max="1000" step="1">
+      <input type="number" id="bet-input" class="bet-input-box" value="10" min="1" max="1000" step="1">
       <button class="step-btn" onclick="setBet('MAX')">MAX</button>
     </div>
 
-    <!-- Quick Bet Chips -->
+    <!-- Quick Bet Chips (8-chip 2x4 Grid matching Screenshot 14:26) -->
     <div class="chips-row">
-      <button class="chip-btn" onclick="setQuickBet(4)">4 <div class="coin-badge">Br</div></button>
-      <button class="chip-btn" onclick="setQuickBet(8)">8 <div class="coin-badge">Br</div></button>
-      <button class="chip-btn" onclick="setQuickBet(12)">12 <div class="coin-badge">Br</div></button>
-      <button class="chip-btn" onclick="setQuickBet(20)">20 <div class="coin-badge">Br</div></button>
+      <button class="chip-btn" onclick="setQuickBet(5)">5 ETB</button>
+      <button class="chip-btn" onclick="setQuickBet(10)">10 ETB</button>
+      <button class="chip-btn" onclick="setQuickBet(20)">20 ETB</button>
+      <button class="chip-btn" onclick="setQuickBet(50)">50 ETB</button>
+      <button class="chip-btn" onclick="setQuickBet(100)">100 ETB</button>
+      <button class="chip-btn" onclick="setQuickBet(200)">200 ETB</button>
+      <button class="chip-btn" onclick="setQuickBet(400)">400 ETB</button>
+      <button class="chip-btn" onclick="setQuickBet(500)">500 ETB</button>
     </div>
 
-    <!-- Difficulty Selector Dropdown (Screenshot 2) -->
+    <!-- Difficulty Selector Dropdown -->
     <div class="dropdown-container" id="diff-container">
       <div class="dropdown-trigger" onclick="toggleDropdown()">
         <span id="diff-label">Easy</span>
@@ -1070,7 +1110,7 @@
 
     <!-- Action Buttons Row -->
     <div class="actions-row">
-      <button class="btn-refresh" title="Auto">
+      <button class="btn-refresh" id="btn-auto" title="Auto step" aria-label="Auto step" onclick="toggleAutoStep()">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
         </svg>
@@ -1078,13 +1118,13 @@
 
       <button id="btn-play" class="btn-play" onclick="handlePlayClick()">Play</button>
 
-      <!-- In-game controls (Screenshot 4 & 5) -->
+      <!-- In-game controls -->
       <div id="ingame-btns" class="ingame-btns-box">
         <button id="btn-cashout" class="btn-cashout" onclick="handleCashOut()">
           <span class="btn-cashout-text">CASH OUT</span>
           <span class="btn-cashout-val">
             <span id="cashout-val-num">0.00</span>
-            <div class="coin-badge" style="width:14px; height:14px; font-size:0.45rem;">Br</div>
+            <span style="font-size:0.78rem;font-weight:900;">ETB</span>
           </span>
         </button>
         <button id="btn-go" class="btn-go" onclick="handleGoStep()">GO</button>
@@ -1249,6 +1289,16 @@ let currentDifficulty = 'Easy';
 let activeRound = null;
 let currentStepIndex = 0; // 0 = start inside tunnel, 1 = lane 0 cleared
 let isStepBusy = false;
+let autoStepMode = false;
+
+function toggleAutoStep() {
+  autoStepMode = !autoStepMode;
+  const btn = document.getElementById('btn-auto');
+  if (btn) btn.classList.toggle('active', autoStepMode);
+  if (autoStepMode && !activeRound && !isStepBusy) {
+    handlePlayClick();
+  }
+}
 
 /* ==========================================================================
    4. WORLD GENERATION
@@ -1256,14 +1306,13 @@ let isStepBusy = false;
 function buildTrack() {
   const lanesBox = document.getElementById('lanes-box');
   lanesBox.innerHTML = '';
-  const mults = MULTIPLIERS[currentDifficulty];
+  const mults = MULTIPLIERS[currentDifficulty] || MULTIPLIERS.Easy;
 
   mults.forEach((m, idx) => {
     const laneDiv = document.createElement('div');
     laneDiv.className = 'lane';
     laneDiv.id = `lane-${idx}`;
 
-    // Decorative floor pavers
     const paverY1 = (idx * 57) % 180 + 30;
     const paverY2 = ((idx + 2) * 73) % 240 + 60;
 
@@ -1294,6 +1343,13 @@ function buildTrack() {
     `;
     lanesBox.appendChild(laneDiv);
   });
+
+  // Always append the right-hand finish GOAL zone for ALL difficulties
+  const finishDiv = document.createElement('div');
+  finishDiv.className = 'finish-area';
+  finishDiv.id = 'finish-area';
+  finishDiv.innerHTML = `<div class="finish-goal-badge">GOAL</div>`;
+  lanesBox.appendChild(finishDiv);
 }
 
 function updateCameraFollow(targetX) {
@@ -1322,10 +1378,9 @@ function hopChickenToLane(laneIdx, onComplete) {
   soundHop();
 
   chicken.classList.remove('jumping');
-  void chicken.offsetWidth; // force CSS reflow
+  void chicken.offsetWidth;
   chicken.classList.add('jumping');
 
-  // Exact target X within the track
   const targetX = 130 + laneIdx * 140 + 70;
   chicken.style.left = targetX + 'px';
   updateCameraFollow(targetX);
@@ -1333,6 +1388,18 @@ function hopChickenToLane(laneIdx, onComplete) {
   setTimeout(() => {
     if (onComplete) onComplete();
   }, 360);
+}
+
+function hopChickenToFinish(laneCount, onComplete) {
+  const chicken = document.getElementById('chicken');
+  soundHop();
+  chicken.classList.remove('jumping');
+  void chicken.offsetWidth;
+  chicken.classList.add('jumping');
+  const targetX = 130 + laneCount * 140 + 70;
+  chicken.style.left = targetX + 'px';
+  updateCameraFollow(targetX);
+  setTimeout(() => { if (onComplete) onComplete(); }, 340);
 }
 
 /* ==========================================================================
@@ -1362,7 +1429,9 @@ async function resumeOpenRound() {
     if (disc) disc.classList.add('passed');
   }
   if (currentStepIndex > 0) {
-    const targetX = 130 + (currentStepIndex - 1) * 140 + 70;
+    const mults = MULTIPLIERS[currentDifficulty] || MULTIPLIERS.Easy;
+    const clampedIdx = Math.min(currentStepIndex - 1, mults.length - 1);
+    const targetX = 130 + clampedIdx * 140 + 70;
     document.getElementById('chicken').style.left = targetX + 'px';
     updateCameraFollow(targetX);
   }
@@ -1380,7 +1449,7 @@ async function handlePlayClick() {
 
   const bet = parseFloat(document.getElementById('bet-input').value) || 0;
   if (bet < 1 || bet > 1000) {
-    showToast("Bet must be between 1 and 1000 Br");
+    showToast("Bet must be between 1 and 1000 ETB");
     return;
   }
   if (bet > serverBalance) {
@@ -1487,14 +1556,26 @@ async function performStep() {
       updateCashOutDisplay();
 
       if (res.state === 'GOAL') {
-        triggerWinSequence(res.multiplier, res.payout, res.newBalance);
+        autoStepMode = false;
+        const autoBtn = document.getElementById('btn-auto');
+        if (autoBtn) autoBtn.classList.remove('active');
+        const totalLanes = (MULTIPLIERS[currentDifficulty] || []).length;
+        hopChickenToFinish(totalLanes, () => {
+          triggerWinSequence(res.multiplier, res.payout, res.newBalance);
+        });
       } else {
         isStepBusy = false;
         goBtn.classList.remove('btn-disabled');
         cashBtn.classList.remove('btn-disabled');
+        if (autoStepMode && activeRound) {
+          setTimeout(() => { if (autoStepMode && activeRound && !isStepBusy) performStep(); }, 480);
+        }
       }
     });
   } else {
+    autoStepMode = false;
+    const autoBtn = document.getElementById('btn-auto');
+    if (autoBtn) autoBtn.classList.remove('active');
     hopChickenToLane(stepToExecute, () => {
       const fire = document.getElementById(`fire-${stepToExecute}`);
       if (fire) fire.classList.add('active');

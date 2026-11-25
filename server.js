@@ -351,6 +351,7 @@ app.get('/', (_q, res) => res.sendFile(path.join(__dirname, 'homepage.html'), { 
 app.get(['/admin', '/betadmin', '/betadmin.html'], (_q, res) => res.sendFile(path.join(__dirname, 'betadmin.html'), { maxAge: 60 * 1000 }));
 app.get('/homepage.html', (_q, res) => res.sendFile(path.join(__dirname, 'homepage.html'), { maxAge: 60 * 1000 }));
 app.get('/game-bridge.js', (_q, res) => res.sendFile(path.join(__dirname, 'game-bridge.js'), { maxAge: 300 * 1000 }));
+app.use('/assets', express.static(path.join(__dirname, 'public', 'assets'), { maxAge: '7d' }));
 
 // ---------------------------------------------------------------- public
 app.get('/api/ping', (_q, res) => res.json({ status: 'OK', timestamp: Date.now() }));

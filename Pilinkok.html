@@ -521,21 +521,22 @@
     /* Toast */
     #toast-msg {
       position: absolute;
-      top: 50px;
+      top: 14px;
       left: 50%;
       transform: translateX(-50%) translateY(-20px);
-      background: rgba(24, 18, 48, 0.95);
-      border: 1px solid #ff3366;
+      background: rgba(15, 19, 36, 0.94);
+      border: 1px solid rgba(255, 255, 255, 0.16);
       color: #fff;
-      padding: 8px 16px;
-      border-radius: 20px;
+      padding: 8px 18px;
+      border-radius: 999px;
       font-size: 12px;
       font-weight: 700;
       pointer-events: none;
       opacity: 0;
       transition: all 0.25s ease;
       z-index: 1000;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(10px);
       text-align: center;
       white-space: nowrap;
     }

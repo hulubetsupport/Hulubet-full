@@ -563,25 +563,27 @@
       font-weight: 700;
     }
 
-    /* Error Toast */
+    /* Sleek Top Pill Toast */
     #hudToast {
       position: fixed;
-      bottom: 24px;
+      top: 14px;
       left: 50%;
-      transform: translateX(-50%) translateY(120px);
-      background: #1e293b;
-      border-left: 4px solid var(--roulette-red);
+      transform: translateX(-50%) translateY(-24px);
+      background: rgba(15, 23, 38, 0.94);
+      border: 1px solid rgba(255, 255, 255, 0.16);
       color: #fff;
-      padding: 10px 18px;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 600;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+      padding: 8px 18px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+      backdrop-filter: blur(10px);
       opacity: 0;
       transition: transform 0.25s ease, opacity 0.25s ease;
       z-index: 1000;
       pointer-events: none;
       max-width: 90%;
+      white-space: nowrap;
       text-align: center;
     }
     #hudToast.visible {

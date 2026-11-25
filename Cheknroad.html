@@ -225,6 +225,42 @@
       z-index: 4;
     }
 
+    /* Sidewalk Finish Area (GOAL for all difficulties) */
+    .finish-sidewalk {
+      width: 140px;
+      height: 100%;
+      background: var(--sidewalk);
+      position: relative;
+      border-left: 6px solid #22c55e;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .finish-grass {
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 44px;
+      background: var(--grass);
+      border-left: 3px solid #6b9e30;
+    }
+    .goal-badge {
+      position: relative;
+      z-index: 4;
+      background: #16a34a;
+      color: #ffffff;
+      font-weight: 900;
+      font-size: 0.78rem;
+      letter-spacing: 1px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 2px solid #86efac;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+      margin-right: 26px;
+    }
+
     /* Lanes */
     .lane {
       width: 130px;
@@ -240,10 +276,21 @@
       position: absolute;
       left: 50%;
       transform: translateX(-50%);
-      width: 80px;
+      width: 78px;
       z-index: 8;
       top: -190px;
       will-change: top;
+      display: flex;
+      justify-content: center;
+    }
+    .lane-vehicle-img {
+      width: 74px;
+      height: auto;
+      max-height: 162px;
+      object-fit: contain;
+      display: block;
+      pointer-events: none;
+      filter: drop-shadow(0 6px 8px rgba(0,0,0,0.4));
     }
 
     /* Stopped at Breaker Barricade (strictly above chicken crossing zone) */
@@ -433,29 +480,32 @@
       color: #fff;
     }
 
-    /* Error Toast */
+    /* Clean Pill Toast */
     #toast {
       position: absolute;
-      top: 58px;
-      right: 12px;
-      background: #ef4444;
+      top: 52px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-16px);
+      background: rgba(24, 26, 34, 0.96);
+      border: 1px solid #ef4444;
       color: #fff;
-      border-radius: 8px;
-      padding: 8px 12px;
-      font-size: 0.85rem;
-      font-weight: 700;
+      border-radius: 999px;
+      padding: 7px 14px;
+      font-size: 0.8rem;
+      font-weight: 800;
       display: flex;
       align-items: center;
-      gap: 8px;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+      gap: 7px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.45);
       z-index: 100;
-      transform: translateY(-20px);
       opacity: 0;
       pointer-events: none;
-      transition: all 0.25s ease;
+      transition: all 0.22s ease;
+      white-space: nowrap;
+      max-width: 90%;
     }
     #toast.show {
-      transform: translateY(0);
+      transform: translateX(-50%) translateY(0);
       opacity: 1;
       pointer-events: auto;
     }
@@ -1194,48 +1244,21 @@ let laneVehicles = [];
 let lastTrafficAt = performance.now();
 
 /* ==========================================================================
-   4. SVG VEHICLES & BARRICADE (BREAKER)
+   4. REAL CAR PNG SPRITES & BARRICADE (BREAKER)
    ========================================================================== */
-function getYellowTruckSvg() {
-  return `
-    <svg width="80" height="150" viewBox="0 0 80 150">
-      <rect x="6" y="24" width="68" height="120" rx="6" fill="#1e293b"/>
-      <rect x="8" y="26" width="64" height="60" rx="4" fill="#0f172a"/>
-      <text x="40" y="60" fill="#f59e0b" font-weight="900" font-size="12" text-anchor="middle" font-family="sans-serif">iN OUT</text>
-      <rect x="10" y="86" width="60" height="54" rx="8" fill="#f59e0b"/>
-      <rect x="16" y="92" width="48" height="22" rx="4" fill="#38bdf8"/>
-      <circle cx="20" cy="136" r="4" fill="#fef08a"/>
-      <circle cx="60" cy="136" r="4" fill="#fef08a"/>
-      <rect x="4" y="94" width="6" height="10" rx="2" fill="#475569"/>
-      <rect x="70" y="94" width="6" height="10" rx="2" fill="#475569"/>
-    </svg>`;
-}
+const CAR_SPRITE_URLS = [
+  '/assets/aistudio/truck2_bd1dc0c4.png',
+  '/assets/aistudio/ice_cream_9167f9c5.png',
+  '/assets/aistudio/green_truck_8b497334.png',
+  '/assets/aistudio/police_car_8b902f78.png',
+  '/assets/aistudio/fireengine_d52986f1.png',
+  '/assets/aistudio/yellow_taxi_8ac34cb2.png',
+  '/assets/aistudio/taxi2_3ab5f259.png'
+];
 
-function getFireEngineSvg() {
-  return `
-    <svg width="76" height="160" viewBox="0 0 76 160">
-      <rect x="8" y="10" width="60" height="140" rx="8" fill="#dc2626"/>
-      <rect x="14" y="112" width="48" height="20" rx="4" fill="#93c5fd"/>
-      <circle cx="18" cy="106" r="4" fill="#3b82f6"/>
-      <circle cx="58" cy="106" r="4" fill="#3b82f6"/>
-      <rect x="24" y="18" width="28" height="80" rx="2" fill="#cbd5e1" stroke="#475569" stroke-width="2"/>
-      <line x1="24" y1="32" x2="52" y2="32" stroke="#475569" stroke-width="2"/>
-      <line x1="24" y1="46" x2="52" y2="46" stroke="#475569" stroke-width="2"/>
-      <line x1="24" y1="60" x2="52" y2="60" stroke="#475569" stroke-width="2"/>
-      <line x1="24" y1="74" x2="52" y2="74" stroke="#475569" stroke-width="2"/>
-      <line x1="24" y1="88" x2="52" y2="88" stroke="#475569" stroke-width="2"/>
-      <rect x="12" y="142" width="52" height="8" rx="2" fill="#e2e8f0"/>
-    </svg>`;
-}
-
-function getIceCreamTruckSvg() {
-  return `
-    <svg width="76" height="150" viewBox="0 0 76 150">
-      <rect x="8" y="16" width="60" height="124" rx="8" fill="#38bdf8"/>
-      <rect x="8" y="16" width="60" height="40" rx="4" fill="#f472b6"/>
-      <rect x="14" y="100" width="48" height="20" rx="4" fill="#bae6fd"/>
-      <rect x="12" y="130" width="52" height="6" rx="2" fill="#cbd5e1"/>
-    </svg>`;
+function getCarSpriteHtml(idx) {
+  const src = CAR_SPRITE_URLS[idx % CAR_SPRITE_URLS.length];
+  return `<img src="${src}" alt="Vehicle" class="lane-vehicle-img" draggable="false">`;
 }
 
 function getBarricadeSvg() {
@@ -1257,19 +1280,16 @@ function buildTrack() {
   const lanesBox = document.getElementById('lanes-box');
   lanesBox.innerHTML = '';
   laneVehicles = [];
-  const mults = MULTIPLIERS[currentDifficulty];
+  const mults = MULTIPLIERS[currentDifficulty] || MULTIPLIERS.Easy;
 
   mults.forEach((m, idx) => {
     const laneDiv = document.createElement('div');
     laneDiv.className = 'lane';
     laneDiv.id = `lane-${idx}`;
 
-    const carTypes = [getYellowTruckSvg(), getFireEngineSvg(), getIceCreamTruckSvg()];
-    const chosenCar = carTypes[idx % carTypes.length];
-
     laneDiv.innerHTML = `
       <div class="lane-vehicle" id="veh-${idx}">
-        ${chosenCar}
+        ${getCarSpriteHtml(idx)}
       </div>
 
       <div class="lane-barricade" id="barricade-${idx}">
@@ -1289,10 +1309,20 @@ function buildTrack() {
       idx,
       el,
       y: initialY,
-      state: 'driving', // 'driving' | 'stopped' | 'crash'
+      state: 'driving',
       speedMult: 0.9 + (idx % 3) * 0.12
     });
   });
+
+  // Always append the right-hand finish GOAL sidewalk for ALL difficulties
+  const finishDiv = document.createElement('div');
+  finishDiv.className = 'finish-sidewalk';
+  finishDiv.id = 'finish-sidewalk';
+  finishDiv.innerHTML = `
+    <div class="finish-grass"></div>
+    <div class="goal-badge">GOAL</div>
+  `;
+  lanesBox.appendChild(finishDiv);
 }
 
 function tickTraffic(now) {
@@ -1380,11 +1410,8 @@ function hopChickenToLane(laneIdx, onComplete) {
   void chicken.offsetWidth; // force reflow
   chicken.classList.add('jumping');
 
-  // Exact target X within the track
   const targetX = 140 + laneIdx * 130 + 65;
   chicken.style.left = targetX + 'px';
-
-  // Smooth camera centering
   updateCameraFollow(targetX);
 
   setTimeout(() => {
@@ -1397,6 +1424,18 @@ function hopChickenToLane(laneIdx, onComplete) {
 
     if (onComplete) onComplete();
   }, 360);
+}
+
+function hopChickenToFinish(laneCount, onComplete) {
+  const chicken = document.getElementById('chicken');
+  soundHop();
+  chicken.classList.remove('jumping');
+  void chicken.offsetWidth;
+  chicken.classList.add('jumping');
+  const targetX = 140 + laneCount * 130 + 52;
+  chicken.style.left = targetX + 'px';
+  updateCameraFollow(targetX);
+  setTimeout(() => { if (onComplete) onComplete(); }, 340);
 }
 
 /* ==========================================================================
@@ -1457,13 +1496,14 @@ async function resumeOpenRound() {
     }
   }
   if (currentStepIndex > 0) {
-    const laneIdx = currentStepIndex - 1;
+    const mults = MULTIPLIERS[currentDifficulty] || MULTIPLIERS.Easy;
+    const laneIdx = Math.min(currentStepIndex - 1, mults.length - 1);
     const chicken = document.getElementById('chicken');
     const bubble = document.getElementById('mult-bubble');
     const targetX = 140 + laneIdx * 130 + 65;
     chicken.style.left = targetX + 'px';
     updateCameraFollow(targetX);
-    const m = MULTIPLIERS[currentDifficulty][laneIdx];
+    const m = mults[laneIdx];
     bubble.textContent = `${m.toFixed(2)}x`;
     bubble.style.display = 'block';
   }
@@ -1602,7 +1642,10 @@ async function performStep() {
       updateCashOutLabel();
 
       if (res.state === 'GOAL') {
-        completeWin(res.payout, res.newBalance);
+        const totalLanes = (MULTIPLIERS[currentDifficulty] || []).length;
+        hopChickenToFinish(totalLanes, () => {
+          completeWin(res.payout, res.newBalance);
+        });
       } else {
         isStepBusy = false;
         goBtn.classList.remove('btn-disabled');

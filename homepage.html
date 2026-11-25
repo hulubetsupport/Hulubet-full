@@ -1453,6 +1453,62 @@ body, html {
   from { opacity: 0; transform: translateY(28px); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* Purple Amharic Invite Promo Modal (14:26 Screenshot) */
+.invite-promo-card {
+  width: min(90vw, 344px);
+  border-radius: 22px;
+  overflow: hidden;
+  position: relative;
+  background-color: #3b0764;
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px),
+    radial-gradient(circle at 50% 30%, #6d28d9 0%, #4c1d95 45%, #2e1065 100%);
+  background-size: 22px 22px, 100% 100%;
+  border: 1px solid rgba(192, 132, 252, 0.35);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.72);
+  color: #fff;
+  text-align: center;
+  margin: auto;
+  animation: sheetRise 0.28s var(--ease-2027) both;
+}
+.invite-promo-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(15, 23, 42, 0.65);
+  color: #e2e8f0;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.invite-promo-body {
+  padding: 28px 20px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.invite-promo-cta {
+  width: 100%;
+  border: none;
+  background: #fde047;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 900;
+  padding: 15px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.invite-promo-cta:active { filter: brightness(0.95); }
 .sheet-close-x {
   position: absolute;
   top: 12px;
@@ -1951,16 +2007,20 @@ body.is-tg-app .browser-back-pill { display: none !important; }
   <div class="screen-view" id="tab-invite">
     <div style="padding:12px;display:flex;flex-direction:column;gap:12px;">
       <div style="background:var(--bg-card);border:1px solid var(--border-active);border-radius:var(--radius-lg);padding:18px;display:flex;flex-direction:column;gap:10px;">
-        <span style="color:var(--emerald-primary);font-size:10px;font-weight:800;letter-spacing:0.06em;">REFERRAL PROGRAM</span>
-        <div style="font-family:'Outfit';font-size:22px;font-weight:900;" id="inviteHeadlineTxt">Invite friends. Earn Br 50.</div>
-        <p style="font-size:11.5px;color:var(--text-muted);" id="inviteSubTxt">Earn Br 50 whenever an invited friend completes their first deposit. Paid automatically!</p>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <span style="color:var(--emerald-primary);font-size:10px;font-weight:800;letter-spacing:0.06em;">REFERRAL PROGRAM</span>
+          <button type="button" onclick="openInvitePromoModal()" style="background:rgba(109,40,217,0.28);border:1px solid rgba(192,132,252,0.5);color:#fde047;font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:999px;cursor:pointer;">100 ብር Promo</button>
+        </div>
+        <div style="font-family:'Outfit';font-size:22px;font-weight:900;" id="inviteHeadlineTxt">Invite friends. Earn Br 100.</div>
+        <p style="font-size:11.5px;color:var(--text-muted);" id="inviteSubTxt">Earn Br 100 whenever an invited friend completes their first deposit. Paid automatically!</p>
+        <div style="background:var(--bg-deep);border:1px solid var(--border-subtle);border-radius:10px;padding:9px 12px;font-size:11px;color:var(--cyan-accent);word-break:break-all;font-family:'JetBrains Mono',monospace;" id="inviteDirectUrlTxt">https://t.me/Hulubetethbot/hulubet?startapp=vip</div>
         <div style="background:var(--bg-deep);border:1px solid var(--border-subtle);border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;font-size:11.5px;">
           <span style="color:var(--text-muted);">Friends Invited</span>
           <b class="tabular" style="color:var(--emerald-primary);" id="inviteCountTxt">0</b>
         </div>
         <div style="display:flex;gap:8px;">
           <button type="button" class="btn-emerald-huge" style="flex:1;" onclick="shareInviteLink()"><i class="fa-solid fa-share-nodes"></i> Invite friends</button>
-          <button type="button" class="btn-dark-huge" style="width:48px;padding:0;display:flex;align-items:center;justify-content:center;" onclick="copyReferralLink()"><i class="fa-regular fa-copy"></i></button>
+          <button type="button" class="btn-dark-huge" style="width:48px;padding:0;display:flex;align-items:center;justify-content:center;" aria-label="Copy referral link" onclick="copyReferralLink()"><i class="fa-regular fa-copy"></i></button>
         </div>
       </div>
     </div>
@@ -2180,7 +2240,39 @@ body.is-tg-app .browser-back-pill { display: none !important; }
       </div>
       <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px;text-align:center;">Have a promo code? Enter it below to claim bonus ETB.</p>
       <input type="text" id="promoCodeInput" class="verify-input-field" placeholder="Enter Promo Code" style="text-transform:uppercase;margin-bottom:12px;" maxlength="24">
-      <button type="button" class="btn-emerald-huge" id="btnRedeemPromo" style="width:100%;" onclick="redeemPromoCode()">Redeem Code</button>
+      <button type="button" class="btn-emerald-huge" id="btnRedeemPromo" style="width:100%;margin-bottom:8px;" onclick="redeemPromoCode()">Redeem Code</button>
+      <button type="button" class="btn-dark-huge" style="width:100%;font-size:12px;padding:10px;min-height:40px;color:#fde047;" onclick="closeModal('modalPromo'); openInvitePromoModal();">100 ብር Invite Friend Bonus ↗</button>
+    </div>
+  </div>
+
+  <!-- PURPLE AMHARIC INVITE PROMO MODAL (14:26 Screenshot) -->
+  <div class="modal-overlay" id="modalInvitePromo" style="align-items:center;z-index:340;" onclick="closeModal('modalInvitePromo')">
+    <div class="invite-promo-card" onclick="event.stopPropagation()">
+      <button type="button" class="invite-promo-close" aria-label="Close invite promo" onclick="closeModal('modalInvitePromo')">✕</button>
+      <div class="invite-promo-body">
+        <div style="font-size:20px;font-weight:800;color:#f8fafc;">ይጋብዙና ያግኙ</div>
+        <div style="font-size:38px;font-weight:900;color:#fde047;line-height:1.05;" id="invitePromoAmtTxt">100 ብር</div>
+        <div style="font-size:11px;color:#cbd5e1;font-weight:600;margin-bottom:6px;">ለእያንዳንዱ ጓደኛ</div>
+        <div style="font-size:17px;font-weight:800;line-height:1.35;color:#ffffff;">ጓደኛዎን ይጋብዙ፣<br><span id="invitePromoSubAmtTxt">100</span> ብር ጉርሻ ያግኙ!</div>
+        <div style="margin:10px 0 6px;position:relative;width:150px;height:118px;display:flex;align-items:center;justify-content:center;">
+          <svg viewBox="0 0 160 130" width="144" height="114" aria-hidden="true">
+            <ellipse cx="80" cy="70" rx="68" ry="42" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1"/>
+            <path d="M22 86 L25 92 L31 95 L25 98 L22 104 L19 98 L13 95 L19 92 Z" fill="none" stroke="#fde047" stroke-width="1.5"/>
+            <path d="M136 52 L139 58 L145 61 L139 64 L136 70 L133 64 L127 61 L133 58 Z" fill="none" stroke="#fde047" stroke-width="1.5"/>
+            <rect x="38" y="54" width="84" height="58" rx="12" fill="#eab308" stroke="#ca8a04" stroke-width="2"/>
+            <rect x="34" y="42" width="92" height="22" rx="8" fill="#facc15" stroke="#ca8a04" stroke-width="2"/>
+            <rect x="70" y="42" width="20" height="70" rx="3" fill="#3b82f6" stroke="#1d4ed8" stroke-width="1.5"/>
+            <path d="M80 42 C66 20 44 26 52 42 Z" fill="#60a5fa" stroke="#1d4ed8" stroke-width="1.5"/>
+            <path d="M80 42 C94 20 116 26 108 42 Z" fill="#3b82f6" stroke="#1d4ed8" stroke-width="1.5"/>
+            <circle cx="80" cy="42" r="7" fill="#93c5fd" stroke="#1d4ed8" stroke-width="1.5"/>
+          </svg>
+        </div>
+        <div style="font-size:10.5px;color:#cbd5e1;font-weight:600;">የመጀመሪያ የውጭ ገንዘብ ገቢ ሲያደርግ</div>
+      </div>
+      <button type="button" class="invite-promo-cta" onclick="closeModal('modalInvitePromo'); navigateToTab('invite');">
+        <span>የግብዣ ጉርሻዎችን ይመልከቱ</span>
+        <span aria-hidden="true">↗</span>
+      </button>
     </div>
   </div>
 
@@ -2809,6 +2901,10 @@ const openPromoModal = () => {
   const inp = document.getElementById('promoCodeInput');
   if (inp) inp.value = '';
   openModal('modalPromo');
+};
+const openInvitePromoModal = () => {
+  try { sessionStorage.setItem('hulubet_invite_promo_seen', '1'); } catch (_) {}
+  openModal('modalInvitePromo');
 };
 
 /* ========================================================
@@ -3722,13 +3818,20 @@ async function refreshBonusStatus(force = false) {
   const profWager = document.getElementById('profWagerLeft');
   if (profWager) profWager.innerText = wagerLeft.toFixed(2) + ' ETB';
 
-  const rb = Number(d.referralBonus ?? 50);
+  const rb = Number(d.referralBonus ?? 100);
   const invHead = document.getElementById('inviteHeadlineTxt');
   const invSub = document.getElementById('inviteSubTxt');
   const invCnt = document.getElementById('inviteCountTxt');
+  const invUrlEl = document.getElementById('inviteDirectUrlTxt');
+  const promoAmtEl = document.getElementById('invitePromoAmtTxt');
+  const promoSubAmtEl = document.getElementById('invitePromoSubAmtTxt');
   if (invHead) invHead.innerText = `Invite friends. Earn Br ${rb}.`;
   if (invSub) invSub.innerText = `Earn Br ${rb} whenever an invited friend completes their first deposit. Paid automatically!`;
   if (invCnt) invCnt.innerText = String(d.referralCount || 0);
+  if (invUrlEl) invUrlEl.innerText = getDirectMiniAppInviteLink();
+  const promoRb = Math.max(100, rb || 0);
+  if (promoAmtEl) promoAmtEl.innerText = `${promoRb} ብር`;
+  if (promoSubAmtEl) promoSubAmtEl.innerText = String(promoRb);
 
   if (d.cashback) {
     const cb = d.cashback;
@@ -3875,15 +3978,20 @@ function copyText(str) {
   });
 }
 
+function getDirectMiniAppInviteLink() {
+  const bot = (botUsername || 'Hulubetethbot').replace(/^@/, '');
+  return `https://t.me/${bot}/hulubet?startapp=${USER_ID || 'vip'}`;
+}
+
 function copyReferralLink() {
   haptic('medium');
-  const link = `https://t.me/${botUsername}?start=${USER_ID || 'vip'}`;
+  const link = getDirectMiniAppInviteLink();
   navigator.clipboard.writeText(link).then(() => toast("Referral link copied!", 'success'));
 }
 
 function shareInviteLink() {
-  const link = `https://t.me/${botUsername}?start=${USER_ID || 'vip'}`;
-  const rb = Number(bonusStatusCache?.referralBonus ?? 50);
+  const link = getDirectMiniAppInviteLink();
+  const rb = Number(bonusStatusCache?.referralBonus ?? 100);
   const text = encodeURIComponent(`Play Aviator & Sports on HuluBet and get a welcome bonus! Invite bonus ${rb} ETB: ${link}`);
   if (tg?.openTelegramLink) tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${text}`);
   else window.open(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${text}`, '_blank');
