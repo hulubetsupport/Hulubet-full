@@ -111,47 +111,92 @@ header.brand-bar{display:flex;justify-content:space-between;align-items:center;m
 /* DRAW VIEW — EXACTLY 2 ROWS (NO DUPLICATE) */
 .draw-view{display:none;width:100%;flex-direction:column;align-items:center;z-index:2;padding:12px 0 6px}
 .big-3d-ball{
-  width:clamp(74px,16vw,108px);
-  height:clamp(74px,16vw,108px);
+  position:relative;
+  width:clamp(78px,17vw,112px);
+  height:clamp(78px,17vw,112px);
   border-radius:50%;
-  border:2px solid rgba(111,152,169,.4);
-  background:radial-gradient(ellipse at 34% 19%,#657b8d 0%,#29445b 24%,#0d293e 58%,#061522 82%,#02090f 100%);
-  box-shadow:inset 0 3px 7px #ffffff65,inset 0 -8px 13px #0009,0 4px 16px #000b;
-  font-size:clamp(32px,7.5vw,52px);
+  border:2.5px solid #96b7c9;
+  background:radial-gradient(circle at 32% 22%,#597992 0%,#1f3e57 28%,#0a2338 66%,#030d18 100%);
+  box-shadow:inset 0 4px 8px rgba(255,255,255,.58),inset 0 -9px 14px rgba(0,0,0,.85),0 0 22px rgba(72,198,224,.38),0 6px 18px rgba(0,0,0,.78);
+  font-size:clamp(34px,7.8vw,52px);
   font-weight:900;
+  color:#ffffff;
+  text-shadow:0 2px 5px rgba(0,0,0,.75);
   display:flex;
   align-items:center;
   justify-content:center;
   margin-bottom:8px;
 }
+.big-3d-ball::after{
+  content:'';
+  position:absolute;
+  top:9%;
+  left:20%;
+  width:38%;
+  height:18%;
+  border-radius:50%;
+  background:radial-gradient(ellipse at center,rgba(255,255,255,.65),rgba(255,255,255,0));
+  transform:rotate(-20deg);
+  pointer-events:none;
+}
 .draw-result{width:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0}
 .draw-result-title{font-size:clamp(22px,5vw,34px);font-weight:900;letter-spacing:1px;text-transform:uppercase}
 .draw-result-title.win{color:#fff}
-.draw-result-title.try-again{color:#69c99a;margin-bottom:12px}
+.draw-result-title.try-again{color:#d1dbd8;margin-bottom:12px}
 .draw-result-amt{font-size:clamp(44px,10vw,72px);font-weight:900;color:#63c98f;line-height:1;margin:4px 0 8px;text-shadow:0 0 20px rgba(99,201,143,0.5)}
 
 /* Tray always holds the 20 balls in 2 rows of 10 */
 .drawn-tray{width:100%;max-width:760px;display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:clamp(4px,1vw,8px);padding:0 5px}
 .mini-ball{
+  position:relative;
   width:100%;
   aspect-ratio:1;
-  border:1px solid #405c6d;
+  border:1.5px solid #86a7ba;
   border-radius:50%;
-  background:radial-gradient(ellipse at 34% 18%,#647a8c 0%,#29465c 24%,#0d2a41 61%,#041321 100%);
+  background:radial-gradient(circle at 32% 20%,#5c7c96 0%,#1f3e57 30%,#0b2439 66%,#030d18 100%);
   font-size:clamp(12px,3vw,21px);
-  font-weight:800;
+  font-weight:900;
   display:flex;
   align-items:center;
   justify-content:center;
-  box-shadow:inset 0 2px 4px #ffffff70,inset 0 -4px 6px #0009,0 2px 5px #0007;
-  color:#e9f0f3;
-  animation:popIn .3s ease;
+  box-shadow:inset 0 2px 4px rgba(255,255,255,.55),inset 0 -4px 7px rgba(0,0,0,.85),0 0 10px rgba(72,198,224,.32),0 2px 6px rgba(0,0,0,.7);
+  color:#ffffff;
+  text-shadow:0 1px 2px rgba(0,0,0,.7);
+  animation:popIn .26s ease;
+}
+.mini-ball::after{
+  content:'';
+  position:absolute;
+  top:10%;
+  left:20%;
+  width:38%;
+  height:18%;
+  border-radius:50%;
+  background:radial-gradient(ellipse at center,rgba(255,255,255,.52),rgba(255,255,255,0));
+  transform:rotate(-20deg);
+  pointer-events:none;
 }
 .mini-ball.hit{
-  background:radial-gradient(circle at 35% 25%,#76edb2 0%,#159866 44%,#063b2a 88%)!important;
-  border-color:#6ce0a4!important;
-  box-shadow:inset 0 2px 4px #ffffff8a,0 0 14px #50d9939c!important;
-  color:#dffff0!important;
+  background:radial-gradient(circle at 34% 24%,#8af5be 0%,#189b68 46%,#063c2b 88%)!important;
+  border-color:#74e9ac!important;
+  box-shadow:inset 0 2px 5px rgba(255,255,255,.65),0 0 14px rgba(80,217,147,.68)!important;
+  color:#eafff4!important;
+}
+.flying-keno-ball{
+  position:fixed;
+  z-index:600;
+  border-radius:50%;
+  border:2px solid #96b7c9;
+  background:radial-gradient(circle at 32% 22%,#5c7c96 0%,#1f3e57 30%,#0b2439 66%,#030d18 100%);
+  box-shadow:inset 0 3px 6px rgba(255,255,255,.58),0 0 16px rgba(72,198,224,.45);
+  color:#fff;
+  font-weight:900;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  pointer-events:none;
+  will-change:transform,width,height,opacity;
+  transition:transform .28s cubic-bezier(.22,1,.36,1),opacity .2s ease;
 }
 
 /* GRID & CONTROLS */
@@ -255,17 +300,25 @@ header.brand-bar{display:flex;justify-content:space-between;align-items:center;m
 .toast-box.error{background:#45181b;border:1px solid #f87171;color:#ffe5e5}
 .toast-close{display:none}
 
-/* MODAL */
-.modal-overlay{position:fixed;inset:0;background:rgba(3,7,6,.85);backdrop-filter:blur(6px);z-index:999;display:none;align-items:center;justify-content:center;padding:14px}
-.modal-container{width:100%;max-width:500px;background:#202a2a;border:1px solid #365b46;border-radius:12px;display:flex;flex-direction:column;overflow:hidden}
-.modal-header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid #34433d}
-.modal-nav{display:flex;gap:6px}
-.modal-nav-btn{background:#293535;border:none;color:#aab8b2;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer}
-.modal-nav-btn.active{background:linear-gradient(180deg,#4a916a,#286044);color:#fff}
-.modal-body{padding:14px;overflow:auto;font-size:13px;color:#d3ddda;line-height:1.5}
-.paytable-grid-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:10px;text-align:center}
-.paytable-grid-table th,.paytable-grid-table td{border:1px solid #2f3e37;padding:5px 2px}
-.paytable-grid-table th{background:#172221;color:#69c99a}
+.ticket-row.won-row{background:#1b3327;border-color:#2d6146}
+.ticket-bottom-split{display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(255,255,255,.07);padding-top:6px;margin-top:2px;font-size:clamp(13px,2.6vw,18px);color:#dce4e1}
+.ticket-win-clean{color:#69c99a;font-weight:800}
+
+/* MODAL (RULES | FAIRNESS | FREE BET matching ref 160048/160052) */
+.modal-overlay{position:fixed;inset:0;background:rgba(3,7,6,.86);backdrop-filter:blur(6px);z-index:999;display:none;align-items:center;justify-content:center;padding:10px}
+.modal-container{width:100%;max-width:500px;max-height:88vh;background:#141b1b;border:1px solid #2b4437;border-radius:12px;display:flex;flex-direction:column;overflow:hidden}
+.modal-header{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-bottom:1px solid #253430}
+.modal-top-close-row{display:flex;justify-content:flex-end}
+.modal-nav{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%}
+.modal-nav-btn{background:#1e2829;border:1px solid #293637;color:#c9d4d0;padding:9px 6px;border-radius:7px;font-size:11px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px}
+.modal-nav-btn.active{background:linear-gradient(180deg,#2d5841,#183526);border-color:#4b996f;color:#ffffff}
+.modal-body{padding:14px;overflow:auto;font-size:12.5px;color:#d6e0dd;line-height:1.52}
+.modal-body h4{color:#fff;font-size:16px;font-weight:800;margin:14px 0 6px}
+.modal-body p{margin-bottom:8px}
+.paytable-grid-table{width:100%;border-collapse:collapse;margin:10px 0 12px;font-size:10.5px;text-align:center;background:#1a2223}
+.paytable-grid-table th,.paytable-grid-table td{border:1px solid #2a3736;padding:5px 2px}
+.paytable-grid-table th{background:#141a1b;color:#dce4e1;font-weight:800}
+.paytable-grid-table td.hit-col{background:#141a1b;color:#dce4e1;font-weight:800}
 @keyframes popIn{0%{transform:scale(.3);opacity:0}100%{transform:scale(1);opacity:1}}
 </style>
 </head>
@@ -412,15 +465,18 @@ header.brand-bar{display:flex;justify-content:space-between;align-items:center;m
   </div>
 </div>
 
-<!-- MODAL -->
+<!-- MODAL (RULES | FAIRNESS | FREE BET matching ref 160048/160052) -->
 <div class="modal-overlay" id="rules-modal">
   <div class="modal-container">
     <div class="modal-header">
-      <div class="modal-nav">
-        <button class="modal-nav-btn active" id="modal-nav-rules" onclick="switchModalTab('rules')">RULES</button>
-        <button class="modal-nav-btn" id="modal-nav-paytable" onclick="switchModalTab('paytable')">PAYTABLE</button>
+      <div class="modal-top-close-row">
+        <button class="icon-btn" onclick="closeRulesModal()" aria-label="Close"><svg style="width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2.4" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
-      <button class="icon-btn" onclick="closeRulesModal()"><svg style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <div class="modal-nav">
+        <button class="modal-nav-btn active" id="modal-nav-rules" onclick="switchModalTab('rules')"><span>ⓘ</span><span>RULES</span></button>
+        <button class="modal-nav-btn" id="modal-nav-fairness" onclick="switchModalTab('fairness')"><span>✓</span><span>FAIRNESS</span></button>
+        <button class="modal-nav-btn" id="modal-nav-freebet" onclick="switchModalTab('freebet')"><span>🎁</span><span>FREE BET</span></button>
+      </div>
     </div>
     <div class="modal-body" id="modal-content"></div>
   </div>
@@ -522,7 +578,7 @@ const ROUND_ID_BASE = 893718000;
 function getGlobalRound() {
   const nowMs = Date.now() + serverOffsetMs;
   const nowSec = Math.floor(nowMs / 1000);
-  const roundId = ROUND_ID_BASE + (Math.floor(nowSec / TOTAL_CYCLE) % 10000);
+  const roundId = ROUND_ID_BASE + (Math.floor(nowSec / TOTAL_CYCLE) % 100000);
   const cycleSec = nowSec % TOTAL_CYCLE;
   const isDrawing = cycleSec >= BET_WINDOW;
   const remainingSec = isDrawing ? (TOTAL_CYCLE - cycleSec) : (BET_WINDOW - cycleSec);
@@ -532,18 +588,18 @@ function getGlobalRound() {
   return { roundId, cycleSec, isDrawing, remainingSec, nowMs, betClosesAtMs };
 }
 
-// ---------------- 4. Paytable ----------------
+// ---------------- 4. Paytable (exact ref 160048) ----------------
 let paytable = {
-  "1": { 1: 3.0 },
-  "2": { 2: 11.5 },
+  "1": { 1: 3.5 },
+  "2": { 1: 1.0, 2: 10.0 },
   "3": { 2: 2.0, 3: 50.0 },
-  "4": { 2: 1.0, 3: 6.0, 4: 62.0 },
-  "5": { 2: 0.5, 3: 2.0, 4: 16.5, 5: 233.0 },
-  "6": { 3: 1.5, 4: 8.0, 5: 49.0, 6: 814.0 },
-  "7": { 3: 1.5, 4: 3.5, 5: 18.5, 6: 91.0, 7: 1828.0 },
-  "8": { 4: 3.5, 5: 11.5, 6: 57.0, 7: 341.0, 8: 5684.0 },
-  "9": { 4: 2.0, 5: 5.5, 6: 26.0, 7: 158.0, 8: 1056.0, 9: 10561.0 },
-  "10": { 0: 1.0, 5: 3.5, 6: 18.5, 7: 98.0, 8: 490.0, 9: 3061.0, 10: 12243.0 }
+  "4": { 2: 1.5, 3: 10.0, 4: 80.0 },
+  "5": { 2: 1.0, 3: 3.0, 4: 30.0, 5: 150.0 },
+  "6": { 3: 2.0, 4: 15.0, 5: 60.0, 6: 500.0 },
+  "7": { 0: 1.0, 3: 2.0, 4: 4.0, 5: 20.0, 6: 80.0, 7: 1000.0 },
+  "8": { 0: 1.0, 4: 5.0, 5: 15.0, 6: 50.0, 7: 200.0, 8: 2000.0 },
+  "9": { 0: 2.0, 4: 2.0, 5: 10.0, 6: 25.0, 7: 125.0, 8: 1000.0, 9: 5000.0 },
+  "10": { 0: 2.0, 5: 5.0, 6: 30.0, 7: 100.0, 8: 300.0, 9: 2000.0, 10: 10000.0 }
 };
 
 async function initPaytable() {
@@ -565,10 +621,13 @@ function safePicks(val) {
 let currentBetAmount = 2, selectedNumbers = new Set();
 let isDrawingPhase = false, isRequestInFlight = false;
 let myActiveTickets = [], fullHistory = [];
+let pendingRoundPayout = 0;
 let drawStatsHistory = [];
 let lastExecutedRoundId = 0;
+let fetchedDrawRoundId = 0;
 let currentRoundDrawnBalls = [];
 let isSettledThisRound = false;
+let resultHoldUntilMs = 0;
 
 let dynamicAllCount = 121;
 let dynamicLiveTickets = [], simTicketSeq = 100;
@@ -769,7 +828,7 @@ async function placeKenoTicket() {
     body: JSON.stringify({
       gameName: 'KenoFast',
       betAmount: stake,
-      clientData: { picks },
+      clientData: { picks, roundId },
       idempotencyKey
     })
   });
@@ -783,19 +842,26 @@ async function placeKenoTicket() {
     return;
   }
 
-  serverBalance = res.newBalance;
-  shownBalance = res.newBalance;
+  if (res.visualOutcome && Array.isArray(res.visualOutcome.drawnNumbers) && res.visualOutcome.drawnNumbers.length === 20) {
+    currentRoundDrawnBalls = safePicks(res.visualOutcome.drawnNumbers);
+    fetchedDrawRoundId = roundId;
+  }
+
+  pendingRoundPayout += (Number(res.payout) || 0);
+  serverBalance = Number(res.newBalance || 0);
+  shownBalance = Math.max(0, serverBalance - pendingRoundPayout);
   renderBalanceDisplay();
 
   const tIndex = myActiveTickets.length + 1;
   const ticketObj = {
-    id: res.ticketId || `tkt_${Date.now()}`,
+    id: res.ticketId || res.betId || `tkt_${Date.now()}`,
     num: tIndex,
     picks: picks,
     amount: stake,
     roundId: roundId,
     status: 'Waiting',
-    payout: 0
+    payout: Number(res.payout || 0),
+    drawnNumbers: res.visualOutcome && Array.isArray(res.visualOutcome.drawnNumbers) ? res.visualOutcome.drawnNumbers : []
   };
   myActiveTickets.push(ticketObj);
   renderActiveUserTickets();
@@ -820,9 +886,10 @@ function renderActiveUserTickets() {
 
   myActiveTickets.slice().reverse().forEach(t => {
     const picksArr = safePicks(t.picks);
+    const drawnHighlight = isSettledThisRound ? currentRoundDrawnBalls : Array.from({ length: $('drawn-tray')?.children?.length || 0 }, (_, k) => currentRoundDrawnBalls[k]);
     const slots = Array.from({ length: 10 }, (_, i) => {
       const p = picksArr[i];
-      const isHit = currentRoundDrawnBalls.includes(p);
+      const isHit = drawnHighlight.includes(p);
       return p !== undefined 
         ? `<div class="ticket-slot ${isHit ? 'hit' : ''}" id="uslot_${t.id}_${p}">${p}</div>` 
         : '<div class="ticket-slot empty"></div>';
@@ -834,7 +901,7 @@ function renderActiveUserTickets() {
 
     let rightText = `<span class="status-waiting" id="uwin_${t.id}">Waiting</span>`;
     if (t.status === 'WON' && t.payout > 0) {
-      rightText = `<span class="ticket-win-val" id="uwin_${t.id}">${t.payout}</span>`;
+      rightText = `<span class="ticket-win-val" id="uwin_${t.id}">${Number(t.payout).toFixed(2).replace(/\.00$/, '')}</span>`;
     } else if (t.status === 'LOST') {
       rightText = `<span></span>`;
     }
@@ -860,8 +927,61 @@ function generateDeterministicBalls(roundId) {
   return pool.slice(0, 20);
 }
 
+function animateBallToTraySlot(ballNum, isUserHit) {
+  const tray = $('drawn-tray');
+  if (!tray) return;
+  const big = $('current-drawn-ball');
+  const m = document.createElement('div');
+  m.id = 'ball_slot_' + ballNum;
+  m.className = 'mini-ball' + (isUserHit ? ' hit' : '');
+  m.textContent = ballNum;
+  m.style.visibility = 'hidden';
+  tray.appendChild(m);
+
+  const revealSlot = () => {
+    m.style.visibility = 'visible';
+  };
+
+  if (!big || big.style.display === 'none') {
+    revealSlot();
+    return;
+  }
+
+  const fromRect = big.getBoundingClientRect();
+  const toRect = m.getBoundingClientRect();
+  if (!fromRect.width || !toRect.width) {
+    revealSlot();
+    return;
+  }
+
+  const floater = document.createElement('div');
+  floater.className = 'flying-keno-ball';
+  floater.textContent = ballNum;
+  floater.style.left = fromRect.left + 'px';
+  floater.style.top = fromRect.top + 'px';
+  floater.style.width = fromRect.width + 'px';
+  floater.style.height = fromRect.height + 'px';
+  floater.style.fontSize = Math.max(14, Math.round(fromRect.width * 0.42)) + 'px';
+  document.body.appendChild(floater);
+
+  const dx = (toRect.left + toRect.width / 2) - (fromRect.left + fromRect.width / 2);
+  const dy = (toRect.top + toRect.height / 2) - (fromRect.top + fromRect.height / 2);
+  const scale = toRect.width / fromRect.width;
+
+  requestAnimationFrame(() => {
+    floater.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${scale})`;
+  });
+
+  setTimeout(() => {
+    revealSlot();
+    floater.remove();
+  }, 290);
+}
+
 // ---------------- 10. 24/7 Clock Orchestrator ----------------
 setInterval(async () => {
+  if (Date.now() < resultHoldUntilMs) return;
+
   const round = getGlobalRound();
   if ($('lbl-round-id')) $('lbl-round-id').textContent = round.roundId;
 
@@ -886,19 +1006,19 @@ setInterval(async () => {
       if ($('lbl-all-count')) $('lbl-all-count').textContent = dynamicAllCount.toLocaleString();
       const hadActiveTickets = myActiveTickets.length > 0;
       myActiveTickets = [];
+      pendingRoundPayout = 0;
       renderActiveUserTickets();
       initPlayerFeed();
       $('btn-bet').disabled = false;
       if (hadActiveTickets) refreshBalance();
 
-      // Reset draw view
       if ($('current-drawn-ball')) {
         $('current-drawn-ball').style.display = 'flex';
         $('current-drawn-ball').textContent = '?';
       }
       if ($('draw-result')) $('draw-result').innerHTML = '';
       if ($('drawn-tray')) $('drawn-tray').innerHTML = '';
-      currentRoundDrawnBalls = [];
+      if (fetchedDrawRoundId !== round.roundId) currentRoundDrawnBalls = [];
     }
 
     if (remSec % 2 === 0) {
@@ -926,7 +1046,8 @@ setInterval(async () => {
     const tEl = $('stage-timer');
     tEl.innerHTML = `${currentBallNum < 10 ? '0' + currentBallNum : currentBallNum}<span class="timer-slash"> / </span>20`;
 
-    if (currentRoundDrawnBalls.length !== 20) {
+    if (currentRoundDrawnBalls.length !== 20 || fetchedDrawRoundId !== round.roundId) {
+      fetchedDrawRoundId = round.roundId;
       try {
         const cur = await api('/api/keno/round/current');
         if (cur && Array.isArray(cur.drawnNumbers) && cur.drawnNumbers.length === 20) {
@@ -939,50 +1060,53 @@ setInterval(async () => {
       }
     }
 
-    // 🌟 ኳሶቹ ወደ #drawn-tray ብቻ ይገባሉ (ከ 20 በላይ አይደገሙም)
+    const tray = $('drawn-tray');
     const big = $('current-drawn-ball');
-    if (drawSec < 20 && currentRoundDrawnBalls[drawSec]) {
-      const b = currentRoundDrawnBalls[drawSec];
-      if (big) {
+    while (tray && tray.children.length < Math.min(20, drawSec + 1) && currentRoundDrawnBalls[tray.children.length]) {
+      const idx = tray.children.length;
+      const b = currentRoundDrawnBalls[idx];
+      const isUserHit = myActiveTickets.some(t => safePicks(t.picks).includes(b));
+      const isCatchUp = idx < drawSec;
+
+      if (big && !isCatchUp) {
         big.textContent = b;
         big.style.animation = 'none'; void big.offsetWidth;
-        big.style.animation = 'popIn .35s cubic-bezier(.175,.885,.32,1.275)';
+        big.style.animation = 'popIn .26s cubic-bezier(.175,.885,.32,1.275)';
       }
 
-      const tray = $('drawn-tray');
-      if (tray && tray.children.length <= drawSec) {
-        const isUserHit = myActiveTickets.some(t => safePicks(t.picks).includes(b));
+      if (isCatchUp) {
         const m = document.createElement('div');
         m.id = 'ball_slot_' + b;
         m.className = 'mini-ball' + (isUserHit ? ' hit' : '');
         m.textContent = b;
         tray.appendChild(m);
-
-        myActiveTickets.forEach(t => {
-          if (safePicks(t.picks).includes(b)) {
-            const s = $(`uslot_${t.id}_${b}`);
-            if (s) s.classList.add('hit');
-          }
-        });
-
-        dynamicLiveTickets.forEach(t => {
-          if (safePicks(t.picks).includes(b)) {
-            const ds = $(`dslot_${t.id}_${b}`);
-            if (ds) ds.classList.add('hit');
-          }
-        });
+      } else {
+        animateBallToTraySlot(b, isUserHit);
       }
+
+      myActiveTickets.forEach(t => {
+        if (safePicks(t.picks).includes(b)) {
+          const s = $(`uslot_${t.id}_${b}`);
+          if (s) s.classList.add('hit');
+        }
+      });
+
+      dynamicLiveTickets.forEach(t => {
+        if (safePicks(t.picks).includes(b)) {
+          const ds = $(`dslot_${t.id}_${b}`);
+          if (ds) ds.classList.add('hit');
+        }
+      });
     }
 
-    // 3. 20ኛው ኳስ ሲወድቅ ማጠቃለያ
     if (drawSec >= 19 && !isSettledThisRound) {
       isSettledThisRound = true;
-      settleRoundLive(round.roundId, currentRoundDrawnBalls);
+      setTimeout(() => settleRoundLive(round.roundId, currentRoundDrawnBalls), 320);
     }
   }
 }, 1000);
 
-// ---------------- 11. 🏆 Settlement (NO DUPLICATE BALLS & SILENT NON-BETTOR) ----------------
+// ---------------- 11. 🏆 Settlement (>= 2000ms Banner Hold & Highlighting) ----------------
 async function settleRoundLive(roundId, drawn) {
   $('stage-timer').innerHTML = `20<span class="timer-slash"> / </span>20`;
   $('radar-arena').classList.remove('drawing');
@@ -993,22 +1117,26 @@ async function settleRoundLive(roundId, drawn) {
 
   let totalWin = 0;
   const hasUserPlayed = myActiveTickets.length > 0;
+  pendingRoundPayout = 0;
 
   if (hasUserPlayed) {
     myActiveTickets.forEach(t => {
       const picksArr = safePicks(t.picks);
       const hits = picksArr.filter(p => drawn.includes(p)).length;
       const mult = (paytable[String(picksArr.length)] || {})[hits] || 0;
-      const win = Math.min(MAX_PAYOUT, Math.round((t.amount || 2) * mult * 100) / 100);
+      const win = t.payout > 0 ? t.payout : Math.min(MAX_PAYOUT, Math.round((t.amount || 2) * mult * 100) / 100);
 
       t.hits = hits;
       t.payout = win;
       t.status = win > 0 ? 'WON' : 'LOST';
+      t.drawnNumbers = drawn;
       totalWin += win;
 
       fullHistory.unshift({
         roundId: roundId,
+        game: 'KenoFast',
         picks: picksArr,
+        drawnNumbers: drawn,
         amount: t.amount || 2,
         hits: hits,
         win: win,
@@ -1019,6 +1147,8 @@ async function settleRoundLive(roundId, drawn) {
 
     renderActiveUserTickets();
 
+    shownBalance = serverBalance;
+    renderBalanceDisplay();
     try {
       const userRes = await api('/api/user/init');
       if (userRes && userRes.success) {
@@ -1029,11 +1159,9 @@ async function settleRoundLive(roundId, drawn) {
     } catch (e) {}
   }
 
-  // Hide big ball
   const bigBall = $('current-drawn-ball');
   if (bigBall) bigBall.style.display = 'none';
 
-  // Highlight hit balls in tray
   const userPickedAll = new Set();
   myActiveTickets.forEach(t => safePicks(t.picks).forEach(p => userPickedAll.add(p)));
   drawn.forEach(b => {
@@ -1057,7 +1185,9 @@ async function settleRoundLive(roundId, drawn) {
     }
   }
 
-  // Update demo tickets
+  // Keep banner + 20 balls visible for at least 2000ms (ref 160252)
+  resultHoldUntilMs = Date.now() + 2100;
+
   dynamicLiveTickets.forEach(t => {
     const picksArr = safePicks(t.picks);
     const hits = picksArr.filter(n => drawn.includes(n)).length;
@@ -1211,36 +1341,39 @@ async function loadPublicLeaders() {
   }
 }
 
-// ---------------- 15. 📜 HISTORY VIEW (ምስል 1) ----------------
+// ---------------- 15. 📜 HISTORY VIEW (12h Server History Grouped by Draw ID - ref 160307) ----------------
 async function renderHistoryView() {
   const c = $('history-container');
   if (!c) return;
 
   if (INIT_DATA) {
     try {
-      const sHist = await api('/api/user/history');
-      if (sHist && sHist.success && Array.isArray(sHist.history) && sHist.history.length > 0) {
-        const kenoHist = sHist.history.filter(h => Array.isArray(h?.picks) && h.picks.length > 0);
+      const sHist = await api('/api/user/history?maxAgeHours=12');
+      if (sHist && sHist.success && Array.isArray(sHist.history)) {
+        const kenoHist = sHist.history.filter(h => (h?.game === 'KenoFast' || !h?.game) && Array.isArray(h?.picks) && h.picks.length > 0);
         if (kenoHist.length > 0) fullHistory = kenoHist;
       }
     } catch (e) {}
   }
 
-  const validHistory = (Array.isArray(fullHistory) ? fullHistory : []).filter(h => Array.isArray(h?.picks));
+  const cutoffMs = Date.now() - 12 * 3600 * 1000;
+  const validHistory = (Array.isArray(fullHistory) ? fullHistory : []).filter(h =>
+    Array.isArray(h?.picks) && (!h.time || Number(h.time) >= cutoffMs)
+  );
   if (!validHistory.length) {
-    c.innerHTML = `<div style="text-align:center;color:#8b9997;padding:12px;font-size:13px;">No bets recorded yet.</div>`;
+    c.innerHTML = `<div style="text-align:center;color:#8b9997;padding:12px;font-size:13px;">No bets recorded in the last 12 hours.</div>`;
     return;
   }
 
   const groups = new Map();
   validHistory.forEach(h => {
-    const key = String(h.roundId || h.time || 'draw');
+    const key = String(h.roundId || 'Unknown');
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(h);
   });
-  
+
   c.innerHTML = [...groups.entries()].map(([roundId, tickets]) => {
-    const d = new Date(Math.max(...tickets.map(t=>Number(t.time)||Date.now())));
+    const d = new Date(Math.max(...tickets.map(t => Number(t.time) || Date.now())));
     const dateFormatted = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getFullYear()).slice(-2)} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
 
     return `
@@ -1257,12 +1390,19 @@ async function renderHistoryView() {
       </div>
       ${tickets.map(h => {
         const picks = Array.isArray(h.picks) ? h.picks : [];
+        const drawnArr = Array.isArray(h.drawnNumbers) ? h.drawnNumbers : [];
+        const winVal = Number(h.win || 0);
         return `
-        <div class="history-ticket">
-          <div class="ticket-numbers-grid">${Array.from({length:10}, (_,i) => picks[i] !== undefined ? `<div class="ticket-slot ${h.win > 0 && picks[i] ? 'hit' : ''}">${picks[i]}</div>` : '<div class="ticket-slot empty"></div>').join('')}</div>
-          <div class="ticket-bottom-line">
+        <div class="ticket-row ${winVal > 0 ? 'won-row' : ''}">
+          <div class="ticket-numbers-grid">${Array.from({length:10}, (_,i) => {
+            const p = picks[i];
+            if (p === undefined) return '<div class="ticket-slot empty"></div>';
+            const isHit = drawnArr.length > 0 ? drawnArr.includes(p) : false;
+            return `<div class="ticket-slot ${isHit ? 'hit' : ''}">${p}</div>`;
+          }).join('')}</div>
+          <div class="ticket-bottom-split">
             <span>Bet ${Number(h.amount || 0).toFixed(0)}</span>
-            <span class="${h.win > 0 ? 'status-won' : ''}">${h.win > 0 ? '+' + Number(h.win).toFixed(0) + ' ETB' : ''}</span>
+            <span class="${winVal > 0 ? 'ticket-win-clean' : ''}">${winVal > 0 ? Number(winVal).toFixed(2).replace(/\.00$/, '') : ''}</span>
           </div>
         </div>
       `;
@@ -1303,28 +1443,53 @@ function closeRulesModal() { $('rules-modal').style.display = 'none'; }
 
 function switchModalTab(tab) {
   $('modal-nav-rules').classList.toggle('active', tab === 'rules');
-  $('modal-nav-paytable').classList.toggle('active', tab === 'paytable');
+  $('modal-nav-fairness').classList.toggle('active', tab === 'fairness');
+  $('modal-nav-freebet').classList.toggle('active', tab === 'freebet');
   const c = $('modal-content');
+
   if (tab === 'rules') {
-    c.innerHTML = `
-      <h4 style="color:#fff;margin-bottom:4px;">How to play</h4>
-      <p style="margin-bottom:8px;">Choose 1 to 10 numbers from 1 to 80. Each round runs 24/7 on an 80-second continuous cycle (60s betting + 20s draw). 20 numbers are drawn by certified provably fair server RNG.</p>
-      <h4 style="color:#fff;margin-bottom:4px;">Limits</h4>
-      <p style="margin-bottom:8px;">Bet ${MIN_BET} – ${MAX_BET} ETB. Maximum payout per bet ${MAX_PAYOUT.toLocaleString()} ETB.</p>
-    `;
-  } else {
-    let t = '<table class="paytable-grid-table"><thead><tr><th>Hits</th>' + Array.from({ length: 10 }, (_, i) => `<th>${i + 1}</th>`).join('') + '</tr></thead><tbody>';
+    let t = '<table class="paytable-grid-table"><thead><tr><th></th>' +
+      Array.from({ length: 10 }, (_, i) => `<th>${i + 1}</th>`).join('') + '</tr></thead><tbody>';
     for (let h = 0; h <= 10; h++) {
-      t += `<tr><td style="font-weight:bold;color:#fff">${h}</td>`;
+      t += `<tr><td class="hit-col">${h}</td>`;
       for (let p = 1; p <= 10; p++) {
         const tableP = paytable[String(p)] || {};
         const m = tableP[h];
-        t += `<td>${m !== undefined && m > 0 ? m + 'x' : '-'}</td>`;
+        t += `<td>${m !== undefined && m > 0 ? m : ''}</td>`;
       }
       t += '</tr>';
     }
     t += '</tbody></table>';
-    c.innerHTML = t;
+
+    c.innerHTML = `
+      <p>RTP: 97%</p>
+      <p><strong>Max Win</strong> - ${MAX_PAYOUT} ETB</p>
+      <p>Keno is a game where the player bets on balls numbered 1-80 by choosing a combination from balls numbered 1 to 10.</p>
+      <p>During each round, 20 of the balls numbered from 1-80 are drawn in sequence using a random number generator.</p>
+      <h4>How to play</h4>
+      <p>To participate in the game, the player must perform the following actions during the round, which lasts one minute:</p>
+      <p style="padding-left:12px;">Choose the combination of numbers<br>Set the amount limit for betting<br>Click the "Bet" button</p>
+      <p>The player can also delete the combination of already selected numbers.</p>
+      <p>In the field where the numbers from 1 to 80 are present, HOT and COLD numbers are indicated in red and blue colors, with hot numbers being those that are frequently drawn and blue being those that are drawn more infrequently.</p>
+      <h4>Payments</h4>
+      <p>All winning ball combinations have corresponding odds, which is multiplied by the player's bet amount.</p>
+      <p>The winning combination is calculated as the ratio of the number of balls bet to the number of guessed balls.</p>
+      ${t}
+      <p style="font-size:11.5px;color:#b8c7c2;">Disconnection policy: If a disconnection occurs after an active game round and your bets were accepted by the server, the game will proceed as normal and any winnings will be processed according to the game result regardless of the disconnection.</p>
+    `;
+  } else if (tab === 'fairness') {
+    c.innerHTML = `
+      <h4>Provably Fair (ATLAS-V Gaming)</h4>
+      <p>Every 80-second Fast Keno draw uses a server-side HMAC-SHA256 deterministic seed tied directly to the global Round ID.</p>
+      <p>20 balls from 1 to 80 are drawn strictly without replacement before the betting countdown closes, guaranteeing identical draw numbers across all players and tickets in that round.</p>
+      <h4>Bet Limits & Payouts</h4>
+      <p>Minimum Bet: ${MIN_BET} ETB · Maximum Bet: ${MAX_BET} ETB · Maximum Win per ticket: ${MAX_PAYOUT.toLocaleString()} ETB.</p>
+    `;
+  } else {
+    c.innerHTML = `
+      <h4>Free Bet</h4>
+      <p>No active Free Bet vouchers available right now. Check Hulu Bet daily cashback, promo codes, and Lucky Spin rewards in the main lobby!</p>
+    `;
   }
 }
 

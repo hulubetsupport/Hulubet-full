@@ -53,15 +53,20 @@ function mountAllGames(app, ctx, rootDir) {
 
   // Legacy unified routes (used by existing HTML game clients) delegated to game modules
   const kenoMod = byName.get('KenoFast');
+  const classicKenoMod = byName.get('ClassicKeno');
   const slotMod = byName.get('Slot777');
   const plinkoMod = byName.get('PlinkoX');
   const chickenMod = byName.get('LuckyChicken');
 
   app.get('/api/slot/paytable', slotMod.paytableHandler);
+  app.post('/api/slot/gamble', ctx.userAuth, ctx.limit('bet', 120, 60e3), slotMod.gambleHandler);
   app.get('/api/plinko/paytable', plinkoMod.paytableHandler);
   app.get('/api/keno/paytable', kenoMod.paytableHandler);
-  app.get('/api/keno/round/current', (_req, res) => res.json({ success: true, serverTime: Date.now() }));
+  app.get('/api/keno/round/current', kenoMod.roundCurrentHandler);
   app.get('/api/keno/results', kenoMod.resultsHandler);
+  app.get('/api/classic-keno/paytable', classicKenoMod.paytableHandler);
+  app.get('/api/classic-keno/round/current', classicKenoMod.roundCurrentHandler);
+  app.get('/api/classic-keno/results', classicKenoMod.resultsHandler);
 
   app.get('/api/chicken/config', chickenMod.handlers.configHandler);
   app.post('/api/chicken/start', ctx.userAuth, ctx.limit('chicken', 120, 60e3), chickenMod.handlers.startHandler);

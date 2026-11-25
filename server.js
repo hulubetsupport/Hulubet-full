@@ -380,8 +380,12 @@ app.get('/api/agents', h(async (_q, res) => {
 app.get('/api/user/history', userAuth, limit('uhist', 120, 60e3), h(async (req, res) => {
   const uid = req.tg.id;
   const period = normalizePeriod(req.query.period, 'all');
-  const payload = await cache.getOrLoad(`userhist:${uid}:${period}`, 15000, async () => {
-    const cutoff = new Date(periodCutoffMs(period));
+  const maxAgeHoursRaw = parseInt(req.query.maxAgeHours || '0', 10);
+  const maxAgeHours = Number.isFinite(maxAgeHoursRaw) && maxAgeHoursRaw > 0 ? Math.min(720, maxAgeHoursRaw) : 0;
+  const payload = await cache.getOrLoad(`userhist:${uid}:${period}:h${maxAgeHours}`, 15000, async () => {
+    const baseMs = periodCutoffMs(period);
+    const hoursMs = maxAgeHours > 0 ? (Date.now() - maxAgeHours * 3600 * 1000) : 0;
+    const cutoff = new Date(Math.max(baseMs, hoursMs));
     const [casinoRes, sportsRes] = await Promise.all([
       pool.query(
         `SELECT bet_id,game_name,bet_amount,multiplier,payout,status,game_data,created_at FROM universal_bets WHERE user_id=$1 AND status<>'IN_FLIGHT' AND created_at>=$2 ORDER BY created_at DESC LIMIT 60`,

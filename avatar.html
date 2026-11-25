@@ -690,6 +690,83 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.6);
       animation: fadeInToast 0.2s ease-out;
     }
+    .aviator-cashout-toast {
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: linear-gradient(135deg, rgba(22, 34, 24, 0.96) 0%, rgba(30, 48, 32, 0.96) 100%);
+      border: 1px solid rgba(93, 184, 62, 0.55);
+      border-radius: 999px;
+      padding: 5px 7px 5px 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.65), 0 0 14px rgba(82, 168, 50, 0.22);
+      animation: fadeInToast 0.22s ease-out;
+      max-width: calc(100vw - 20px);
+    }
+    .aviator-cashout-left {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      line-height: 1.15;
+    }
+    .aviator-cashout-sub {
+      font-size: 10.5px;
+      color: #cbd5e1;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .aviator-cashout-mult {
+      font-size: 13px;
+      color: #ffffff;
+      font-weight: 900;
+      margin-top: 1px;
+    }
+    .aviator-cashout-pill {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(180deg, #6dc142 0%, #4d9a2a 100%);
+      border: 1px solid rgba(187, 247, 130, 0.5);
+      border-radius: 999px;
+      padding: 4px 20px;
+      min-width: 108px;
+      line-height: 1.12;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);
+    }
+    .aviator-cashout-pill-lbl {
+      font-size: 10px;
+      font-weight: 800;
+      color: #ecfccb;
+    }
+    .aviator-cashout-pill-amt {
+      font-size: 14px;
+      font-weight: 900;
+      color: #ffffff;
+    }
+    .aviator-cashout-star {
+      position: absolute;
+      color: rgba(236, 252, 203, 0.55);
+      font-size: 11px;
+      line-height: 1;
+      pointer-events: none;
+    }
+    .aviator-cashout-close {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(120, 150, 108, 0.28);
+      color: #d1fae5;
+      font-size: 13px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
     @keyframes fadeInToast { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
   </style>
 </head>
@@ -758,7 +835,7 @@
             <div class="stepper-side">
               <div class="stepper-box">
                 <button class="step-math-btn" onclick="stepAmt(0, -1)">-</button>
-                <input type="number" id="inpAmt0" class="bet-val-input" value="4.00" step="1" min="1" max="1000">
+                <input type="number" id="inpAmt0" class="bet-val-input" value="2.00" step="1" min="2" max="1000">
                 <button class="step-math-btn" onclick="stepAmt(0, 1)">+</button>
               </div>
               <div class="chips-2x2-grid">
@@ -770,7 +847,7 @@
             </div>
             <button class="action-bet-btn btn-state-bet" id="btnAction0" onclick="handleBetClick(0)">
               <div class="btn-main-title" id="lblMain0">Bet</div>
-              <div class="btn-sub-title" id="lblSub0">4.00 ETB</div>
+              <div class="btn-sub-title" id="lblSub0">2.00 ETB</div>
             </button>
           </div>
           <div class="auto-config-row" id="autoRow0">
@@ -795,7 +872,7 @@
             <div class="stepper-side">
               <div class="stepper-box">
                 <button class="step-math-btn" onclick="stepAmt(1, -1)">-</button>
-                <input type="number" id="inpAmt1" class="bet-val-input" value="4.00" step="1" min="1" max="1000">
+                <input type="number" id="inpAmt1" class="bet-val-input" value="2.00" step="1" min="2" max="1000">
                 <button class="step-math-btn" onclick="stepAmt(1, 1)">+</button>
               </div>
               <div class="chips-2x2-grid">
@@ -807,7 +884,7 @@
             </div>
             <button class="action-bet-btn btn-state-bet" id="btnAction1" onclick="handleBetClick(1)">
               <div class="btn-main-title" id="lblMain1">Bet</div>
-              <div class="btn-sub-title" id="lblSub1">4.00 ETB</div>
+              <div class="btn-sub-title" id="lblSub1">2.00 ETB</div>
             </button>
           </div>
           <div class="auto-config-row" id="autoRow1">
@@ -936,7 +1013,7 @@
       </div>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
     </div>
-    <div class="menu-item-row" onclick="showToast('Limits: 1 ETB - 1,000 ETB. Max Pay: 20,000 ETB')">
+    <div class="menu-item-row" onclick="showToast('Limits: 2 ETB - 1,000 ETB. Max Pay: 20,000 ETB')">
       <div class="menu-item-left">
         <svg class="menu-svg-icon" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
         <span>Game Limits</span>
@@ -1105,7 +1182,7 @@
     const btn = document.getElementById(`btnAction${idx}`);
     const mainLbl = document.getElementById(`lblMain${idx}`);
     const subLbl = document.getElementById(`lblSub${idx}`);
-    const amt = parseFloat(document.getElementById(`inpAmt${idx}`).value) || 4;
+    const amt = parseFloat(document.getElementById(`inpAmt${idx}`).value) || 2;
     btn.disabled = p.busy;
 
     if (p.betId && !p.settled && gameState === "FLYING") {
@@ -1137,7 +1214,7 @@
     AUDIO.click();
     if (panels[idx].betId || panels[idx].nextQueued) return;
     const inp = document.getElementById(`inpAmt${idx}`);
-    const val = Math.max(1, Math.min(1000, (parseFloat(inp.value) || 0) + delta));
+    const val = Math.max(2, Math.min(1000, (parseFloat(inp.value) || 2) + delta));
     inp.value = val.toFixed(2);
     updatePanelButton(idx);
   }
@@ -1146,7 +1223,7 @@
     AUDIO.click();
     if (panels[idx].betId || panels[idx].nextQueued) return;
     const inp = document.getElementById(`inpAmt${idx}`);
-    inp.value = Number(val).toFixed(2);
+    inp.value = Math.max(2, Number(val) || 2).toFixed(2);
     updatePanelButton(idx);
   }
 
@@ -1179,10 +1256,10 @@
     const p = panels[idx];
     if (p.busy || p.betId || gameState !== "WAITING" || !currentRoundId) return;
     const amount = parseFloat(document.getElementById(`inpAmt${idx}`).value);
-    if (isNaN(amount) || amount < 1 || amount > 1000) {
+    if (isNaN(amount) || amount < 2 || amount > 1000) {
       p.nextQueued = false;
       updatePanelButton(idx);
-      showToast("Bet must be between 1 and 1000 ETB");
+      showToast("Bet must be between 2 and 1000 ETB");
       return;
     }
     if (amount > serverBalance) {
@@ -1291,8 +1368,8 @@
     }
 
     const amount = parseFloat(document.getElementById(`inpAmt${idx}`).value);
-    if (isNaN(amount) || amount < 1 || amount > 1000) {
-      showToast("Bet must be between 1 and 1000 ETB");
+    if (isNaN(amount) || amount < 2 || amount > 1000) {
+      showToast("Bet must be between 2 and 1000 ETB");
       return;
     }
     if (amount > serverBalance) {
@@ -1372,9 +1449,42 @@
     animFrameId = requestAnimationFrame(frame);
   }
 
+  const shownCashoutToastIds = new Set();
+  function showCashoutToast(betId, multVal, payoutVal) {
+    if (betId && shownCashoutToastIds.has(betId)) return;
+    if (betId) shownCashoutToastIds.add(betId);
+    const container = document.getElementById("toastContainer");
+    const el = document.createElement("div");
+    el.className = "aviator-cashout-toast";
+    el.innerHTML = `
+      <div class="aviator-cashout-left">
+        <span class="aviator-cashout-sub">You have cashed out!</span>
+        <span class="aviator-cashout-mult">${Number(multVal || 1).toFixed(2)}x</span>
+      </div>
+      <div class="aviator-cashout-pill">
+        <span class="aviator-cashout-star" style="top:2px;left:7px;">☆</span>
+        <span class="aviator-cashout-star" style="bottom:3px;left:13px;font-size:8px;">☆</span>
+        <span class="aviator-cashout-star" style="top:2px;right:7px;">☆</span>
+        <span class="aviator-cashout-star" style="bottom:3px;right:14px;font-size:8px;">☆</span>
+        <span class="aviator-cashout-pill-lbl">Win ETB</span>
+        <span class="aviator-cashout-pill-amt">${Number(payoutVal || 0).toFixed(2)}</span>
+      </div>
+      <button type="button" class="aviator-cashout-close" aria-label="Close">✕</button>
+    `;
+    const dismiss = () => {
+      el.style.opacity = '0';
+      el.style.transition = 'opacity 0.25s ease';
+      setTimeout(() => el.remove(), 260);
+    };
+    el.querySelector('.aviator-cashout-close').onclick = dismiss;
+    container.appendChild(el);
+    setTimeout(dismiss, 3600);
+  }
+
   async function executeCashout(idx) {
     const p = panels[idx];
     if (!p.betId || p.settled || p.busy) return;
+    const betId = p.betId;
 
     p.busy = true;
     updatePanelButton(idx);
@@ -1382,7 +1492,7 @@
     const res = await api('/api/crash/cashout', {
       method: 'POST',
       body: JSON.stringify({
-        betId: p.betId,
+        betId,
         clientMult: currentMultiplier
       })
     });
@@ -1399,6 +1509,7 @@
         p.won = true;
         AUDIO.cashout();
         finalizePanelWin(idx, res.payout);
+        showCashoutToast(betId, res.multiplier || currentMultiplier, res.payout);
       } else if (res.state === "CRASHED") {
         updatePanelButton(idx);
       }
@@ -1529,8 +1640,9 @@
       });
       socket.on('crash:cashout', d => {
         if (!d || d.game !== 'Aviator' || !d.bet) return;
-        if (USER_ID && String(d.bet.userId) === String(USER_ID)) {
-          const p = panels.find(x => x.betId === d.bet.betId);
+        const p = panels.find(x => x.betId === d.bet.betId);
+        const isMine = Boolean(p) || (USER_ID && String(d.bet.userId) === String(USER_ID));
+        if (isMine) {
           const idx = panels.indexOf(p);
           if (p && !p.settled) {
             p.settled = true;
@@ -1539,6 +1651,7 @@
             finalizePanelWin(idx, d.bet.payout);
             refreshBalance();
           }
+          showCashoutToast(d.bet.betId, d.bet.multiplier, d.bet.payout);
         }
       });
       socket.on('crash:players', d => {

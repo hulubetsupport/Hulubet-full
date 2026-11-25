@@ -93,6 +93,11 @@ canvas#jet-canvas{width:100%;height:100%;display:block}
 #toast-container{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:1000;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;width:auto;max-width:340px}
 .toast-box{background:rgba(15,23,42,.95);border:1px solid rgba(255,255,255,.15);border-radius:999px;padding:8px 16px;color:#fff;font-size:.78rem;font-weight:700;box-shadow:0 8px 24px rgba(0,0,0,.55);backdrop-filter:blur(10px);animation:toastIn .2s ease-out;white-space:nowrap}
 .toast-box.error{border-color:rgba(231,76,60,.65);color:#fecaca}.toast-box.success{border-color:rgba(46,204,113,.65);color:#86efac}
+.bet-panels-container{position:relative}
+.jetx-win-card{position:absolute;top:36px;right:8px;width:49%;min-width:168px;min-height:68px;background:linear-gradient(135deg,#072313 0%,#0c3820 100%);border:1.5px solid #44b836;border-radius:8px;padding:12px 10px 14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;box-shadow:0 0 24px rgba(68,184,54,0.34),inset 0 0 18px rgba(46,204,113,0.14);z-index:40;pointer-events:none;animation:toastIn .2s ease-out}
+.jetx-win-card-lbl{font-size:.82rem;font-weight:800;color:#ffffff;letter-spacing:.3px}
+.jetx-win-card-amt{font-size:1.15rem;font-weight:900;color:#44b836;text-shadow:0 0 10px rgba(68,184,54,0.45)}
+.jetx-win-sparkle{position:absolute;color:#44b836;font-size:13px;line-height:1;text-shadow:0 0 8px rgba(68,184,54,0.6)}
 @keyframes toastIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
 #sound-modal{position:fixed;inset:0;background:rgba(5,8,14,.85);backdrop-filter:blur(4px);z-index:999;display:flex;align-items:center;justify-content:center;padding:16px}
 .modal-card{background:#192233;border:1px solid #283750;border-radius:12px;width:100%;max-width:340px;padding:22px;text-align:center;box-shadow:0 16px 36px rgba(0,0,0,.7)}
@@ -305,7 +310,7 @@ $('panels').innerHTML = P.map(({ id }) => `
       </div></div>
     <div class="controls-grid">
       <div class="input-col">
-        <div class="stepper-box"><button class="stepper-btn" onclick="adjustBet(${id},-1)">${MINUS}</button><input type="number" class="stepper-val" id="bet-input-${id}" value="2.00" min="1" max="1000" step="1"/><button class="stepper-btn" onclick="adjustBet(${id},1)">${PLUS}</button></div>
+        <div class="stepper-box"><button class="stepper-btn" onclick="adjustBet(${id},-1)">${MINUS}</button><input type="number" class="stepper-val" id="bet-input-${id}" value="2.00" min="2" max="1000" step="1"/><button class="stepper-btn" onclick="adjustBet(${id},1)">${PLUS}</button></div>
         <div class="chips-row"><button class="chip-btn" onclick="setBetAmount(${id},20)">20.00</button><button class="chip-btn" onclick="setBetAmount(${id},50)">50.00</button><button class="chip-btn" onclick="setBetAmount(${id},100)">100.00</button><button class="chip-btn" onclick="setBetAll(${id})">ALL</button></div>
       </div>
       <div class="input-col">
@@ -317,8 +322,8 @@ $('panels').innerHTML = P.map(({ id }) => `
 
 const locked = p => p.next || p.betId || p.busy;
 function adjustBet(i, d) { const p = P[i]; if (locked(p)) return; setBetAmount(i, p.bet + d); }
-function setBetAmount(i, v) { const p = P[i]; if (locked(p)) return; p.bet = Math.max(1, Math.min(1000, Math.round(v * 100) / 100)); $('bet-input-' + i).value = p.bet.toFixed(2); refreshBtn(i); }
-function setBetAll(i) { setBetAmount(i, Math.max(1, Math.min(1000, Math.floor(serverBalance || 0)))); }
+function setBetAmount(i, v) { const p = P[i]; if (locked(p)) return; p.bet = Math.max(2, Math.min(1000, Math.round(v * 100) / 100)); $('bet-input-' + i).value = p.bet.toFixed(2); refreshBtn(i); }
+function setBetAll(i) { setBetAmount(i, Math.max(2, Math.min(1000, Math.floor(serverBalance || 0)))); }
 function adjustCollect(i, d) { setCollect(i, P[i].collectAt + d); }
 function setCollect(i, v) { P[i].collectAt = Math.max(1.01, Math.min(100, Math.round(v * 100) / 100)); $('collect-input-' + i).value = P[i].collectAt.toFixed(2); }
 function setToggle(kind, i, on) { $(kind + '-track-' + i).classList.toggle('active', on); }
@@ -331,7 +336,7 @@ function toggleAuto(i) {
 }
 function toggleAutoCollect(i) { if (P[i].betId) return; P[i].autoCollect = !P[i].autoCollect; setToggle('autocollect', i, P[i].autoCollect); }
 P.forEach(p => {
-  $('bet-input-' + p.id).addEventListener('change', e => setBetAmount(p.id, parseFloat(e.target.value) || 1));
+  $('bet-input-' + p.id).addEventListener('change', e => setBetAmount(p.id, parseFloat(e.target.value) || 2));
   $('collect-input-' + p.id).addEventListener('change', e => setCollect(p.id, parseFloat(e.target.value) || 2));
 });
 
@@ -504,6 +509,32 @@ function startFlyingVisuals(elapsedMs) {
   P.forEach(p => refreshBtn(p.id));
 }
 
+const shownJetxWins = new Set();
+function showJetxWinCard(betId, payout, panelIdx) {
+  if (betId && shownJetxWins.has(betId)) return;
+  if (betId) shownJetxWins.add(betId);
+  const host = $('panels');
+  if (!host) return;
+  const old = host.querySelector('.jetx-win-card');
+  if (old) old.remove();
+  const card = document.createElement('div');
+  card.className = 'jetx-win-card';
+  if (panelIdx === 1) card.style.top = 'auto', card.style.bottom = '12px';
+  card.innerHTML = `
+    <span class="jetx-win-sparkle" style="top:-6px;left:6px;">✦</span>
+    <span class="jetx-win-sparkle" style="top:8px;left:24px;font-size:9px;">✦</span>
+    <span class="jetx-win-sparkle" style="bottom:6px;right:8px;">✦</span>
+    <div class="jetx-win-card-lbl">Win</div>
+    <div class="jetx-win-card-amt">${Number(payout || 0).toFixed(2)}ETB</div>
+  `;
+  host.appendChild(card);
+  setTimeout(() => {
+    card.style.opacity = '0';
+    card.style.transition = 'opacity 0.25s ease';
+    setTimeout(() => card.remove(), 260);
+  }, 3200);
+}
+
 function settlePanel(p, r) {
   if (p.settled) return;
   p.settled = true;
@@ -512,7 +543,7 @@ function settlePanel(p, r) {
   if (won) {
     playCashoutSound();
     spawnParachutist();
-    toast(`Cashed out at ${Number(r.multiplier).toFixed(2)}x (+${Number(r.payout).toFixed(2)} ETB)`, 'success');
+    showJetxWinCard(p.betId, r.payout, p.id);
   }
   p.result = { won, mult: Number(r.multiplier) || 0, payout: Number(r.payout) || 0 };
   saveBet({ bet: p.stake, mult: won ? p.result.mult : 0, payout: won ? p.result.payout : 0, won });
@@ -651,12 +682,11 @@ function joinCrashRoom() {
     socket.on('crash:cashout', d => {
       if (!d || d.game !== 'JetX' || !d.bet) return;
       spawnParachutist();
-      if (USER_ID && String(d.bet.userId) === String(USER_ID)) {
-        const p = P.find(x => x.betId === d.bet.betId);
-        if (p && !p.settled) {
-          settlePanel(p, { state: 'WON', multiplier: d.bet.multiplier, payout: d.bet.payout });
-          refreshBalance();
-        }
+      const p = P.find(x => x.betId === d.bet.betId);
+      const isMine = Boolean(p) || (USER_ID && String(d.bet.userId) === String(USER_ID));
+      if (isMine && p && !p.settled) {
+        settlePanel(p, { state: 'WON', multiplier: d.bet.multiplier, payout: d.bet.payout });
+        refreshBalance();
       }
     });
     socket.on('crash:players', d => {
@@ -775,14 +805,86 @@ function renderLoop() {
     ctx.setLineDash([]);
   } else {
     const g = ctx.createLinearGradient(0, 0, 0, ch);
-    if (mult < 2) { g.addColorStop(0, '#3a669a'); g.addColorStop(.5, '#5684ba'); g.addColorStop(1, '#81a7d6'); }
-    else if (mult < 5) { g.addColorStop(0, '#0a0f1d'); g.addColorStop(.5, '#11192e'); g.addColorStop(1, '#1b2642'); }
-    else { g.addColorStop(0, '#04060b'); g.addColorStop(.6, '#0b0f1a'); g.addColorStop(1, '#131b2e'); }
-    ctx.fillStyle = g; ctx.fillRect(0, 0, cw, ch);
-    if (mult < 2.2) { ctx.fillStyle = 'rgba(255,255,255,.22)'; clouds.forEach(c => { c.x -= c.speed; if (c.x < -120) c.x = cw + 100; ctx.beginPath(); ctx.arc(c.x, c.y, 24 * c.scale, 0, 6.283); ctx.arc(c.x + 22 * c.scale, c.y - 10, 30 * c.scale, 0, 6.283); ctx.arc(c.x + 48 * c.scale, c.y, 20 * c.scale, 0, 6.283); ctx.fill(); }); }
-    if (mult >= 2.0) {
+    if (mult < 2.2) {
+      // Dusk/sunrise pastel violet-pink sky matching 16:42 takeoff screenshot
+      g.addColorStop(0, '#786e8a');
+      g.addColorStop(0.55, '#b894a6');
+      g.addColorStop(1, '#e8b9b7');
+    } else if (mult < 5) {
+      g.addColorStop(0, '#0a0f1d');
+      g.addColorStop(0.5, '#11192e');
+      g.addColorStop(1, '#1b2642');
+    } else {
+      g.addColorStop(0, '#04060b');
+      g.addColorStop(0.6, '#0b0f1a');
+      g.addColorStop(1, '#131b2e');
+    }
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, cw, ch);
+
+    if (mult < 2.2) {
+      // Soft pink/lavender pixel-art clouds
+      ctx.fillStyle = 'rgba(246, 212, 224, 0.34)';
+      clouds.forEach(c => {
+        c.x -= c.speed * 0.7;
+        if (c.x < -140) c.x = cw + 120;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, 26 * c.scale, 0, 6.283);
+        ctx.arc(c.x + 24 * c.scale, c.y - 11, 32 * c.scale, 0, 6.283);
+        ctx.arc(c.x + 52 * c.scale, c.y, 22 * c.scale, 0, 6.283);
+        ctx.fill();
+      });
+
+      // Airport runway, water line, towers & twin hangars scrolling down smoothly on ascent
+      const takeoffProgress = Math.max(0, Math.min(1, (mult - 1.0) / 1.15));
+      const skyAlpha = Math.max(0, 1 - takeoffProgress * 1.15);
+      if (skyAlpha > 0.02) {
+        ctx.save();
+        ctx.globalAlpha = skyAlpha;
+        const groundY = ch * 0.78 + takeoffProgress * ch * 0.45;
+        // Distant misty sea strip
+        ctx.fillStyle = '#4c5778';
+        ctx.fillRect(0, groundY - 12, cw, 12);
+        // Airport control towers
+        ctx.fillStyle = '#5c556e';
+        ctx.fillRect(cw * 0.25, groundY - 46, 8, 46);
+        ctx.fillRect(cw * 0.22, groundY - 54, 14, 10);
+        ctx.fillRect(cw * 0.43, groundY - 58, 10, 58);
+        ctx.fillRect(cw * 0.40, groundY - 68, 16, 11);
+        ctx.fillStyle = '#facc15';
+        ctx.fillRect(cw * 0.42, groundY - 64, 12, 4);
+        // Slanted glass terminal on left
+        ctx.fillStyle = '#2d3748';
+        ctx.beginPath();
+        ctx.moveTo(0, groundY);
+        ctx.lineTo(0, groundY - 38);
+        ctx.lineTo(cw * 0.21, groundY - 52);
+        ctx.lineTo(cw * 0.24, groundY);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = 'rgba(147,197,253,0.45)';
+        for (let wx = 8; wx < cw * 0.19; wx += 12) ctx.fillRect(wx, groundY - 30, 8, 14);
+        // Twin warm grey hangar arches
+        for (let hi = 0; hi < 2; hi++) {
+          const hx = cw * 0.54 + hi * 56;
+          ctx.fillStyle = '#b49492';
+          ctx.beginPath(); ctx.arc(hx, groundY, 24, Math.PI, 0); ctx.fill();
+          ctx.fillStyle = '#3f3d56';
+          ctx.beginPath(); ctx.arc(hx, groundY, 17, Math.PI, 0); ctx.fill();
+        }
+        // Dark tarmac runway
+        ctx.fillStyle = '#33364a';
+        ctx.fillRect(0, groundY, cw, ch - groundY + 40);
+        ctx.strokeStyle = 'rgba(255,255,255,0.28)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([14, 10]);
+        ctx.beginPath(); ctx.moveTo(0, groundY + 14); ctx.lineTo(cw, groundY + 14); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
+    }
+    if (mult >= 1.8) {
       stars.forEach(s => { s.x -= .6; if (s.x < 0) s.x = cw; ctx.fillStyle = `rgba(255,255,255,${s.opacity})`; ctx.fillRect(s.x, s.y, s.size, s.size); });
-      // Subtle ringed planet matching 14:34 screenshot
       ctx.save();
       ctx.translate(cw * 0.5, ch * 0.72);
       ctx.fillStyle = 'rgba(100,116,139,0.35)';

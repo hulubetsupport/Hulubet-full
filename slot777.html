@@ -184,23 +184,24 @@
       flex: 1;
       height: 78px;
       background: #061912;
-      border: 1.2px solid rgba(212, 163, 57, 0.3);
+      border: 1.5px solid rgba(212, 163, 57, 0.45);
       border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 22px;
       font-weight: 900;
-      color: #3f6856;
-      transition: all 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+      color: #4f7a66;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+      transition: all 0.25s cubic-bezier(0.18, 0.89, 0.32, 1.28);
     }
 
     .mult-box.active {
-      background: linear-gradient(180deg, #0d462d 0%, #08291a 100%);
-      border: 2px solid var(--green-neon);
-      box-shadow: 0 0 14px var(--green-neon), inset 0 0 8px rgba(16, 229, 135, 0.5);
-      color: #fffb8f;
-      transform: scale(1.03);
+      background: linear-gradient(180deg, #199e58 0%, #0d6836 100%);
+      border: 2.5px solid #e11d48;
+      box-shadow: 0 0 14px rgba(16, 229, 135, 0.55), inset 0 0 10px rgba(255, 255, 255, 0.2);
+      color: #facc15;
+      transform: scale(1.04);
     }
 
     /* 3x3 Reels Grid */
@@ -599,43 +600,140 @@
       box-shadow: 0 4px 10px rgba(229, 41, 78, 0.4);
     }
 
-    /* Paytable modal */
-    .pay-item {
+    /* Paytable & Rules modal matching 160424-160449 screenshots */
+    .rules-modal-box {
+      max-width: 410px;
+      background: #14171c;
+      border: 1.5px solid rgba(255, 255, 255, 0.14);
+      padding: 14px 16px 20px;
+    }
+    .rules-bet-switcher {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 8px 12px;
-      background: #061912;
-      border-radius: 8px;
-      border: 1px solid rgba(212, 163, 57, 0.2);
+      justify-content: center;
+      gap: 14px;
+      margin: 6px 0 12px;
     }
-    .pay-icons { display: flex; gap: 8px; align-items: center; }
-    .pay-icons img { width: 34px; height: 34px; object-fit: contain; }
-    .pay-val { font-size: 14px; font-weight: 800; color: var(--gold); text-align: right; }
+    .rules-bet-step {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: #0b1315;
+      border: 1.5px solid #25363b;
+      color: #10e587;
+      font-size: 22px;
+      font-weight: 900;
+      cursor: pointer;
+    }
+    .rules-bet-pill {
+      min-width: 118px;
+      height: 42px;
+      border-radius: 21px;
+      background: linear-gradient(180deg, #3f4e8e 0%, #242e57 100%);
+      border: 1.5px solid #6b7fd4;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 900;
+      color: #fff;
+      line-height: 1.1;
+    }
+    .rules-pay-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px 10px;
+      text-align: center;
+    }
+    .rules-pay-card-top {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .rules-pay-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .rules-pay-amt {
+      font-size: 15px;
+      font-weight: 800;
+      color: #fff;
+    }
+    .rules-section-title {
+      font-size: 15px;
+      font-weight: 900;
+      color: #e11d48;
+      text-transform: uppercase;
+      margin-top: 8px;
+    }
+    .rules-copy {
+      font-size: 12.5px;
+      line-height: 1.48;
+      color: #cbd5e1;
+    }
+    .rules-lines-wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 6px 0;
+    }
+    .rules-line-card {
+      background: #0c1713;
+      border: 1px solid #1e3d30;
+      border-radius: 12px;
+      padding: 10px;
+    }
+    .aces-row {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+    }
+    .ace-mini {
+      width: 44px;
+      height: 62px;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #111;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.45);
+      position: relative;
+    }
+    .ace-mini.red { color: #e11d48; }
+    .ace-mini small { position: absolute; top: 3px; left: 4px; font-size: 9px; line-height: 1; }
+    .ace-mini span { font-size: 20px; line-height: 1; }
 
-    /* Gamble screen (screenshot 4) */
+    /* Gamble screen (160437) */
     .gamble-card-area {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 14px;
-      padding: 8px 0;
+      gap: 12px;
+      padding: 6px 0;
     }
     .gamble-card {
       width: 90px;
       height: 130px;
       border-radius: 10px;
-      background: #062b1e;
+      background: linear-gradient(180deg, #0b3c28 0%, #052216 100%);
       border: 2px solid var(--gold);
       display: flex;
       align-items: center;
       justify-content: center;
       box-shadow: 0 4px 14px rgba(0,0,0,0.6);
       perspective: 1000px;
-      transition: transform 0.4s ease;
+      transition: transform 0.35s ease;
     }
-    .gamble-card svg { width: 56px; height: 56px; }
-    .gamble-choices { display: flex; gap: 14px; width: 100%; }
+    .gamble-card svg { width: 54px; height: 54px; }
+    .gamble-choices { display: flex; gap: 12px; width: 100%; }
     .gamble-choice-btn {
       flex: 1;
       height: 44px;
@@ -645,8 +743,20 @@
       border: 2px solid var(--gold);
       cursor: pointer;
     }
+    .gamble-choice-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-gamble-red { background: #d32049; color: #fff; }
     .btn-gamble-black { background: #111; color: var(--gold); }
+    .btn-take-win {
+      width: 100%;
+      height: 40px;
+      border-radius: 8px;
+      border: 1px solid #10e587;
+      background: #0a3b29;
+      color: #10e587;
+      font-weight: 800;
+      font-size: 13px;
+      cursor: pointer;
+    }
 
     /* Big Win Celebration Splash */
     #celebration-overlay {
@@ -746,11 +856,11 @@
 
     <!-- Main Slot Box -->
     <div class="slot-frame">
-      <!-- Multipliers -->
+      <!-- Multipliers (1x, 2x, 3x, 4x, 5x reel window) -->
       <div class="multiplier-column">
-        <div class="mult-box" id="mult-3">3x</div>
-        <div class="mult-box active" id="mult-5">5x</div>
-        <div class="mult-box" id="mult-1">1x</div>
+        <div class="mult-box" id="mult-slot-top">2x</div>
+        <div class="mult-box active" id="mult-slot-mid">5x</div>
+        <div class="mult-box" id="mult-slot-bot">1x</div>
       </div>
 
       <!-- 3x3 Reels Grid with SVG Lines Overlay -->
@@ -920,26 +1030,32 @@
     </div>
   </div>
 
-  <!-- MODAL: RULES / PAYTABLE -->
-  <div class="modal-backdrop" id="modal-rules">
-    <div class="modal-box">
+  <!-- MODAL: RULES / PAYTABLE (160424 - 160449) -->
+  <div class="modal-backdrop" id="modal-rules" onclick="if(event.target===this)closeModals()">
+    <div class="modal-box rules-modal-box">
       <div class="modal-header">
-        <span class="modal-title">PAYTABLE (5 FIXED LINES)</span>
+        <span class="modal-title" style="color:#f59e0b;">RULES &amp; PAYTABLE</span>
         <button class="modal-close" onclick="closeModals()">&times;</button>
       </div>
-      <div id="paytable-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+      <div id="paytable-list" style="display:flex; flex-direction:column; gap:10px;"></div>
     </div>
   </div>
 
-  <!-- MODAL: X2 GAMBLE FEATURE (Screenshot 4) -->
+  <!-- MODAL: X2 GAMBLE FEATURE (160437) -->
   <div class="modal-backdrop" id="modal-gamble">
     <div class="modal-box">
       <div class="modal-header">
-        <span class="modal-title">GAMBLE WINNINGS (2X)</span>
+        <span class="modal-title">GAMBLE FEATURE (X2)</span>
         <button class="modal-close" onclick="closeModals()">&times;</button>
       </div>
       <div class="gamble-card-area">
-        <p style="font-size:13px; color:#8ca59b;">Guess the color of the card</p>
+        <div class="aces-row">
+          <div class="ace-mini red"><small>A♦</small><span>♦</span></div>
+          <div class="ace-mini red"><small>A♥</small><span>♥</span></div>
+          <div class="ace-mini"><small>A♣</small><span>♣</span></div>
+          <div class="ace-mini"><small>A♠</small><span>♠</span></div>
+        </div>
+        <p style="font-size:13px; color:#cbd5e1; text-align:center;">Current Win: <b id="gamble-cur-win" style="color:#10e587;">0.00 ETB</b><br><span style="font-size:11px; color:#8ca59b;">Guess the color of the card to double your win</span></p>
         <div class="gamble-card" id="gamble-card-display">
           <svg viewBox="0 0 40 40" fill="#10e587">
             <circle cx="15" cy="15" r="7"/>
@@ -950,9 +1066,10 @@
           </svg>
         </div>
         <div class="gamble-choices">
-          <button class="gamble-choice-btn btn-gamble-red" onclick="gamblePick('RED')">RED</button>
-          <button class="gamble-choice-btn btn-gamble-black" onclick="gamblePick('BLACK')">BLACK</button>
+          <button class="gamble-choice-btn btn-gamble-red" id="btn-pick-red" onclick="gamblePick('RED')">RED</button>
+          <button class="gamble-choice-btn btn-gamble-black" id="btn-pick-black" onclick="gamblePick('BLACK')">BLACK</button>
         </div>
+        <button class="btn-take-win" onclick="collectWinnings(); closeModals();">Take Win</button>
       </div>
     </div>
   </div>
@@ -1142,17 +1259,19 @@
     /* =====================================================================
        5. GAME STATE & PAYTABLE SYNC
        ===================================================================== */
-    const BET_PRESETS = [1, 2, 3, 5, 8, 10, 15, 20, 30, 50, 75, 100, 200, 500, 1000];
-    let betIdx = 3; // 5.00 ETB
+    const BET_PRESETS = [2, 3, 5, 8, 10, 15, 20, 30, 50, 75, 100, 200, 500, 1000];
+    let betIdx = 2; // 5.00 ETB default, 2.00 ETB minimum
     let isSpinning = false;
     let autoplayRemaining = 0;
     let selectedAutoCount = 10;
     let currentRoundWin = 0;
+    let currentBetId = null;
     let totalWinAccum = 0;
     let startingAutoBalance = 0;
 
     const TAPE_LENGTH = 24;
     const SYMBOL_HEIGHT = 82;
+    const ALL_MULTS = [1, 2, 3, 4, 5];
 
     let PAYTABLE = null;
     async function loadPaytable() {
@@ -1167,28 +1286,88 @@
 
     function renderPaytableModal() {
       const list = document.getElementById('paytable-list');
-      list.innerHTML = "";
+      if (!list) return;
       const bet = getCurrentBet();
-      const symList = (PAYTABLE && PAYTABLE.symbols) ? PAYTABLE.symbols : SYMBOLS;
-
-      symList.forEach(ps => {
-        const s = SYMBOLS.find(x => x.id === ps.id) || ps;
-        const triplePayout = (ps.triple || 10) * bet;
-        const pairPayout = (ps.pair || 1) * bet;
-        const row = document.createElement('div');
-        row.className = "pay-item";
-        row.innerHTML = `
-          <div class="pay-icons">
-            <img src="${s.url}" width="34" height="34" alt="${s.name}" />
-            <span style="font-weight:700; font-size:13px;">${s.name}</span>
+      const s77 = SYMBOLS[0], sDol = SYMBOLS[1], sBell = SYMBOLS[2], sMel = SYMBOLS[3], sGrp = SYMBOLS[4], sPlm = SYMBOLS[5], sLem = SYMBOLS[6], sOrg = SYMBOLS[7], sChr = SYMBOLS[8];
+      list.innerHTML = `
+        <div style="text-align:center;color:#f59e0b;font-weight:800;font-size:13px;">All Symbol wins are in ETB</div>
+        <div class="rules-bet-switcher">
+          <button type="button" class="rules-bet-step" onclick="adjustBet(-1)">−</button>
+          <div class="rules-bet-pill"><span>${bet}</span><span style="font-size:10px;opacity:.85;">ETB</span></div>
+          <button type="button" class="rules-bet-step" onclick="adjustBet(1)">+</button>
+        </div>
+        <div class="rules-pay-grid">
+          <div class="rules-pay-card-top">
+            <img src="${s77.url}" width="72" height="72" alt="77" style="object-fit:contain;" />
+            <div class="rules-pay-amt">${(15 * bet).toFixed(2)}</div>
           </div>
-          <span class="pay-val">
-            3 of a kind: ${triplePayout.toFixed(2)} ETB<br>
-            <span style="font-size:11px; opacity:.8;">any 2 alike: ${pairPayout.toFixed(2)} ETB</span>
-          </span>
-        `;
-        list.appendChild(row);
-      });
+          <div class="rules-pay-card">
+            <img src="${sDol.url}" width="64" height="64" alt="Dollar" style="object-fit:contain;" />
+            <div class="rules-pay-amt">${(10 * bet).toFixed(2)}</div>
+          </div>
+          <div class="rules-pay-card">
+            <img src="${sBell.url}" width="64" height="64" alt="Bell" style="object-fit:contain;" />
+            <div class="rules-pay-amt">${(5 * bet).toFixed(2)}</div>
+          </div>
+          <div class="rules-pay-card">
+            <div style="display:flex;align-items:center;gap:2px;">
+              <img src="${sMel.url}" width="54" height="54" alt="Melon" style="object-fit:contain;" />
+              <img src="${sGrp.url}" width="54" height="54" alt="Grapes" style="object-fit:contain;" />
+            </div>
+            <div class="rules-pay-amt">${(4 * bet).toFixed(2)}</div>
+          </div>
+          <div class="rules-pay-card">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;">
+              <img src="${sPlm.url}" width="32" height="32" alt="Plum" style="object-fit:contain;" />
+              <img src="${sLem.url}" width="32" height="32" alt="Lemon" style="object-fit:contain;" />
+              <img src="${sOrg.url}" width="32" height="32" alt="Orange" style="object-fit:contain;" />
+              <img src="${sChr.url}" width="32" height="32" alt="Cherry" style="object-fit:contain;" />
+            </div>
+            <div class="rules-pay-amt">${(2 * bet).toFixed(2)}</div>
+          </div>
+        </div>
+        <div class="rules-section-title">MULTIPLIER REEL</div>
+        <div class="rules-copy">In addition to these standard rules, Game also includes the X Multiplier, which can randomly appear on the left side reel. With five possible multipliers (1x, 2x, 3x, 4x and 5x), your payouts can be multiplied for even greater rewards.</div>
+        <div style="width:76px;margin:4px auto;display:flex;flex-direction:column;gap:4px;">
+          <div class="mult-box" style="height:46px;font-size:18px;">1x</div>
+          <div class="mult-box active" style="height:50px;font-size:20px;">2x</div>
+          <div class="mult-box" style="height:46px;font-size:18px;">5x</div>
+        </div>
+        <div class="rules-section-title">GAMBLE FEATURE</div>
+        <div class="rules-copy">In this game, players have the opportunity to double their winnings with the X2 Gamble feature. After a winning spin, players can access the Gamble round by clicking the "2x" button. Once the gamble screen appears, a card in the middle will flash while face down. Players must guess RED or BLACK to double their win. At any point, click "Take Win" to collect.</div>
+        <div class="aces-row" style="margin-top:4px;">
+          <div class="ace-mini red"><small>A♦</small><span>♦</span></div>
+          <div class="ace-mini red"><small>A♥</small><span>♥</span></div>
+          <div class="ace-mini"><small>A♣</small><span>♣</span></div>
+          <div class="ace-mini"><small>A♠</small><span>♠</span></div>
+        </div>
+        <div class="rules-section-title">RULES</div>
+        <div class="rules-copy">All wins pay from left to right on adjacent reels starting from the leftmost reel. 5 fixed paylines:</div>
+        <div class="rules-lines-wrap">
+          <div class="rules-line-card">
+            <svg viewBox="0 0 120 74" width="100%" height="70">
+              <text x="6" y="18" fill="#facc15" font-size="11" font-weight="900">2</text>
+              <line x1="22" y1="14" x2="112" y2="14" stroke="#facc15" stroke-width="3.5" stroke-linecap="round"/>
+              <text x="6" y="41" fill="#facc15" font-size="11" font-weight="900">1</text>
+              <line x1="22" y1="37" x2="112" y2="37" stroke="#facc15" stroke-width="3.5" stroke-linecap="round"/>
+              <text x="6" y="64" fill="#facc15" font-size="11" font-weight="900">3</text>
+              <line x1="22" y1="60" x2="112" y2="60" stroke="#facc15" stroke-width="3.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="rules-line-card">
+            <svg viewBox="0 0 120 74" width="100%" height="70">
+              <text x="6" y="18" fill="#facc15" font-size="11" font-weight="900">4</text>
+              <line x1="22" y1="14" x2="112" y2="60" stroke="#facc15" stroke-width="3.5" stroke-linecap="round"/>
+              <text x="6" y="64" fill="#facc15" font-size="11" font-weight="900">5</text>
+              <line x1="22" y1="60" x2="112" y2="14" stroke="#facc15" stroke-width="3.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+        <div style="font-size:13px;font-weight:900;color:#fff;">Game Rules</div>
+        <div class="rules-copy">Max payout: 150000<br>Max mult: 45 X<br>RTP is: 96.39%<br>Game version v1.0.1</div>
+        <div style="font-size:13px;font-weight:900;color:#fff;margin-top:4px;">Disconnection and Malfunction policy</div>
+        <div class="rules-copy">In the event of a disconnection during gameplay, all accepted bets will still be played out and any winnings will be credited to the player's balance at the end of the round. Autoplay mode will be switched off after a disconnection. Malfunction voids all plays and pays.</div>
+      `;
     }
 
     loadPaytable();
@@ -1226,15 +1405,20 @@
           tape.appendChild(cell);
         }
       }
+      setMultiplierActive(5);
     }
 
     function setMultiplierActive(mult) {
-      [1, 3, 5].forEach(m => {
-        const el = document.getElementById(`mult-${m}`);
-        if (el) el.classList.remove('active');
-      });
-      const target = document.getElementById(`mult-${mult}`) || document.getElementById('mult-1');
-      if (target) target.classList.add('active');
+      const idx = Math.max(0, ALL_MULTS.indexOf(Number(mult)));
+      const prevM = ALL_MULTS[(idx - 1 + ALL_MULTS.length) % ALL_MULTS.length];
+      const curM = ALL_MULTS[idx];
+      const nextM = ALL_MULTS[(idx + 1) % ALL_MULTS.length];
+      const topEl = document.getElementById('mult-slot-top');
+      const midEl = document.getElementById('mult-slot-mid');
+      const botEl = document.getElementById('mult-slot-bot');
+      if (topEl) topEl.textContent = prevM + 'x';
+      if (midEl) { midEl.textContent = curM + 'x'; midEl.classList.add('active'); }
+      if (botEl) botEl.textContent = nextM + 'x';
     }
 
     /* =====================================================================
@@ -1281,6 +1465,7 @@
 
       // Hide payout from display balance until reels settle
       serverBalance = res.newBalance;
+      currentBetId = res.betId || null;
       document.getElementById('ui-balance').textContent = Number(res.newBalance - (res.payout || 0)).toFixed(2);
 
       const outcome = res.visualOutcome || {};
@@ -1295,7 +1480,7 @@
         return;
       }
 
-      await stopReelsOnOutcome(outcome.reels, outcome.colMult || 1);
+      await stopReelsOnOutcome(outcome.reels, outcome.colMult || 1, outcome.payline || 'CENTER');
 
       currentRoundWin = res.payout || 0;
       document.getElementById('ui-win').textContent = currentRoundWin.toFixed(2);
@@ -1304,12 +1489,12 @@
       if (res.isWin && currentRoundWin > 0) {
         totalWinAccum += currentRoundWin;
         document.getElementById('ui-total-win').textContent = totalWinAccum.toFixed(2);
-        highlightWinLine(outcome.winReels);
+        highlightWinLine(outcome.winReels, outcome.payline);
         showPayline(outcome.payline);
         sound.playWin();
 
         // Enable 2X Gamble & Collect buttons
-        document.getElementById('btn-gamble').disabled = false;
+        document.getElementById('btn-gamble').disabled = !currentBetId;
         document.getElementById('btn-collect').disabled = false;
 
         // Big win trigger check (>= 15x bet)
@@ -1322,6 +1507,7 @@
           showToast(`WIN! ${currentRoundWin.toFixed(2)} ETB (x${res.multiplier})`);
         }
       } else {
+        currentBetId = null;
         document.getElementById('btn-gamble').disabled = true;
         document.getElementById('btn-collect').disabled = true;
       }
@@ -1342,8 +1528,15 @@
     }
 
     let spinIntervals = [];
+    let multSpinInterval = null;
 
     function startReelSpin() {
+      let mIdx = 0;
+      clearInterval(multSpinInterval);
+      multSpinInterval = setInterval(() => {
+        mIdx = (mIdx + 1) % ALL_MULTS.length;
+        setMultiplierActive(ALL_MULTS[mIdx]);
+      }, 70);
       for (let r = 0; r < 3; r++) {
         const tape = document.getElementById(`tape-${r}`);
         tape.style.transition = 'none';
@@ -1358,6 +1551,7 @@
     }
 
     function stopReelSpinInstant() {
+      clearInterval(multSpinInterval);
       spinIntervals.forEach(clearInterval);
       spinIntervals = [];
       for (let r = 0; r < 3; r++) {
@@ -1366,9 +1560,19 @@
       }
     }
 
-    function stopReelsOnOutcome(serverSymbols, colMult) {
+    function paylineRows(paylineName) {
+      if (paylineName === 'TOP') return [0, 0, 0];
+      if (paylineName === 'BOTTOM') return [2, 2, 2];
+      if (paylineName === 'DIAG1') return [0, 1, 2];
+      if (paylineName === 'DIAG2') return [2, 1, 0];
+      return [1, 1, 1];
+    }
+
+    function stopReelsOnOutcome(serverSymbols, colMult, paylineName) {
       return new Promise(resolve => {
+        clearInterval(multSpinInterval);
         setMultiplierActive(colMult);
+        const targetRows = paylineRows(paylineName);
 
         for (let r = 0; r < 3; r++) {
           setTimeout(() => {
@@ -1377,17 +1581,16 @@
             const tape = document.getElementById(`tape-${r}`);
             tape.style.transition = 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.25)';
 
-            // Populate middle row with target outcome, with realistic top/bottom neighbours
             const symKey = serverSymbols[r];
-            const symCenter = SYMBOLS.find(s => s.id === symKey) || SYMBOLS[0];
-            const symTop = SYMBOLS[(SYMBOLS.indexOf(symCenter) + 1) % SYMBOLS.length];
-            const symBottom = SYMBOLS[(SYMBOLS.indexOf(symCenter) + 2) % SYMBOLS.length];
+            const symTarget = SYMBOLS.find(s => s.id === symKey) || SYMBOLS[0];
+            const baseIdx = SYMBOLS.indexOf(symTarget);
+            const tRow = targetRows[r];
 
-            // tape cells: 0 = top row, 1 = center payline, 2 = bottom row
-            tape.children[0].innerHTML = `<img src="${symTop.url}" alt="${symTop.name}" />`;
-            tape.children[1].innerHTML = `<img src="${symCenter.url}" alt="${symCenter.name}" />`;
-            tape.children[1].dataset.symbolId = symCenter.id;
-            tape.children[2].innerHTML = `<img src="${symBottom.url}" alt="${symBottom.name}" />`;
+            for (let row = 0; row < 3; row++) {
+              const s = row === tRow ? symTarget : SYMBOLS[(baseIdx + row + 1) % SYMBOLS.length];
+              tape.children[row].innerHTML = `<img src="${s.url}" alt="${s.name}" />`;
+              tape.children[row].dataset.symbolId = s.id;
+            }
 
             tape.style.transform = `translateY(0px)`;
 
@@ -1399,13 +1602,13 @@
       });
     }
 
-    function highlightWinLine(winReels) {
+    function highlightWinLine(winReels, paylineName) {
       const list = Array.isArray(winReels) && winReels.length ? winReels : [0, 1, 2];
+      const rows = paylineRows(paylineName);
       for (const r of list) {
         const tape = document.getElementById(`tape-${r}`);
-        if (tape.children[1]) {
-          tape.children[1].classList.add('winning');
-        }
+        const cell = tape.children[rows[r]];
+        if (cell) cell.classList.add('winning');
       }
     }
 
@@ -1415,8 +1618,7 @@
 
     function showPayline(paylineName) {
       hidePaylines();
-      // Line index mapping: 0=Top, 1=Center, 2=Bottom, 3=DiagDown, 4=DiagUp
-      let lineId = "line-1"; // default center
+      let lineId = "line-1";
       if (paylineName === "TOP") lineId = "line-0";
       else if (paylineName === "BOTTOM") lineId = "line-2";
       else if (paylineName === "DIAG1") lineId = "line-3";
@@ -1498,7 +1700,10 @@
     }
 
     function openGambleModal() {
-      if (currentRoundWin <= 0) return;
+      if (currentRoundWin <= 0 || !currentBetId) return;
+      document.getElementById('gamble-cur-win').textContent = currentRoundWin.toFixed(2) + ' ETB';
+      document.getElementById('btn-pick-red').disabled = false;
+      document.getElementById('btn-pick-black').disabled = false;
       document.getElementById('modal-gamble').style.display = 'flex';
     }
 
@@ -1506,42 +1711,65 @@
       document.querySelectorAll('.modal-backdrop').forEach(m => m.style.display = 'none');
     }
 
-    function gamblePick(color) {
+    let gambleBusy = false;
+    async function gamblePick(color) {
+      if (gambleBusy || !currentBetId || currentRoundWin <= 0) return;
+      gambleBusy = true;
+      document.getElementById('btn-pick-red').disabled = true;
+      document.getElementById('btn-pick-black').disabled = true;
       const card = document.getElementById('gamble-card-display');
       card.style.transform = 'scale(0.8) rotateY(90deg)';
 
-      setTimeout(() => {
-        const isRed = Math.random() > 0.5;
-        const won = (color === 'RED' && isRed) || (color === 'BLACK' && !isRed);
+      const res = await api('/api/slot/gamble', {
+        method: 'POST',
+        body: JSON.stringify({ betId: currentBetId, choice: color })
+      });
 
-        card.innerHTML = `<span style="font-size:36px; font-weight:900; color:${isRed ? '#e52945' : '#fff'};">${isRed ? '♥' : '♠'}</span>`;
+      if (!res || !res.success) {
         card.style.transform = 'scale(1) rotateY(0deg)';
+        gambleBusy = false;
+        showToast((res && res.message) || 'Gamble unavailable');
+        closeModals();
+        return;
+      }
 
-        setTimeout(() => {
-          if (won) {
-            currentRoundWin *= 2;
-            document.getElementById('ui-win').textContent = currentRoundWin.toFixed(2);
-            showToast(`Gamble WON! Double to ${currentRoundWin.toFixed(2)} ETB`);
-            sound.playWin();
-          } else {
-            currentRoundWin = 0;
-            document.getElementById('ui-win').textContent = "0.00";
-            document.getElementById('btn-collect').disabled = true;
-            document.getElementById('btn-gamble').disabled = true;
-            showToast("Gamble Lost!");
-          }
+      const isRed = res.drawnColor === 'RED';
+      const suitChar = res.drawnSuit === 'HEART' ? '♥' : res.drawnSuit === 'DIAMOND' ? '♦' : res.drawnSuit === 'CLUB' ? '♣' : '♠';
+      card.innerHTML = `<span style="font-size:38px; font-weight:900; color:${isRed ? '#e52945' : '#fff'};">${suitChar}</span>`;
+      card.style.transform = 'scale(1) rotateY(0deg)';
+
+      serverBalance = Number(res.newBalance);
+      showBalance();
+
+      setTimeout(() => {
+        if (res.won) {
+          currentRoundWin = Number(res.newWin || 0);
+          document.getElementById('ui-win').textContent = currentRoundWin.toFixed(2);
+          document.getElementById('gamble-cur-win').textContent = currentRoundWin.toFixed(2) + ' ETB';
+          showToast(`Gamble WON! Double to ${currentRoundWin.toFixed(2)} ETB`);
+          sound.playWin();
+          document.getElementById('btn-pick-red').disabled = false;
+          document.getElementById('btn-pick-black').disabled = false;
+        } else {
+          currentRoundWin = 0;
+          currentBetId = null;
+          document.getElementById('ui-win').textContent = "0.00";
+          document.getElementById('btn-collect').disabled = true;
+          document.getElementById('btn-gamble').disabled = true;
+          showToast("Gamble Lost!");
           closeModals();
-          card.innerHTML = `
-            <svg viewBox="0 0 40 40" fill="#10e587">
-              <circle cx="15" cy="15" r="7"/>
-              <circle cx="25" cy="15" r="7"/>
-              <circle cx="15" cy="25" r="7"/>
-              <circle cx="25" cy="25" r="7"/>
-              <path d="M20 20 L20 36" stroke="#10e587" stroke-width="3" stroke-linecap="round"/>
-            </svg>
-          `;
-        }, 700);
-      }, 300);
+        }
+        card.innerHTML = `
+          <svg viewBox="0 0 40 40" fill="#10e587">
+            <circle cx="15" cy="15" r="7"/>
+            <circle cx="25" cy="15" r="7"/>
+            <circle cx="15" cy="25" r="7"/>
+            <circle cx="25" cy="25" r="7"/>
+            <path d="M20 20 L20 36" stroke="#10e587" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+        `;
+        gambleBusy = false;
+      }, 650);
     }
 
     function showToast(msg) {

@@ -39,7 +39,8 @@ function createSharedHelpers(ctx) {
 
     let g;
     try {
-      g = math.resolveInstant(gameName, wager, clientData || {}, gameRtp(gameName), CONFIG.MAX_PAYOUT);
+      const kenoSecret = CONFIG.KENO_SECRET || process.env.ADMIN_PIN || 'hulu-keno-secret';
+      g = math.resolveInstant(gameName, wager, clientData || {}, gameRtp(gameName), CONFIG.MAX_PAYOUT, { kenoSecret });
     } catch (e) {
       if (e instanceof math.Bad) throw new Biz(e.message);
       throw e;
@@ -77,6 +78,7 @@ function createSharedHelpers(ctx) {
       cacheInvalidate(`userhist:${uid}:`);
       if (out.payout >= 100) cacheInvalidate('feed:');
       if (gameName === 'KenoFast') cacheInvalidate('keno_results:');
+      if (gameName === 'ClassicKeno') cacheInvalidate('classic_keno_results:');
     }
     if (out.payout >= 500) io.emit('live_win', { user: mask(out.uname), game: gameName, win: out.payout });
 

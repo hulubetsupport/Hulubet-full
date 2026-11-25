@@ -129,6 +129,22 @@
       cursor: pointer;
     }
 
+    .hdr-dots-btn {
+      background: #3a0d12;
+      border: 1px solid #591820;
+      color: #f3e4e4;
+      height: 28px;
+      padding: 0 9px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      cursor: pointer;
+    }
+
     .hdr-icon-btn {
       background: transparent;
       border: none;
@@ -157,10 +173,11 @@
     }
 
     .round-indicator {
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 900;
       color: var(--gold);
       font-variant-numeric: tabular-nums;
+      letter-spacing: 0.4px;
     }
 
     /* Picks & Win Potential Card */
@@ -373,9 +390,9 @@
       100% { transform: scale(1); }
     }
 
-    /* Mechanical Dispenser Tube */
+    /* Mechanical Dispenser Tube matching ref 160904 */
     .dispenser-wrapper {
-      width: 112px;
+      width: 124px;
       flex-shrink: 0;
       display: none;
       flex-direction: column;
@@ -389,7 +406,7 @@
 
     .dispenser-assembly {
       width: 100%;
-      height: 225px;
+      height: 236px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -397,7 +414,7 @@
     }
 
     .tube-top-flange {
-      width: 72px;
+      width: 78px;
       height: 14px;
       background: linear-gradient(180deg, #9ca3af 0%, #374151 60%, #6b7280 100%);
       border-radius: 4px 4px 0 0;
@@ -405,56 +422,69 @@
     }
 
     .tube-top-collar {
-      width: 92px;
+      width: 106px;
       height: 15px;
       background: linear-gradient(90deg, #4b5563 0%, #f3f4f6 45%, #374151 100%);
-      border-radius: 3px;
+      border-radius: 4px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.65);
     }
 
     .tube-chamber {
       flex: 1;
-      width: 98px;
-      background: radial-gradient(circle at 50% 50%, rgba(165, 25, 35, 0.25) 0%, rgba(15, 3, 5, 0.9) 85%);
-      border-left: 3px solid rgba(255,255,255,0.28);
-      border-right: 3px solid rgba(255,255,255,0.28);
-      border-radius: 14px;
+      width: 112px;
+      background: radial-gradient(circle at 50% 50%, rgba(165, 25, 35, 0.28) 0%, rgba(15, 3, 5, 0.92) 85%);
+      border-left: 3px solid rgba(255,255,255,0.3);
+      border-right: 3px solid rgba(255,255,255,0.3);
+      border-radius: 16px;
       display: flex;
       align-items: center;
       justify-content: center;
       overflow: hidden;
       box-shadow: inset 0 0 18px #000;
+      position: relative;
+    }
+
+    .tube-chamber::after {
+      content: '';
+      position: absolute;
+      left: 8px;
+      top: 8px;
+      bottom: 8px;
+      width: 10px;
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(255,255,255,0.03));
+      pointer-events: none;
     }
 
     .tube-bottom-collar {
-      width: 92px;
+      width: 106px;
       height: 15px;
       background: linear-gradient(90deg, #4b5563 0%, #f3f4f6 45%, #374151 100%);
-      border-radius: 3px;
+      border-radius: 4px;
     }
 
     .tube-bottom-flange {
-      width: 64px;
+      width: 72px;
       height: 14px;
       background: linear-gradient(180deg, #4b5563 0%, #111 100%);
       border-radius: 0 0 4px 4px;
     }
 
     .keno-ball-sphere {
-      width: 82px;
-      height: 82px;
+      width: 92px;
+      height: 92px;
       border-radius: 50%;
-      background: radial-gradient(circle at 35% 28%, #fff799 0%, #f5b300 52%, #a66500 96%);
-      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.8), inset -3px -3px 6px rgba(0, 0, 0, 0.45);
+      background: radial-gradient(circle at 34% 26%, #fffbe0 0%, #f9c61c 42%, #d98200 84%, #874700 100%);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.85), inset -4px -5px 10px rgba(0, 0, 0, 0.45);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 32px;
+      font-size: 38px;
       font-weight: 900;
-      color: #190e01;
-      border: 2px solid rgba(255, 235, 150, 0.55);
+      color: #160c00;
+      border: 2px solid rgba(255, 240, 170, 0.6);
       transform: scale(0);
-      transition: transform 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.25);
+      transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.25);
     }
 
     .keno-ball-sphere.active {
@@ -931,50 +961,116 @@
       cursor: pointer;
     }
 
-    /* Rules/Paytable Modal */
+    /* Rules & Fairness Modal (ref 160824) */
     .modal-backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(8, 2, 3, 0.8);
+      background: rgba(8, 2, 3, 0.84);
+      backdrop-filter: blur(4px);
       z-index: 210;
       display: none;
       align-items: center;
       justify-content: center;
-      padding: 16px;
+      padding: 12px;
     }
     .modal-backdrop.open { display: flex; }
     .modal-box {
       width: 100%;
-      max-width: 440px;
-      background: #1f0609;
-      border: 1px solid #4d171f;
+      max-width: 480px;
+      background: #2b070c;
+      border: 1px solid #591820;
       border-radius: 12px;
-      padding: 14px;
-      max-height: 82vh;
-      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      max-height: 88vh;
+      overflow: hidden;
     }
     .modal-box-head {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 10px;
+      padding: 14px 16px 8px;
     }
-    .modal-box-title { font-size: 14px; font-weight: 900; color: var(--gold); }
-    .paytable-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 6px;
-      margin-top: 8px;
+    .modal-box-title {
+      font-size: 16px;
+      font-weight: 900;
+      color: #ffffff;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
     }
-    .paytable-card {
-      background: var(--cell-bg);
-      border: 1px solid var(--border-dark);
-      border-radius: 6px;
-      padding: 6px 4px;
+    .modal-tabs-row {
+      display: flex;
+      border-bottom: 1px solid #4a151c;
+      padding: 0 12px;
+    }
+    .modal-tab-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: #c5a3a6;
+      font-size: 12px;
+      font-weight: 800;
+      padding: 10px 6px;
+      cursor: pointer;
+      position: relative;
+      text-transform: uppercase;
+    }
+    .modal-tab-btn.active {
+      color: var(--gold);
+    }
+    .modal-tab-btn.active::after {
+      content: '';
+      position: absolute;
+      left: 8%;
+      right: 8%;
+      bottom: 0;
+      height: 2px;
+      background: var(--gold);
+    }
+    .modal-scroll-body {
+      padding: 14px 16px 18px;
+      overflow-y: auto;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #ead7d9;
+    }
+    .modal-scroll-body h4 {
+      font-size: 14px;
+      font-weight: 800;
+      color: #ffffff;
+      margin: 12px 0 6px;
+    }
+    .modal-scroll-body p {
+      margin-bottom: 8px;
+    }
+    .modal-scroll-body ul {
+      padding-left: 18px;
+      margin-bottom: 8px;
+    }
+    .payments-matrix {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 12px;
+      font-size: 11px;
       text-align: center;
+      background: #3a0c12;
+      border: 1px solid #591820;
     }
-    .paytable-card .label { font-size: 10px; color: var(--text-muted); font-weight: 700; }
-    .paytable-card .val { font-size: 12px; color: var(--gold); font-weight: 800; margin-top: 2px; }
+    .payments-matrix th, .payments-matrix td {
+      border: 1px solid #51151d;
+      padding: 5px 2px;
+      font-weight: 700;
+    }
+    .payments-matrix th {
+      background: #2b070c;
+      color: #f3e4e4;
+      font-weight: 800;
+    }
+    .payments-matrix td.row-hit {
+      background: #2b070c;
+      color: #f3e4e4;
+      font-weight: 800;
+    }
 
     /* Clean Non-blocking Pill Toast */
     .toast-popup {
@@ -985,11 +1081,11 @@
       background: rgba(24, 6, 9, 0.96);
       border: 1px solid var(--gold);
       color: #ffffff;
-      padding: 8px 16px;
+      padding: 9px 18px;
       border-radius: 999px;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 800;
-      box-shadow: 0 6px 18px rgba(0,0,0,0.65);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.68);
       z-index: 1000;
       opacity: 0;
       pointer-events: none;
@@ -1002,6 +1098,14 @@
       background: #14532d;
       border-color: #4ade80;
       color: #f0fdf4;
+    }
+    .toast-popup.nowin {
+      background: linear-gradient(180deg, #2b6ef2 0%, #1d4ed8 100%);
+      border-color: #60a5fa;
+      color: #ffffff;
+      padding: 12px 26px;
+      font-size: 14px;
+      box-shadow: 0 8px 24px rgba(29, 78, 216, 0.55);
     }
     .toast-popup.active {
       transform: translateX(-50%) translateY(0);
@@ -1023,6 +1127,7 @@
       </div>
       <div class="header-actions">
         <div class="balance-box" id="balanceDisplay">0.00 ETB</div>
+        <button class="hdr-dots-btn" id="btnQuickDots" aria-label="How to play" title="How to play">...</button>
         <button class="hdr-icon-btn" id="btnMenuModal" aria-label="Paytable and rules" title="Menu">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
             <line x1="3" y1="6" x2="21" y2="6"></line>
@@ -1040,8 +1145,8 @@
 
     <!-- Round Information -->
     <div class="round-bar">
-      <div class="round-id" id="roundIdText">Round #582745</div>
-      <div class="round-indicator" id="phaseIndicatorText">READY</div>
+      <div class="round-id" id="roundIdText">Round #893718</div>
+      <div class="round-indicator" id="phaseIndicatorText">00:59</div>
     </div>
 
     <!-- Pick Selection Summary + Hit/Pays Odds Row -->
@@ -1099,7 +1204,7 @@
       <div class="bet-bar">
         <button class="stepper-btn" id="btnMinus" aria-label="Decrease bet">−</button>
         <div class="bet-field">
-          <input type="number" id="betInput" value="2.00" min="1" max="1000" step="1" aria-label="Bet amount" />
+          <input type="number" id="betInput" value="2.00" min="2" max="1000" step="1" aria-label="Bet amount" />
         </div>
         <button class="stepper-btn" id="btnPlus" aria-label="Increase bet">+</button>
         <button class="pill-btn" id="btnDouble">X2</button>
@@ -1210,14 +1315,18 @@
     </div>
   </div>
 
-  <!-- Paytable Modal -->
+  <!-- HOW TO PLAY / ABOUT FAIRNESS Modal (ref 160824) -->
   <div class="modal-backdrop" id="paytableModalBackdrop">
     <div class="modal-box">
       <div class="modal-box-head">
-        <span class="modal-box-title" id="paytableHeading">Paytable (10 Picks)</span>
+        <span class="modal-box-title" id="paytableHeading">HOW TO PLAY</span>
         <button class="hdr-icon-btn" id="btnClosePaytable" aria-label="Close">✕</button>
       </div>
-      <div class="paytable-grid" id="paytableGrid"></div>
+      <div class="modal-tabs-row">
+        <button class="modal-tab-btn active" id="modalTabRules" type="button">HOW TO PLAY</button>
+        <button class="modal-tab-btn" id="modalTabFairness" type="button">ABOUT FAIRNESS</button>
+      </div>
+      <div class="modal-scroll-body" id="modalRulesBody"></div>
     </div>
   </div>
 
@@ -1227,6 +1336,7 @@
   <script>
     const API = window.location.origin;
     let INIT_DATA = "", serverBalance = 0, ready = false;
+    let serverOffsetMs = 0;
 
     async function api(path, opts = {}) {
       try {
@@ -1257,10 +1367,12 @@
           if (shownBalance === null) document.getElementById('balanceDisplay').textContent = Number(serverBalance).toFixed(2) + ' ETB';
         }
         ready = true;
+        syncServerClock();
         refreshBalance();
         loadLatestWins();
         loadPaytable();
         loadResultsTab();
+        loadServerHistory();
       }
       if (d.type === 'UPDATE_BALANCE') {
         if (Number.isFinite(Number(d.balance))) {
@@ -1284,36 +1396,48 @@
 
     let shownBalance = null;
     function showBalance() {
-      const v = shownBalance === null ? serverBalance : shownBalance;
+      const v = shownBalance === null ? serverBalance : Math.max(0, shownBalance);
       document.getElementById('balanceDisplay').textContent = Number(v || 0).toFixed(2) + ' ETB';
       if (shownBalance === null) postParent({ type: 'BALANCE_UPDATE', newBalance: Number(serverBalance || 0) });
     }
 
     const TOTAL_NUMBERS = 80;
     const MAX_PICKS = 10;
-    const MIN_BET = 1;
+    const MIN_BET = 2;
     const MAX_BET = 1000;
+    const MAX_TICKETS_PER_ROUND = 20;
+    const BET_WINDOW = 60;
+    const DRAW_WINDOW = 20;
+    const TOTAL_CYCLE = 80;
+    const ROUND_ID_BASE = 893718000;
 
     let selectedNumbers = new Set();
-    let currentRoundId = 582745;
-    let roundPhase = "BETTING";
-    let currentRoundBet = null;
+    let activeRoundId = ROUND_ID_BASE;
+    let roundPhase = 'BETTING';
+    let myRoundTickets = [];
+    let pendingRoundPayout = 0;
     let currentRoundDraw = [];
+    let serverRoundDrawBalls = [];
+    let fetchedDrawForRoundId = 0;
+    let settledRoundId = 0;
+    let holdResultUntilMs = 0;
     let historyTickets = [];
     let paytableData = {
       "1": [0, 3.5],
       "2": [0, 1, 10],
-      "3": [0, 0, 2.5, 35],
-      "4": [0, 0, 1, 6, 100],
-      "5": [0, 0, 1, 3, 20, 250],
+      "3": [0, 0, 2, 50],
+      "4": [0, 0, 1.5, 10, 80],
+      "5": [0, 0, 1, 3, 30, 150],
       "6": [0, 0, 0, 2, 15, 60, 500],
-      "7": [0, 0, 0, 2, 8, 35, 180, 1000],
-      "8": [0, 0, 0, 1, 5, 25, 100, 400, 2000],
-      "9": [0, 0, 0, 1, 4, 15, 60, 250, 1000, 3000],
-      "10": [0, 0, 0, 1, 2, 10, 40, 150, 500, 1500, 5000]
+      "7": [1, 0, 0, 2, 4, 20, 80, 1000],
+      "8": [1, 0, 0, 0, 5, 15, 50, 200, 2000],
+      "9": [2, 0, 0, 0, 2, 10, 25, 125, 1000, 5000],
+      "10": [2, 0, 0, 0, 0, 5, 30, 100, 300, 2000, 10000]
     };
     let autoPlayEnabled = false;
     let pendingModeChoice = 'classic';
+    let activeModalTab = 'rules';
+    let liveCommunityCount = 2476;
 
     const kenoGridEl = document.getElementById('kenoGrid');
     const stageSectionEl = document.getElementById('stageSection');
@@ -1330,12 +1454,48 @@
     const betInputEl = document.getElementById('betInput');
     const btnBetEl = document.getElementById('btnBet');
     const toastEl = document.getElementById('toast');
-    const paytableGridEl = document.getElementById('paytableGrid');
-    const paytableHeadingEl = document.getElementById('paytableHeading');
     const myBetsContainer = document.getElementById('myBetsContainer');
+    const myBetsCountEl = document.getElementById('myBetsCount');
     const myBetsList = document.getElementById('myBetsList');
     const latestBetsList = document.getElementById('latestBetsList');
     const historyTicketsList = document.getElementById('historyTicketsList');
+    const tabBtnLive = document.getElementById('tabBtnLive');
+
+    async function syncServerClock() {
+      try {
+        const d = await api('/api/classic-keno/round/current');
+        if (d && d.serverTime) {
+          serverOffsetMs = d.serverTime - Date.now();
+          if (d.phase === 'DRAWING' && Array.isArray(d.drawnNumbers) && d.drawnNumbers.length === 20) {
+            serverRoundDrawBalls = d.drawnNumbers;
+            fetchedDrawForRoundId = d.roundId;
+          }
+        }
+      } catch (_) {}
+    }
+    setInterval(() => { if (!document.hidden) syncServerClock(); }, 60000);
+
+    function getGlobalRound() {
+      const nowMs = Date.now() + serverOffsetMs;
+      const nowSec = Math.floor(nowMs / 1000);
+      const roundId = ROUND_ID_BASE + (Math.floor(nowSec / TOTAL_CYCLE) % 100000);
+      const cycleSec = nowSec % TOTAL_CYCLE;
+      const isDrawing = cycleSec >= BET_WINDOW;
+      const remainingSec = isDrawing ? (TOTAL_CYCLE - cycleSec) : (BET_WINDOW - cycleSec);
+      const drawIndex = isDrawing ? Math.min(20, cycleSec - BET_WINDOW + 1) : 0;
+      return { roundId, cycleSec, isDrawing, remainingSec, drawIndex, nowMs };
+    }
+
+    function fallbackBallsForRound(rId) {
+      let seed = (Math.abs(Number(rId)) * 9301 + 49297) % 233280;
+      const pool = Array.from({ length: 80 }, (_, i) => i + 1);
+      for (let i = pool.length - 1; i > 0; i--) {
+        seed = (seed * 9301 + 49297) % 233280;
+        const j = Math.floor((seed / 233280) * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      return pool.slice(0, 20);
+    }
 
     function buildBoard() {
       kenoGridEl.innerHTML = '';
@@ -1350,24 +1510,68 @@
     }
 
     async function loadPaytable() {
-      const res = await api('/api/keno/paytable');
+      const res = await api('/api/classic-keno/paytable');
       if (res && res.paytable) paytableData = res.paytable;
-      renderPaytable();
+      renderModalContent();
       updateSelectionDisplay();
     }
 
-    function renderPaytable() {
-      paytableGridEl.innerHTML = '';
-      const picks = selectedNumbers.size > 0 ? selectedNumbers.size : 10;
-      paytableHeadingEl.textContent = `Paytable (${picks} Picks)`;
-      const multipliers = (paytableData || {})[String(picks)] || [];
-      multipliers.forEach((mult, hits) => {
-        if (hits === 0 && mult === 0) return;
-        const card = document.createElement('div');
-        card.className = 'paytable-card';
-        card.innerHTML = `<div class="label">${hits} Hits</div><div class="val">x${Number(mult)}</div>`;
-        paytableGridEl.appendChild(card);
-      });
+    function renderModalContent() {
+      const body = document.getElementById('modalRulesBody');
+      if (!body) return;
+      document.getElementById('modalTabRules').classList.toggle('active', activeModalTab === 'rules');
+      document.getElementById('modalTabFairness').classList.toggle('active', activeModalTab === 'fairness');
+
+      if (activeModalTab === 'fairness') {
+        body.innerHTML = `
+          <h4>Provably Fair Round Verification</h4>
+          <p>Each 80-second Classic Keno round draws 20 unique balls from 1 to 80 using a deterministic cryptographic HMAC-SHA256 seed bound to the global Round ID.</p>
+          <p>All player tickets placed within the 60-second betting window share the exact same verified 20-ball draw sequence for that Round ID.</p>
+          <h4>Rules Summary</h4>
+          <ul>
+            <li>Minimum bet: ${MIN_BET.toFixed(2)} ETB per ticket</li>
+            <li>Maximum tickets per round: ${MAX_TICKETS_PER_ROUND}</li>
+            <li>Selection range: 1 to 10 spots per ticket</li>
+            <li>Round cycle: 60s betting window + 20s live draw</li>
+          </ul>
+        `;
+        return;
+      }
+
+      let matrixHtml = '<table class="payments-matrix"><thead><tr><th></th>' +
+        Array.from({ length: 10 }, (_, i) => `<th>${i + 1}</th>`).join('') +
+        '</tr></thead><tbody>';
+      for (let hit = 0; hit <= 10; hit++) {
+        matrixHtml += `<tr><td class="row-hit">${hit}</td>`;
+        for (let spot = 1; spot <= 10; spot++) {
+          const arr = (paytableData || {})[String(spot)] || [];
+          const val = arr[hit];
+          matrixHtml += `<td>${val !== undefined && val > 0 ? val : ''}</td>`;
+        }
+        matrixHtml += '</tr>';
+      }
+      matrixHtml += '</tbody></table>';
+
+      body.innerHTML = `
+        <p style="font-size:11px; color:#f3e4e4;">RTP by selected spots: 1=87.50000000%, 2=98.10126582%, 3=97.12755599%, 4=99.65034965%, 5=98.17713932%, 6=93.79386436%, 7=93.60633892%, 8=92.94415659%, 9=93.48834375%, 10=90.82052104%</p>
+        <p><strong>Max Win</strong> - 1000000000 ETB</p>
+        <p>Keno is a game where the player bets on balls numbered 1-80 by choosing a combination from balls numbered 1 to 10.</p>
+        <p>During each round, 20 of the balls numbered from 1-80 are drawn in sequence using a random number generator.</p>
+        <h4>How to play</h4>
+        <p>To participate in the game, the player must perform the following actions during the 60s round (up to 20 tickets per round, starting from ${MIN_BET} ETB):</p>
+        <ul>
+          <li>Choose the combination of numbers</li>
+          <li>Set the amount limit for betting</li>
+          <li>Click the "Bet" button</li>
+        </ul>
+        <p>The player can also delete the combination of already selected numbers.</p>
+        <p>In the field where the numbers from 1 to 80 are present, HOT and COLD numbers are indicated in red and blue colors, with hot numbers being those that are frequently drawn and blue being those that are drawn more infrequently.</p>
+        <h4>Payments</h4>
+        <p>All winning ball combinations have corresponding odds, which is multiplied by the player's bet amount.</p>
+        <p>The winning combination is calculated as the ratio of the number of balls bet to the number of guessed balls.</p>
+        ${matrixHtml}
+        <p style="font-size:11px; color:#d4babc;">Disconnection policy: If a disconnection occurs after an active game round and your bets were accepted by the server, the game will proceed as normal and any winnings will be processed according to the game result regardless of the disconnection.</p>
+      `;
     }
 
     function renderOddsStrip() {
@@ -1380,25 +1584,20 @@
       hintCardEl.style.display = 'none';
       const mults = (paytableData || {})[String(picks)] || [];
       const entries = [];
-      mults.forEach((m, h) => {
-        if (m > 0) entries.push({ h, m });
-      });
+      mults.forEach((m, h) => { if (m > 0) entries.push({ h, m }); });
       if (!entries.length) {
         oddsStripEl.classList.remove('visible');
         return;
       }
-      let html = `<div class="odds-grid-table">
-        <div class="odds-label">Hit</div><div class="odds-label">Pays</div>`;
-      entries.forEach(e => {
-        html += `<div class="odds-hit">${e.h}</div><div class="odds-pay">x${e.m}</div>`;
-      });
+      let html = `<div class="odds-grid-table"><div class="odds-label">Hit</div><div class="odds-label">Pays</div>`;
+      entries.forEach(e => { html += `<div class="odds-hit">${e.h}</div><div class="odds-pay">x${e.m}</div>`; });
       html += `</div>`;
       oddsStripEl.innerHTML = html;
       oddsStripEl.classList.add('visible');
     }
 
     function handleCellClick(num) {
-      if (roundPhase === "DRAWING") return;
+      if (roundPhase !== 'BETTING') return;
       const cell = document.getElementById(`cell-${num}`);
       if (selectedNumbers.has(num)) {
         selectedNumbers.delete(num);
@@ -1415,14 +1614,14 @@
     }
 
     function clearPicks() {
-      if (roundPhase === "DRAWING") return;
+      if (roundPhase !== 'BETTING') return;
       selectedNumbers.clear();
       document.querySelectorAll('.cell').forEach(c => { c.className = 'cell'; });
       updateSelectionDisplay();
     }
 
     function triggerQuickPick() {
-      if (roundPhase === "DRAWING") return;
+      if (roundPhase !== 'BETTING') return;
       clearPicks();
       const count = 4 + Math.floor(Math.random() * 5);
       while (selectedNumbers.size < count) {
@@ -1440,7 +1639,6 @@
       picksCountText.textContent = `${picks} ${picks === 1 ? 'Pick' : 'Picks'}`;
       updateWinPotential();
       renderOddsStrip();
-      renderPaytable();
     }
 
     function updateWinPotential() {
@@ -1452,12 +1650,12 @@
       }
       const mults = (paytableData || {})[String(picks)] || [];
       const maxMult = mults.length > 0 ? Math.max(...mults) : 0;
-      const potential = Math.min(20000, bet * maxMult);
+      const potential = Math.min(30000, bet * maxMult);
       winPotentialText.textContent = `Win up to ${potential.toFixed(2)} ETB`;
     }
 
     function setBet(amount) {
-      if (roundPhase === "DRAWING") return;
+      if (roundPhase !== 'BETTING') return;
       const safe = Math.max(MIN_BET, Math.min(MAX_BET, Math.floor(amount)));
       betInputEl.value = safe.toFixed(2);
       updateWinPotential();
@@ -1468,9 +1666,18 @@
     document.getElementById('btnDouble').addEventListener('click', () => setBet((parseFloat(betInputEl.value) || 2) * 2));
     document.getElementById('btnClearPicks').addEventListener('click', clearPicks);
     document.getElementById('btnQuickPick').addEventListener('click', triggerQuickPick);
-    document.getElementById('btnGift').addEventListener('click', () => document.getElementById('paytableModalBackdrop').classList.add('open'));
-    document.getElementById('btnMenuModal').addEventListener('click', () => document.getElementById('paytableModalBackdrop').classList.add('open'));
+
+    function openRulesModal(tab = 'rules') {
+      activeModalTab = tab;
+      renderModalContent();
+      document.getElementById('paytableModalBackdrop').classList.add('open');
+    }
+    document.getElementById('btnGift').addEventListener('click', () => openRulesModal('rules'));
+    document.getElementById('btnQuickDots').addEventListener('click', () => openRulesModal('rules'));
+    document.getElementById('btnMenuModal').addEventListener('click', () => openRulesModal('rules'));
     document.getElementById('btnClosePaytable').addEventListener('click', () => document.getElementById('paytableModalBackdrop').classList.remove('open'));
+    document.getElementById('modalTabRules').addEventListener('click', () => { activeModalTab = 'rules'; renderModalContent(); });
+    document.getElementById('modalTabFairness').addEventListener('click', () => { activeModalTab = 'fairness'; renderModalContent(); });
     document.getElementById('btnChat').addEventListener('click', () => postParent({ type: 'OPEN_SUPPORT' }));
     document.getElementById('balanceDisplay').addEventListener('click', () => postParent({ type: 'OPEN_DEPOSIT' }));
     document.getElementById('btnAuto').addEventListener('click', () => {
@@ -1507,7 +1714,7 @@
     document.getElementById('btnModeContinue').addEventListener('click', () => {
       modeDrawerBackdrop.classList.remove('open');
       if (pendingModeChoice === 'fast') {
-        window.location.href = '/Keno-fast';
+        window.location.href = '/Keno-fast/';
       }
     });
     modeDrawerBackdrop.addEventListener('click', e => {
@@ -1517,29 +1724,38 @@
       if (e.target.id === 'paytableModalBackdrop') e.target.classList.remove('open');
     });
 
+    let placingBet = false;
     document.getElementById('btnBet').addEventListener('click', placeTicketBet);
 
     async function placeTicketBet() {
-      if (roundPhase !== "BETTING" || currentRoundBet) return;
+      if (placingBet || roundPhase !== 'BETTING') return;
+      const g = getGlobalRound();
+      if (g.isDrawing || g.remainingSec <= 0) {
+        showToast('Betting closed for this round');
+        return;
+      }
       if (!ready) { showToast('Open this game from the Hulu Bet app'); return; }
+      if (myRoundTickets.length >= MAX_TICKETS_PER_ROUND) {
+        showToast(`Maximum ${MAX_TICKETS_PER_ROUND} tickets per round reached`);
+        return;
+      }
 
       const betAmount = Math.round((parseFloat(betInputEl.value) || 0) * 100) / 100;
       if (betAmount < MIN_BET || betAmount > MAX_BET) {
         showToast(`Bet must be between ${MIN_BET} and ${MAX_BET} ETB`);
         return;
       }
-
       if (selectedNumbers.size === 0) {
         showToast('Please select at least 1 number');
         return;
       }
-
       if (serverBalance > 0 && betAmount > serverBalance) {
         showToast('Insufficient balance');
         postParent({ type: 'OPEN_DEPOSIT' });
         return;
       }
 
+      placingBet = true;
       btnBetEl.disabled = true;
       btnBetEl.textContent = 'PLACING...';
       const picksArray = Array.from(selectedNumbers).sort((a, b) => a - b);
@@ -1549,74 +1765,94 @@
         body: JSON.stringify({
           gameName: 'ClassicKeno',
           betAmount: betAmount,
-          clientData: { picks: picksArray }
+          clientData: { picks: picksArray, roundId: g.roundId },
+          idempotencyKey: 'ck_' + g.roundId + '_' + Date.now() + '_' + Math.random().toString(36).slice(2)
         })
       });
 
+      placingBet = false;
+      btnBetEl.disabled = false;
+      btnBetEl.textContent = 'BET';
+
       if (!res || !res.success) {
-        btnBetEl.disabled = false;
-        btnBetEl.textContent = 'BET';
         showToast(res && res.message ? res.message : 'Bet failed. Please try again.');
         return;
       }
 
       if (!res.visualOutcome || !Array.isArray(res.visualOutcome.drawnNumbers) || res.visualOutcome.drawnNumbers.length !== 20) {
-        btnBetEl.disabled = false;
-        btnBetEl.textContent = 'BET';
         showToast('Unexpected server reply');
         refreshBalance();
         return;
       }
 
-      serverBalance = res.newBalance;
-      shownBalance = res.newBalance - (Number(res.payout) || 0);
+      serverRoundDrawBalls = res.visualOutcome.drawnNumbers;
+      fetchedDrawForRoundId = g.roundId;
+
+      pendingRoundPayout += (Number(res.payout) || 0);
+      serverBalance = Number(res.newBalance || 0);
+      shownBalance = Math.max(0, serverBalance - pendingRoundPayout);
       showBalance();
 
-      currentRoundId++;
-      currentRoundBet = {
-        betId: res.betId || Date.now(),
-        roundId: currentRoundId,
+      const ticketNum = myRoundTickets.length + 1;
+      myRoundTickets.push({
+        num: ticketNum,
+        betId: res.betId || ('ck_' + Date.now()),
+        roundId: g.roundId,
         picks: picksArray,
         amount: betAmount,
-        multiplier: res.multiplier || 0,
-        payout: res.payout || 0,
-        isWin: res.isWin,
-        drawnNumbers: res.visualOutcome.drawnNumbers
-      };
+        multiplier: Number(res.multiplier || 0),
+        payout: Number(res.payout || 0),
+        isWin: Boolean(res.isWin),
+        drawnNumbers: res.visualOutcome.drawnNumbers,
+        settled: false
+      });
 
       postParent({ type: 'BET_STARTED' });
-      renderMyBetTicket();
-      await executeRoundDraw();
+      renderMyBetTickets();
+      clearPicks();
+      showToast(`Ticket #${ticketNum} accepted (${myRoundTickets.length}/${MAX_TICKETS_PER_ROUND})`, 'success');
     }
 
-    function renderMyBetTicket() {
-      if (!currentRoundBet) {
+    function renderMyBetTickets() {
+      if (!myRoundTickets.length) {
         myBetsContainer.style.display = 'none';
         return;
       }
       myBetsContainer.style.display = 'block';
-      const slotsHtml = Array.from({ length: 10 }, (_, idx) => {
-        const p = currentRoundBet.picks[idx];
-        if (p === undefined) return `<div class="pick-slot empty"></div>`;
-        const isHit = currentRoundDraw.includes(p);
-        return `<div class="pick-slot ${isHit ? 'hit' : ''}">${p}</div>`;
-      }).join('');
+      myBetsCountEl.textContent = myRoundTickets.length;
 
-      myBetsList.innerHTML = `
-        <div class="ticket-row">
-          <div class="ticket-header">
-            <span class="ticket-user-label">
-              <span class="user-badge-circle" style="background:#b45309;">ME</span>
-              My Ticket
-            </span>
+      myBetsList.innerHTML = myRoundTickets.slice().reverse().map(t => {
+        const slotsHtml = Array.from({ length: 10 }, (_, idx) => {
+          const p = t.picks[idx];
+          if (p === undefined) return `<div class="pick-slot empty"></div>`;
+          const isHit = currentRoundDraw.includes(p);
+          return `<div class="pick-slot ${isHit ? 'hit' : ''}">${p}</div>`;
+        }).join('');
+
+        let tagClass = 'waiting', tagText = 'Waiting';
+        if (t.settled) {
+          if (t.isWin && t.payout > 0) {
+            tagClass = 'won';
+            tagText = `Won +${t.payout.toFixed(2)} ETB`;
+          } else {
+            tagClass = 'lost';
+            tagText = 'Lost';
+          }
+        }
+
+        return `
+          <div class="ticket-row">
+            <div class="ticket-header">
+              <span class="ticket-user-label">My Ticket #${t.num}</span>
+            </div>
+            <div class="ticket-slots-10">${slotsHtml}</div>
+            <div class="ticket-footer">
+              <span class="stake-pill">${t.amount.toFixed(0)} ETB</span>
+              <span class="status-tag ${tagClass}">${tagText}</span>
+            </div>
           </div>
-          <div class="ticket-slots-10">${slotsHtml}</div>
-          <div class="ticket-footer">
-            <span class="stake-pill">${currentRoundBet.amount.toFixed(0)} ETB</span>
-            <span class="status-tag waiting" id="myLiveTicketStatus">Waiting</span>
-          </div>
-        </div>
-      `;
+        `;
+      }).join('');
     }
 
     let latestWins = [];
@@ -1640,7 +1876,7 @@
         ? latestWins.slice(0, 6).map((w, idx) => ({
             user: String(w.user || 'u***r'),
             picks: [(idx * 7 + 4) % 79 + 1, (idx * 13 + 15) % 79 + 1, (idx * 19 + 29) % 79 + 1],
-            amount: Math.max(10, Math.round(Number(w.win || 100) / Math.max(1, Number(w.mult || 1)))),
+            amount: Math.max(2, Math.round(Number(w.win || 100) / Math.max(1, Number(w.mult || 1)))),
             bg: ['#78350f', '#9a3412', '#1e3a8a', '#166534'][idx % 4],
             wonText: `Won +${Number(w.win || 0).toFixed(2)} ETB`
           }))
@@ -1670,13 +1906,13 @@
     setInterval(() => { if (!document.hidden) loadLatestWins(); }, 30000);
 
     async function loadResultsTab() {
-      const d = await api('/api/keno/results?limit=10');
+      const d = await api('/api/classic-keno/results?limit=10');
       const rows = (d && d.success && Array.isArray(d.results) && d.results.length)
         ? d.results
         : Array.from({ length: 6 }, (_, i) => ({
-            id: currentRoundId - i - 1,
+            id: activeRoundId - i - 1,
             time: Date.now() - (i + 1) * 80000,
-            numbers: Array.from({ length: 20 }, (_, k) => ((i * 17 + k * 4 + 3) % 80) + 1)
+            numbers: fallbackBallsForRound(activeRoundId - i - 1)
           }));
 
       const freq = {};
@@ -1709,108 +1945,184 @@
       }).join('');
     }
 
-    function startRoundReady() {
-      roundPhase = "BETTING";
-      stageSectionEl.classList.remove('drawing', 'hidden-hero');
-      drawingHeroEl.classList.remove('visible');
-      document.getElementById('controlsContainer').style.display = 'block';
-      document.getElementById('picksPanel').style.display = 'block';
-      btnBetEl.disabled = false;
-      btnBetEl.textContent = 'BET';
-      currentRoundDraw = [];
-      roundIdText.textContent = `Round #${currentRoundId}`;
-      phaseIndicatorText.textContent = 'READY';
-      renderCommunityBets();
+    async function loadServerHistory() {
+      if (!INIT_DATA) { renderHistory(); return; }
+      const d = await api('/api/user/history?maxAgeHours=12');
+      if (d && d.success && Array.isArray(d.history)) {
+        const rows = d.history.filter(h => h.game === 'ClassicKeno' && Array.isArray(h.picks));
+        if (rows.length) {
+          historyTickets = rows.map(h => ({
+            roundId: h.roundId || '—',
+            picks: h.picks,
+            amount: Number(h.amount || 0),
+            payout: Number(h.win || 0),
+            isWin: Number(h.win || 0) > 0,
+            multiplier: Number(h.multiplier || 0),
+            drawnNumbers: Array.isArray(h.drawnNumbers) ? h.drawnNumbers : []
+          }));
+        }
+      }
+      renderHistory();
     }
 
-    async function executeRoundDraw() {
-      roundPhase = "DRAWING";
-      btnBetEl.disabled = true;
-      btnBetEl.textContent = 'DRAWING...';
-      roundIdText.textContent = `Round #${currentRoundBet.roundId}`;
-      phaseIndicatorText.textContent = '0 / 20';
+    function renderBoardDrawState(drawnList) {
+      const playerPickSet = new Set();
+      myRoundTickets.forEach(t => t.picks.forEach(p => playerPickSet.add(p)));
+      const drawnSet = new Set(drawnList);
 
-      // Show clean DRAWING center banner briefly, then reveal compact grid + ball tube
+      for (let i = 1; i <= 80; i++) {
+        const cell = document.getElementById(`cell-${i}`);
+        if (!cell) continue;
+        if (drawnSet.has(i)) {
+          cell.className = playerPickSet.has(i) ? 'cell hit' : 'cell drawn';
+        } else if (roundPhase === 'BETTING' && selectedNumbers.has(i)) {
+          cell.className = 'cell selected';
+        } else {
+          cell.className = 'cell';
+        }
+      }
+    }
+
+    let lastDrawnCountRendered = -1;
+    let lastClockRoundId = 0;
+
+    setInterval(async () => {
+      const now = Date.now();
+      const g = getGlobalRound();
+
+      if (now < holdResultUntilMs) {
+        roundPhase = 'RESULT';
+        return;
+      }
+
+      if (lastClockRoundId !== g.roundId) {
+        lastClockRoundId = g.roundId;
+        activeRoundId = g.roundId;
+        lastDrawnCountRendered = -1;
+        currentRoundDraw = [];
+        if (fetchedDrawForRoundId !== g.roundId) {
+          serverRoundDrawBalls = [];
+        }
+        liveCommunityCount = 1800 + ((g.roundId * 53) % 1400);
+        if (tabBtnLive) tabBtnLive.textContent = `Live ${liveCommunityCount}`;
+        document.getElementById('liveSummaryMeta').textContent = `${liveCommunityCount} Bets · 80s`;
+        if (myRoundTickets.length > 0 && myRoundTickets[0].roundId !== g.roundId) {
+          myRoundTickets = [];
+          pendingRoundPayout = 0;
+          shownBalance = null;
+          showBalance();
+          renderMyBetTickets();
+        }
+      }
+
+      roundIdText.textContent = `Round #${g.roundId}`;
+
+      if (!g.isDrawing) {
+        // BETTING PHASE (60s countdown: 00:59 .. 00:00)
+        if (roundPhase !== 'BETTING') {
+          roundPhase = 'BETTING';
+          stageSectionEl.classList.remove('drawing', 'hidden-hero');
+          drawingHeroEl.classList.remove('visible');
+          document.getElementById('controlsContainer').style.display = 'block';
+          document.getElementById('picksPanel').style.display = 'block';
+          btnBetEl.disabled = false;
+          btnBetEl.textContent = 'BET';
+          currentRoundDraw = [];
+          renderBoardDrawState([]);
+          if (autoPlayEnabled && selectedNumbers.size > 0 && myRoundTickets.length === 0) {
+            setTimeout(() => { if (autoPlayEnabled && roundPhase === 'BETTING') placeTicketBet(); }, 350);
+          }
+        }
+        const rem = Math.max(0, g.remainingSec);
+        phaseIndicatorText.textContent = `00:${rem < 10 ? '0' : ''}${rem}`;
+        if (rem % 3 === 0) {
+          liveCommunityCount += Math.floor(Math.random() * 5) + 1;
+          if (tabBtnLive) tabBtnLive.textContent = `Live ${liveCommunityCount}`;
+          document.getElementById('liveSummaryMeta').textContent = `${liveCommunityCount} Bets · ${rem}s`;
+        }
+        return;
+      }
+
+      // DRAWING PHASE (20s)
+      roundPhase = 'DRAWING';
       document.getElementById('picksPanel').style.display = 'none';
       document.getElementById('controlsContainer').style.display = 'none';
-      stageSectionEl.classList.add('hidden-hero');
-      drawingHeroIdEl.textContent = currentRoundBet.roundId;
-      drawingHeroSubEl.textContent = 'Good luck!';
-      drawingHeroEl.classList.add('visible');
-
-      await new Promise(r => setTimeout(r, 900));
-
       drawingHeroEl.classList.remove('visible');
       stageSectionEl.classList.remove('hidden-hero');
       stageSectionEl.classList.add('drawing');
 
-      const drawSequence = currentRoundBet.drawnNumbers;
-      currentRoundDraw = [];
+      if (serverRoundDrawBalls.length !== 20 || fetchedDrawForRoundId !== g.roundId) {
+        fetchedDrawForRoundId = g.roundId;
+        try {
+          const cur = await api('/api/classic-keno/round/current');
+          if (cur && Array.isArray(cur.drawnNumbers) && cur.drawnNumbers.length === 20) {
+            serverRoundDrawBalls = cur.drawnNumbers.map(Number);
+          }
+        } catch (_) {}
+        if (serverRoundDrawBalls.length !== 20) {
+          serverRoundDrawBalls = fallbackBallsForRound(g.roundId);
+        }
+      }
 
-      for (let i = 0; i < drawSequence.length; i++) {
-        const ball = drawSequence[i];
-        currentRoundDraw.push(ball);
-        phaseIndicatorText.textContent = `${i + 1} / 20`;
+      const targetCount = Math.min(20, Math.max(1, g.drawIndex));
+      if (targetCount !== lastDrawnCountRendered) {
+        lastDrawnCountRendered = targetCount;
+        currentRoundDraw = serverRoundDrawBalls.slice(0, targetCount);
+        const latestBall = currentRoundDraw[currentRoundDraw.length - 1];
+        phaseIndicatorText.textContent = `${targetCount} / 20`;
 
-        activeKenoBallEl.textContent = ball;
+        activeKenoBallEl.textContent = latestBall;
         activeKenoBallEl.classList.remove('active');
         void activeKenoBallEl.offsetWidth;
         activeKenoBallEl.classList.add('active');
 
-        const cell = document.getElementById(`cell-${ball}`);
-        if (cell) {
-          const isPlayerPick = currentRoundBet && currentRoundBet.picks.includes(ball);
-          cell.className = isPlayerPick ? 'cell hit' : 'cell drawn';
-        }
-
-        await new Promise(r => setTimeout(r, 230));
+        renderBoardDrawState(currentRoundDraw);
+        renderMyBetTickets();
       }
 
-      await finalizeRoundOutcome();
-    }
+      if (targetCount >= 20 && settledRoundId !== g.roundId) {
+        settledRoundId = g.roundId;
+        finalizeRoundOutcome(g.roundId, serverRoundDrawBalls);
+      }
+    }, 500);
 
-    async function finalizeRoundOutcome() {
-      roundPhase = "RESULT";
-      if (currentRoundBet) {
-        shownBalance = null;
-        showBalance();
-        postParent({ type: 'BET_ENDED' });
+    function finalizeRoundOutcome(rId, drawn) {
+      roundPhase = 'RESULT';
+      shownBalance = null;
+      pendingRoundPayout = 0;
+      showBalance();
+      postParent({ type: 'BET_ENDED' });
 
-        const statusEl = document.getElementById('myLiveTicketStatus');
-        if (currentRoundBet.isWin && currentRoundBet.payout > 0) {
-          showToast(`YOU WIN +${Number(currentRoundBet.payout).toFixed(2)} ETB`, true);
-          if (statusEl) {
-            statusEl.className = 'status-tag won';
-            statusEl.textContent = `Won +${Number(currentRoundBet.payout).toFixed(2)} ETB`;
-          }
-        } else if (statusEl) {
-          statusEl.className = 'status-tag lost';
-          statusEl.textContent = 'No win';
-        }
+      const hadBets = myRoundTickets.length > 0;
+      let totalWin = 0;
 
-        historyTickets.unshift({ ...currentRoundBet });
+      if (hadBets) {
+        myRoundTickets.forEach(t => {
+          t.settled = true;
+          t.drawnNumbers = drawn;
+          totalWin += Number(t.payout || 0);
+          historyTickets.unshift({ ...t });
+        });
+        renderMyBetTickets();
         renderHistory();
+
+        if (totalWin > 0) {
+          showToast(`YOU WIN +${totalWin.toFixed(2)} ETB`, 'win');
+        } else {
+          showToast('No win this time', 'nowin');
+        }
       }
 
-      await new Promise(r => setTimeout(r, 1800));
+      // Show clean "ROUND <id> / Get ready!" hero briefly like ref 160913
+      holdResultUntilMs = Date.now() + 2200;
+      stageSectionEl.classList.remove('drawing');
+      stageSectionEl.classList.add('hidden-hero');
+      drawingHeroIdEl.textContent = String(rId);
+      drawingHeroSubEl.textContent = 'Get ready!';
+      drawingHeroEl.classList.add('visible');
 
-      currentRoundBet = null;
-      myBetsContainer.style.display = 'none';
-
-      document.querySelectorAll('.cell').forEach(c => {
-        const id = parseInt(c.textContent);
-        c.className = 'cell' + (selectedNumbers.has(id) ? ' selected' : '');
-      });
-
-      startRoundReady();
       loadLatestWins();
       loadResultsTab();
-
-      if (autoPlayEnabled && selectedNumbers.size > 0) {
-        setTimeout(() => {
-          if (autoPlayEnabled && roundPhase === 'BETTING') placeTicketBet();
-        }, 450);
-      }
     }
 
     function renderHistory() {
@@ -1818,25 +2130,26 @@
         historyTicketsList.innerHTML = '<div style="text-align:center; padding:24px; color:var(--text-muted); font-size:13px;">No settled tickets yet</div>';
         return;
       }
-      historyTicketsList.innerHTML = historyTickets.map(t => {
+      historyTicketsList.innerHTML = historyTickets.slice(0, 40).map(t => {
         const statusClass = t.isWin ? 'won' : 'lost';
-        const statusText = t.isWin ? `Won +${t.payout.toFixed(2)} ETB` : 'Lost';
+        const statusText = t.isWin ? `Won +${Number(t.payout || 0).toFixed(2)} ETB` : 'Lost';
+        const drawn = Array.isArray(t.drawnNumbers) ? t.drawnNumbers : [];
         const slots = Array.from({ length: 10 }, (_, idx) => {
           const p = t.picks[idx];
           if (p === undefined) return `<div class="pick-slot empty"></div>`;
-          const matched = t.drawnNumbers.includes(p);
+          const matched = drawn.includes(p);
           return `<div class="pick-slot ${matched ? 'hit' : ''}">${p}</div>`;
         }).join('');
         return `
           <div class="ticket-row">
             <div class="ticket-header">
-              <span style="font-size:12px; font-weight:700; color:#ddd;">Round #${t.roundId}</span>
+              <span style="font-size:12px; font-weight:700; color:#ddd;">Round #${esc(t.roundId)}</span>
               <span class="status-tag ${statusClass}">${statusText}</span>
             </div>
             <div class="ticket-slots-10">${slots}</div>
             <div class="ticket-footer">
-              <span class="stake-pill">Bet ${t.amount.toFixed(2)} ETB</span>
-              <span style="color:var(--gold);">${t.multiplier > 0 ? t.multiplier.toFixed(1) + 'x' : ''}</span>
+              <span class="stake-pill">Bet ${Number(t.amount || 0).toFixed(2)} ETB</span>
+              <span style="color:var(--gold);">${t.multiplier > 0 ? Number(t.multiplier).toFixed(1) + 'x' : ''}</span>
             </div>
           </div>`;
       }).join('');
@@ -1851,22 +2164,27 @@
         document.getElementById('tabHistory').style.display = target === 'history' ? 'block' : 'none';
         document.getElementById('tabResults').style.display = target === 'results' ? 'block' : 'none';
         if (target === 'results') loadResultsTab();
+        if (target === 'history') loadServerHistory();
       });
     });
 
     let toastTimer = null;
-    function showToast(msg, isWin = false) {
+    function showToast(msg, mode = '') {
       clearTimeout(toastTimer);
       toastEl.textContent = msg;
-      toastEl.className = 'toast-popup active' + (isWin ? ' win' : '');
-      toastTimer = setTimeout(() => { toastEl.classList.remove('active'); }, 2400);
+      const cls = mode === true || mode === 'win' || mode === 'success'
+        ? ' win'
+        : (mode === 'nowin' ? ' nowin' : '');
+      toastEl.className = 'toast-popup active' + cls;
+      toastTimer = setTimeout(() => { toastEl.classList.remove('active'); }, mode === 'nowin' ? 2800 : 2400);
     }
 
     buildBoard();
+    syncServerClock();
     loadPaytable();
-    startRoundReady();
     loadLatestWins();
     loadResultsTab();
+    setInterval(() => { if (!document.hidden) renderBoardDrawState(currentRoundDraw); }, 5000);
   </script>
 </body>
 </html>
