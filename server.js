@@ -22,7 +22,7 @@ const { Pool } = require('pg');
 const crypto = require('crypto');
 require('dotenv').config();
 const { createMockPool } = require('./mock-db');
-const { r2, num, cashbackDue } = require('./lib/game-math');
+const { r2, num, cashbackDue, kenoCycleState } = require('./lib/game-math');
 const { createTtlCache, createRateTracker, createChatBuffer } = require('./lib/cache');
 const { SPIN_SLICES, rollSpinPrize, getSpinAvailability, computeClaimableCashback } = require('./lib/bonus-engine');
 const { runTwelveHourAuditAndPrune, getRetentionStats, getReports12h } = require('./lib/audit-rollup');
@@ -382,7 +382,9 @@ app.get('/api/user/history', userAuth, limit('uhist', 120, 60e3), h(async (req, 
   const period = normalizePeriod(req.query.period, 'all');
   const maxAgeHoursRaw = parseInt(req.query.maxAgeHours || '0', 10);
   const maxAgeHours = Number.isFinite(maxAgeHoursRaw) && maxAgeHoursRaw > 0 ? Math.min(720, maxAgeHoursRaw) : 0;
-  const payload = await cache.getOrLoad(`userhist:${uid}:${period}:h${maxAgeHours}`, 15000, async () => {
+  const curKeno = kenoCycleState(Date.now());
+  const kenoSettledNow = curKeno.cycleSec >= 79 ? 1 : 0;
+  const payload = await cache.getOrLoad(`userhist:${uid}:${period}:h${maxAgeHours}:k${curKeno.roundId}_${kenoSettledNow}`, 15000, async () => {
     const baseMs = periodCutoffMs(period);
     const hoursMs = maxAgeHours > 0 ? (Date.now() - maxAgeHours * 3600 * 1000) : 0;
     const cutoff = new Date(Math.max(baseMs, hoursMs));
@@ -397,11 +399,19 @@ app.get('/api/user/history', userAuth, limit('uhist', 120, 60e3), h(async (req, 
       ).catch(() => ({ rows: [] }))
     ]);
 
-    const casinoItems = casinoRes.rows.map(b => {
+    const nowMs = Date.now();
+    const casinoItems = casinoRes.rows.reduce((acc, b) => {
       const gd = parseJson(b.game_data);
+      const bTime = new Date(b.created_at).getTime();
+      if ((b.game_name === 'KenoFast' || b.game_name === 'ClassicKeno') && !kenoSettledNow) {
+        const rid = Number(gd.roundId);
+        if (Number.isFinite(rid) && rid >= curKeno.roundId && (nowMs - bTime) < 180000) {
+          return acc;
+        }
+      }
       const amount = num(b.bet_amount);
       const win = num(b.payout);
-      return {
+      acc.push({
         betId: b.bet_id,
         roundId: gd.roundId || b.bet_id,
         game: b.game_name,
@@ -412,12 +422,13 @@ app.get('/api/user/history', userAuth, limit('uhist', 120, 60e3), h(async (req, 
         win,
         status: b.status,
         createdAt: b.created_at,
-        time: new Date(b.created_at).getTime(),
+        time: bTime,
         picks: Array.isArray(gd.picks) ? gd.picks : undefined,
         drawnNumbers: Array.isArray(gd.drawnNumbers) ? gd.drawnNumbers : undefined,
         hits: gd.hits !== undefined ? Number(gd.hits) : undefined
-      };
-    });
+      });
+      return acc;
+    }, []);
 
     const sportsItems = sportsRes.rows.map(s => {
       const amount = num(s.stake);

@@ -8,7 +8,7 @@ module.exports = function createLuckyChickenModule(ctx, shared) {
   const router = express.Router();
   const { pool, io, CONFIG, Biz, tx, audit, lockUser, validWager, newId, mask, parseJson, vaultAdd, r2, num } = ctx;
 
-  const configHandler = (_req, res) => res.json({ success: true, game: GAME_NAME, lanes: 5, tables: math.CHICKEN });
+  const configHandler = (_req, res) => res.json({ success: true, game: GAME_NAME, lanes: math.CHICKEN.easy.length, tables: math.CHICKEN });
 
   const startHandler = ctx.h(async (req, res) => {
     const diff = String(req.body?.difficulty || '');
@@ -41,7 +41,7 @@ module.exports = function createLuckyChickenModule(ctx, shared) {
     });
 
     vaultAdd({ bal: wager, wagered: wager, profit: wager });
-    res.json({ success: true, betId: out.betId, difficulty: diff, mults: math.CHICKEN[diff], lanes: 5, newBalance: out.newBal });
+    res.json({ success: true, betId: out.betId, difficulty: diff, mults: math.CHICKEN[diff], lanes: math.CHICKEN[diff].length, newBalance: out.newBal });
   });
 
   const activeHandler = ctx.h(async (req, res) => {

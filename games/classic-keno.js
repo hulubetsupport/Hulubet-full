@@ -32,6 +32,7 @@ module.exports = function createClassicKenoModule(ctx, shared) {
 
   const resultsHandler = ctx.h(async (req, res) => {
     const lim = Math.min(50, Math.max(1, parseInt(req.query.limit || '20', 10) || 20));
+    const cur = math.kenoCycleState(Date.now());
     const load = async () => {
       const r = await ctx.pool.query(
         `SELECT game_data, created_at FROM universal_bets WHERE game_name=$1 AND status IN ('WON','LOST') ORDER BY created_at DESC LIMIT $2`,
@@ -42,6 +43,7 @@ module.exports = function createClassicKenoModule(ctx, shared) {
       for (const row of r.rows) {
         const gd = ctx.parseJson(row.game_data);
         const rid = gd.roundId ? Number(gd.roundId) : null;
+        if (rid !== null && rid >= cur.roundId && !(rid === cur.roundId && cur.cycleSec >= 79)) continue;
         const key = rid !== null ? String(rid) : String(row.created_at);
         if (seen.has(key)) continue;
         seen.add(key);
@@ -59,7 +61,6 @@ module.exports = function createClassicKenoModule(ctx, shared) {
         });
         if (items.length >= lim) break;
       }
-      const cur = math.kenoCycleState(Date.now());
       let prevRid = cur.roundId - 1;
       while (items.length < Math.min(12, lim)) {
         if (!seen.has(String(prevRid))) {
@@ -79,7 +80,7 @@ module.exports = function createClassicKenoModule(ctx, shared) {
       }
       return items;
     };
-    const results = ctx.cache ? await ctx.cache.getOrLoad(`classic_keno_results:${lim}`, 4000, load) : await load();
+    const results = ctx.cache ? await ctx.cache.getOrLoad(`classic_keno_results:${lim}:${cur.roundId}`, 4000, load) : await load();
     res.json({ success: true, results });
   });
 

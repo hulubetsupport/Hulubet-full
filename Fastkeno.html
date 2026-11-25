@@ -1346,22 +1346,33 @@ async function renderHistoryView() {
   const c = $('history-container');
   if (!c) return;
 
+  const activeCur = getGlobalRound();
+  const activeIsSettled = Boolean(isSettledThisRound && lastExecutedRoundId === activeCur.roundId) || activeCur.cycleSec >= 79;
+
   if (INIT_DATA) {
     try {
       const sHist = await api('/api/user/history?maxAgeHours=12');
       if (sHist && sHist.success && Array.isArray(sHist.history)) {
         const kenoHist = sHist.history.filter(h => (h?.game === 'KenoFast' || !h?.game) && Array.isArray(h?.picks) && h.picks.length > 0);
-        if (kenoHist.length > 0) fullHistory = kenoHist;
+        const localSettledCur = (Array.isArray(fullHistory) ? fullHistory : []).filter(loc =>
+          Number(loc?.roundId) === activeCur.roundId && activeIsSettled &&
+          !kenoHist.some(s => String(s.betId || '') === String(loc.betId || ''))
+        );
+        if (kenoHist.length > 0 || localSettledCur.length > 0) {
+          fullHistory = [...localSettledCur, ...kenoHist];
+        }
       }
     } catch (e) {}
   }
 
   const cutoffMs = Date.now() - 12 * 3600 * 1000;
-  const validHistory = (Array.isArray(fullHistory) ? fullHistory : []).filter(h =>
-    Array.isArray(h?.picks) && (!h.time || Number(h.time) >= cutoffMs)
-  );
+  const validHistory = (Array.isArray(fullHistory) ? fullHistory : []).filter(h => {
+    if (!Array.isArray(h?.picks) || (h.time && Number(h.time) < cutoffMs)) return false;
+    if (Number(h.roundId) === activeCur.roundId && !activeIsSettled) return false;
+    return true;
+  });
   if (!validHistory.length) {
-    c.innerHTML = `<div style="text-align:center;color:#8b9997;padding:12px;font-size:13px;">No bets recorded in the last 12 hours.</div>`;
+    c.innerHTML = `<div style="text-align:center;color:#8b9997;padding:12px;font-size:13px;">No settled bets recorded in the last 12 hours.</div>`;
     return;
   }
 

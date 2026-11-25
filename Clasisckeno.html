@@ -1946,20 +1946,28 @@
     }
 
     async function loadServerHistory() {
+      const g = getGlobalRound();
+      const roundSettled = settledRoundId === g.roundId || g.cycleSec >= 79;
       if (!INIT_DATA) { renderHistory(); return; }
       const d = await api('/api/user/history?maxAgeHours=12');
       if (d && d.success && Array.isArray(d.history)) {
         const rows = d.history.filter(h => h.game === 'ClassicKeno' && Array.isArray(h.picks));
-        if (rows.length) {
-          historyTickets = rows.map(h => ({
-            roundId: h.roundId || '—',
-            picks: h.picks,
-            amount: Number(h.amount || 0),
-            payout: Number(h.win || 0),
-            isWin: Number(h.win || 0) > 0,
-            multiplier: Number(h.multiplier || 0),
-            drawnNumbers: Array.isArray(h.drawnNumbers) ? h.drawnNumbers : []
-          }));
+        const mapped = rows.map(h => ({
+          betId: h.betId,
+          roundId: h.roundId || '—',
+          picks: h.picks,
+          amount: Number(h.amount || 0),
+          payout: Number(h.win || 0),
+          isWin: Number(h.win || 0) > 0,
+          multiplier: Number(h.multiplier || 0),
+          drawnNumbers: Array.isArray(h.drawnNumbers) ? h.drawnNumbers : []
+        }));
+        const localCur = historyTickets.filter(loc =>
+          Number(loc.roundId) === g.roundId && roundSettled &&
+          !mapped.some(m => String(m.betId || '') === String(loc.betId || ''))
+        );
+        if (mapped.length || localCur.length) {
+          historyTickets = [...localCur, ...mapped];
         }
       }
       renderHistory();
@@ -2123,14 +2131,18 @@
 
       loadLatestWins();
       loadResultsTab();
+      loadServerHistory();
     }
 
     function renderHistory() {
-      if (historyTickets.length === 0) {
+      const g = getGlobalRound();
+      const roundSettled = settledRoundId === g.roundId || g.cycleSec >= 79;
+      const visibleTickets = historyTickets.filter(t => !(Number(t.roundId) === g.roundId && !roundSettled));
+      if (visibleTickets.length === 0) {
         historyTicketsList.innerHTML = '<div style="text-align:center; padding:24px; color:var(--text-muted); font-size:13px;">No settled tickets yet</div>';
         return;
       }
-      historyTicketsList.innerHTML = historyTickets.slice(0, 40).map(t => {
+      historyTicketsList.innerHTML = visibleTickets.slice(0, 40).map(t => {
         const statusClass = t.isWin ? 'won' : 'lost';
         const statusText = t.isWin ? `Won +${Number(t.payout || 0).toFixed(2)} ETB` : 'Lost';
         const drawn = Array.isArray(t.drawnNumbers) ? t.drawnNumbers : [];

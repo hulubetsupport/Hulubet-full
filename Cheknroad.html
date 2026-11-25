@@ -293,24 +293,18 @@
       filter: drop-shadow(0 6px 8px rgba(0,0,0,0.4));
     }
 
-    /* Stopped at Breaker Barricade (strictly above chicken crossing zone) */
-    .stopped-at-barrier {
-      top: 10px !important;
-      transition: top 0.28s ease-out;
-    }
-
     /* Crashing into Chicken (actual HIT only) */
     .crash-dive {
-      top: 230px !important;
+      top: calc(100% - 275px) !important;
       transition: top 0.16s cubic-bezier(0.5, 0, 1, 1) !important;
     }
 
-    /* Safety Breaker Barricade */
+    /* Safety Breaker Barricade (sits right above the chicken/manhole crossing spot) */
     .lane-barricade {
       position: absolute;
       left: 50%;
-      transform: translateX(-50%) translateY(-60px);
-      top: 140px;
+      transform: translateX(-50%) translateY(-36px);
+      bottom: 222px;
       width: 96px;
       z-index: 9;
       opacity: 0;
@@ -913,35 +907,6 @@
       <span class="change-avatar">Change avatar</span>
     </div>
 
-    <!-- Sound Toggle -->
-    <div class="toggle-row">
-      <div class="toggle-label">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
-          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
-        </svg>
-        Sound
-      </div>
-      <div class="switch on" id="sound-switch" onclick="toggleSound()">
-        <div class="switch-knob"></div>
-      </div>
-    </div>
-
-    <!-- Music Toggle -->
-    <div class="toggle-row">
-      <div class="toggle-label">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M9 18V5l12-2v13"/>
-          <circle cx="6" cy="18" r="3"/>
-          <circle cx="18" cy="16" r="3"/>
-        </svg>
-        Music
-      </div>
-      <div class="switch on" id="music-switch" onclick="toggleMusic()">
-        <div class="switch-knob"></div>
-      </div>
-    </div>
-
     <!-- Navigation List -->
     <div class="menu-nav-list">
       <div class="menu-nav-item">
@@ -1025,7 +990,7 @@
     <!-- Stepper Row -->
     <div class="stepper-row">
       <button class="step-btn" onclick="setBet('MIN')">MIN</button>
-      <input type="number" id="bet-input" class="bet-input-box" value="2" min="1" max="1000" step="1">
+      <input type="number" id="bet-input" class="bet-input-box" value="2" min="2" max="1000" step="1">
       <button class="step-btn" onclick="setBet('MAX')">MAX</button>
     </div>
 
@@ -1139,85 +1104,8 @@ function showBalance() {
 }
 
 /* ==========================================================================
-   2. PROCEDURAL WEB AUDIO (HOP, BRAKE, CASH-OUT, SQUAWK)
+   2. SILENT MODE (No Audio)
    ========================================================================== */
-const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-let soundEnabled = true;
-let musicEnabled = true;
-
-function playTone(freq, type = 'sine', duration = 0.12, gainVal = 0.25) {
-  if (!soundEnabled) return;
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-  gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-  osc.start();
-  osc.stop(audioCtx.currentTime + duration);
-}
-
-const soundHop = () => {
-  if (!soundEnabled) return;
-  playTone(460, 'sine', 0.08, 0.25);
-  setTimeout(() => playTone(640, 'sine', 0.1, 0.2), 50);
-};
-
-const soundBrake = () => {
-  if (!soundEnabled) return;
-  playTone(850, 'sawtooth', 0.16, 0.09);
-  setTimeout(() => playTone(740, 'sawtooth', 0.14, 0.07), 60);
-};
-
-const soundWin = () => {
-  if (!soundEnabled) return;
-  [523, 659, 783, 1046].forEach((f, i) => setTimeout(() => playTone(f, 'triangle', 0.22, 0.3), i * 75));
-};
-
-const soundCrashAndSquawk = () => {
-  if (!soundEnabled) return;
-  if (audioCtx.state === 'suspended') audioCtx.resume();
-  const now = audioCtx.currentTime;
-
-  // Car Horn Blast
-  const horn = audioCtx.createOscillator();
-  const hornGain = audioCtx.createGain();
-  horn.type = 'sawtooth';
-  horn.frequency.setValueAtTime(340, now);
-  hornGain.gain.setValueAtTime(0.4, now);
-  hornGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-  horn.connect(hornGain);
-  hornGain.connect(audioCtx.destination);
-  horn.start(now);
-  horn.stop(now + 0.5);
-
-  // Alarmed Chicken Squawk ("BAWWK!")
-  const squawk = audioCtx.createOscillator();
-  const squawkGain = audioCtx.createGain();
-  squawk.type = 'sawtooth';
-  squawk.frequency.setValueAtTime(1250, now + 0.04);
-  squawk.frequency.exponentialRampToValueAtTime(320, now + 0.45);
-
-  const lfo = audioCtx.createOscillator();
-  const lfoGain = audioCtx.createGain();
-  lfo.frequency.setValueAtTime(35, now);
-  lfoGain.gain.setValueAtTime(140, now);
-  lfo.connect(squawk.frequency);
-  lfo.start(now + 0.04);
-  lfo.stop(now + 0.45);
-
-  squawkGain.gain.setValueAtTime(0.01, now);
-  squawkGain.gain.linearRampToValueAtTime(0.5, now + 0.08);
-  squawkGain.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
-
-  squawk.connect(squawkGain);
-  squawkGain.connect(audioCtx.destination);
-  squawk.start(now + 0.04);
-  squawk.stop(now + 0.48);
-};
 
 /* ==========================================================================
    3. MULTIPLIERS & SPEED PER DIFFICULTY
@@ -1325,6 +1213,12 @@ function buildTrack() {
   lanesBox.appendChild(finishDiv);
 }
 
+function getBarricadeStopY(vpH, carEl) {
+  const barricadeTop = Math.max(85, vpH - 268);
+  const carH = Math.min(162, (carEl && carEl.offsetHeight) || 145);
+  return Math.max(6, barricadeTop - carH - 8);
+}
+
 function tickTraffic(now) {
   const dt = Math.min(0.05, Math.max(0.001, (now - lastTrafficAt) / 1000));
   lastTrafficAt = now;
@@ -1334,20 +1228,20 @@ function tickTraffic(now) {
   for (const v of laneVehicles) {
     if (!v.el) continue;
     if (v.state === 'stopped') {
-      // If car already passed below the chicken/crossing zone when stopped, let it exit off bottom cleanly before wrapping behind barrier
-      if (v.y > 140) {
-        v.y += baseSpeed * v.speedMult * dt * 1.25;
+      const stopY = getBarricadeStopY(vpH, v.el);
+      if (v.y > stopY + 4) {
+        // Already past the breaker: keep driving downward off-screen cleanly (never pull upward!)
+        v.y += baseSpeed * v.speedMult * dt * 1.35;
         if (v.y > vpH + 40) {
-          v.y = 10;
-          v.el.classList.add('stopped-at-barrier');
+          v.y = -((v.el && v.el.offsetHeight) || 150) - 25;
         }
         v.el.style.top = v.y + 'px';
       } else {
-        // Move down to barrier at top=10 and stop (never enter chicken zone)
-        if (v.y < 10) {
-          v.y = Math.min(10, v.y + baseSpeed * v.speedMult * dt);
+        // Approach the nearby breaker and halt smoothly right behind it
+        if (v.y < stopY) {
+          v.y = Math.min(stopY, v.y + baseSpeed * v.speedMult * dt);
         } else {
-          v.y = 10;
+          v.y = stopY;
         }
         v.el.style.top = v.y + 'px';
       }
@@ -1390,7 +1284,7 @@ function resetChickenPosition() {
   // Reset barricades and vehicles
   document.querySelectorAll('.lane-barricade').forEach(b => b.classList.remove('deployed'));
   document.querySelectorAll('.lane-vehicle').forEach(v => {
-    v.classList.remove('stopped-at-barrier', 'crash-dive');
+    v.classList.remove('crash-dive');
   });
   laneVehicles.forEach((v, idx) => {
     v.state = 'driving';
@@ -1403,8 +1297,6 @@ function hopChickenToLane(laneIdx, onComplete) {
   const chicken = document.getElementById('chicken');
   const bubble = document.getElementById('mult-bubble');
   const mults = MULTIPLIERS[currentDifficulty];
-
-  soundHop();
 
   chicken.classList.remove('jumping');
   void chicken.offsetWidth; // force reflow
@@ -1428,7 +1320,6 @@ function hopChickenToLane(laneIdx, onComplete) {
 
 function hopChickenToFinish(laneCount, onComplete) {
   const chicken = document.getElementById('chicken');
-  soundHop();
   chicken.classList.remove('jumping');
   void chicken.offsetWidth;
   chicken.classList.add('jumping');
@@ -1483,6 +1374,7 @@ async function resumeOpenRound() {
   activeRound = { betId: a.betId, betAmount: a.betAmount };
   currentStepIndex = Number(a.step || 0);
 
+  const vpH = document.getElementById('world-viewport')?.clientHeight || 520;
   for (let i = 0; i < currentStepIndex; i++) {
     const b = document.getElementById(`barricade-${i}`);
     if (b) b.classList.add('deployed');
@@ -1491,8 +1383,8 @@ async function resumeOpenRound() {
     const lv = laneVehicles[i];
     if (lv) {
       lv.state = 'stopped';
-      lv.y = 10;
-      if (lv.el) { lv.el.style.top = '10px'; lv.el.classList.add('stopped-at-barrier'); }
+      lv.y = getBarricadeStopY(vpH, lv.el);
+      if (lv.el) lv.el.style.top = lv.y + 'px';
     }
   }
   if (currentStepIndex > 0) {
@@ -1521,8 +1413,8 @@ async function handlePlayClick() {
   if (activeRound || isStepBusy) return;
 
   const bet = parseFloat(document.getElementById('bet-input').value) || 0;
-  if (bet < 1 || bet > 1000) {
-    showToast("Bet must be between 1 and 1000 ETB");
+  if (bet < 2 || bet > 1000) {
+    showToast("Bet must be between 2 and 1000 ETB");
     return;
   }
   if (bet > serverBalance) {
@@ -1621,20 +1513,12 @@ async function performStep() {
   }
 
   if (res.state === 'SAFE' || res.state === 'GOAL') {
-    // Deploy barricade immediately BEFORE chicken enters so no car ever drives through the chicken
+    // Deploy barricade close above the chicken crossing spot; let passed cars keep exiting downward cleanly
     const barricade = document.getElementById(`barricade-${stepToExecute}`);
     if (barricade) barricade.classList.add('deployed');
     const lv = laneVehicles[stepToExecute];
     if (lv) {
       lv.state = 'stopped';
-      if (lv.y <= 140) {
-        lv.y = Math.min(lv.y, 10);
-        if (lv.el) {
-          lv.el.style.top = lv.y + 'px';
-          lv.el.classList.add('stopped-at-barrier');
-        }
-      }
-      soundBrake();
     }
 
     hopChickenToLane(stepToExecute, () => {
@@ -1659,13 +1543,11 @@ async function performStep() {
       if (lv) {
         lv.state = 'crash';
         if (lv.el) {
-          lv.el.classList.remove('stopped-at-barrier');
           lv.el.classList.add('crash-dive');
         }
       }
 
       setTimeout(() => {
-        soundCrashAndSquawk();
         createFeatherBlast();
 
         const viewport = document.getElementById('world-viewport');
@@ -1711,7 +1593,6 @@ async function handleCashOut() {
 }
 
 function completeWin(payoutAmt, finalBalance) {
-  soundWin();
   const winPill = document.getElementById('win-pill');
   document.getElementById('win-amount').textContent = `${Number(payoutAmt || 0).toFixed(2)} ETB`;
   winPill.classList.add('show');
@@ -1748,7 +1629,7 @@ function endRound(authoritativeBalance) {
    ========================================================================== */
 function setBet(type) {
   const input = document.getElementById('bet-input');
-  if (type === 'MIN') input.value = 1;
+  if (type === 'MIN') input.value = 2;
   if (type === 'MAX') input.value = Math.min(1000, Math.floor(serverBalance) || 1000);
 }
 function setQuickBet(val) {
@@ -1777,16 +1658,6 @@ function selectDifficulty(diff) {
 
 function toggleSettingsModal() {
   document.getElementById('settings-modal').classList.toggle('open');
-}
-
-function toggleSound() {
-  soundEnabled = !soundEnabled;
-  document.getElementById('sound-switch').classList.toggle('on', soundEnabled);
-}
-
-function toggleMusic() {
-  musicEnabled = !musicEnabled;
-  document.getElementById('music-switch').classList.toggle('on', musicEnabled);
 }
 
 function showToast(msg) {
