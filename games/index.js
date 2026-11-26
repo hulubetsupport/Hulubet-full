@@ -14,12 +14,13 @@ const MODULES = [
   require('./avia-masters'),
   require('./plinko'),
   require('./roulette'),
-  require('./mega-block')
+  require('./mega-block'),
+  require('./buffalo')
 ];
 
 const INSTANT_GAMES = [
   'KenoFast', 'ClassicKeno', 'Slot777', 'AviaMasters', 'PlinkoX',
-  'Roulette', 'ChickenRoad2', 'RoastedChicken', 'MegaBlock'
+  'Roulette', 'ChickenRoad2', 'RoastedChicken', 'MegaBlock', 'YoungBuffalo'
 ];
 const CRASH_GAMES = ['Aviator', 'JetX'];
 

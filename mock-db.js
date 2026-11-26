@@ -236,6 +236,7 @@ function createMockPool() {
       u.total_wagered += Number(params[1]);
       u.total_won += Number(params[2]);
       u.wager_requirement_left = Math.max(0, (u.wager_requirement_left || 0) - Number(params[1]));
+      if (u.wager_requirement_left === 0) u.bonus_balance = 0;
       u.last_active_at = new Date();
       return { rows: [], rowCount: 1 };
     }
@@ -245,6 +246,7 @@ function createMockPool() {
       u.balance = Number(params[0]);
       u.total_wagered += Number(params[1]);
       u.wager_requirement_left = Math.max(0, (u.wager_requirement_left || 0) - Number(params[1]));
+      if (u.wager_requirement_left === 0) u.bonus_balance = 0;
       u.last_active_at = new Date();
       return { rows: [], rowCount: 1 };
     }
@@ -262,12 +264,32 @@ function createMockPool() {
       u.total_wagered = Math.max(0, u.total_wagered - Number(params[0]));
       return { rows: [], rowCount: 1 };
     }
+    if (low.startsWith("update users set balance=$1,total_deposited=total_deposited+$2,first_deposit_completed='yes',bonus_balance=bonus_balance+$3,wager_requirement_left=wager_requirement_left+$4")) {
+      const u = db.users.get(String(params[4]));
+      if (!u) return { rows: [], rowCount: 0 };
+      u.balance = Number(params[0]);
+      u.total_deposited += Number(params[1]);
+      u.first_deposit_completed = 'YES';
+      u.bonus_balance = (u.bonus_balance || 0) + Number(params[2] || 0);
+      u.wager_requirement_left = (u.wager_requirement_left || 0) + Number(params[3] || 0);
+      return { rows: [], rowCount: 1 };
+    }
     if (low.startsWith("update users set balance=$1,total_deposited=total_deposited+$2,first_deposit_completed='yes'")) {
       const u = db.users.get(String(params[2]));
       if (!u) return { rows: [], rowCount: 0 };
       u.balance = Number(params[0]);
       u.total_deposited += Number(params[1]);
       u.first_deposit_completed = 'YES';
+      return { rows: [], rowCount: 1 };
+    }
+    if (low.startsWith('update users set balance=$1,bonus_balance=bonus_balance+$2,wager_requirement_left=wager_requirement_left+$3,cashback_settled_loss=$4')) {
+      const u = db.users.get(String(params[4]));
+      if (!u) return { rows: [], rowCount: 0 };
+      u.balance = Number(params[0]);
+      u.bonus_balance += Number(params[1]);
+      u.wager_requirement_left += Number(params[2]);
+      u.cashback_settled_loss = Number(params[3]);
+      u.last_cashback_at = new Date();
       return { rows: [], rowCount: 1 };
     }
     if (low.startsWith('update users set balance=$1,bonus_balance=bonus_balance+$2,wager_requirement_left=wager_requirement_left+$2,cashback_settled_loss=$3')) {
@@ -787,10 +809,11 @@ function createMockPool() {
         t = { txn_id, user_id: String(user_id), username, type: 'DEPOSIT', method: 'Manual_1Click', amount: Number(amount), net_amount: Number(amount), bank_txn_id: bank_txn_id || null, status: 'APPROVED', processed_by, remarks: 'Manual top-up', created_at: new Date(), updated_at: new Date() };
       } else if (low.includes("'adjustment'")) {
         const [txn_id, user_id, amount, remarks, processed_by] = params;
-        t = { txn_id, user_id: String(user_id), type: 'ADJUSTMENT', amount: Number(amount), status: 'APPROVED', remarks, processed_by, created_at: new Date(), updated_at: new Date() };
+        t = { txn_id, user_id: String(user_id), type: 'ADJUSTMENT', method: 'Adjustment', amount: Number(amount), net_amount: Number(amount), status: 'APPROVED', remarks, processed_by, created_at: new Date(), updated_at: new Date() };
       } else if (low.includes("'bonus'")) {
         const [txn_id, user_id, amount, remarks, processed_by] = params;
-        t = { txn_id, user_id: String(user_id), type: 'BONUS', amount: Number(amount), status: 'APPROVED', remarks, processed_by, created_at: new Date(), updated_at: new Date() };
+        const method = low.includes("'luckyspin'") ? 'LuckySpin' : low.includes("'firstdepositbonus'") ? 'FirstDepositBonus' : 'Cashback';
+        t = { txn_id, user_id: String(user_id), type: 'BONUS', method, amount: Number(amount), net_amount: Number(amount), status: 'APPROVED', remarks, processed_by, created_at: new Date(), updated_at: new Date() };
       }
       if (t) db.transactions.unshift(t);
       return { rows: [], rowCount: 1 };
@@ -865,54 +888,55 @@ function createMockPool() {
       return { rows: [], rowCount: 0 };
     }
     if (low.startsWith('update transactions set')) {
-      if (low.includes("status='verifying'") && params.length === 3) {
+      if (low.startsWith("update transactions set status='verifying'") && params.length === 3) {
         const t = db.transactions.find(x => x.txn_id === params[2] && x.status === 'PENDING');
         if (!t) return { rows: [], rowCount: 0 };
         t.status = 'VERIFYING'; t.amount = Number(params[0]); t.net_amount = Number(params[0]); t.method = params[1];
         return { rows: [], rowCount: 1 };
       }
-      if (low.includes("status='failed'")) {
+      if (low.startsWith("update transactions set status='failed'")) {
+        if (params.length === 0) return { rows: [], rowCount: 0 };
         const t = db.transactions.find(x => x.txn_id === params[1] && x.status === 'VERIFYING');
         if (t) { t.status = 'FAILED'; t.bank_txn_id = null; t.remarks = params[0]; t.updated_at = new Date(); }
         return { rows: [], rowCount: t ? 1 : 0 };
       }
-      if (low.includes("status='pending'")) {
+      if (low.startsWith("update transactions set status='pending'")) {
         const t = db.transactions.find(x => x.txn_id === params[0] && x.status === 'VERIFYING');
         if (t) { t.status = 'PENDING'; t.remarks = 'Verified by gateway, waiting for cashier (large amount)'; t.updated_at = new Date(); }
         return { rows: [], rowCount: t ? 1 : 0 };
       }
-      if (low.includes("status='approved'") && low.includes("processed_by='auto'")) {
+      if (low.startsWith("update transactions set status='approved'") && low.includes("processed_by='auto'")) {
         const t = db.transactions.find(x => x.txn_id === params[0]);
         if (t) { t.status = 'APPROVED'; t.remarks = 'Auto-verified by gateway'; t.processed_by = 'AUTO'; t.updated_at = new Date(); }
         return { rows: [], rowCount: t ? 1 : 0 };
       }
-      if (low.includes("status='cancelled'")) {
+      if (low.startsWith("update transactions set status='cancelled'")) {
         const t = db.transactions.find(x => x.txn_id === params[0]);
         if (t) { t.status = 'CANCELLED'; t.remarks = 'Cancelled by player'; t.updated_at = new Date(); }
         return { rows: [], rowCount: t ? 1 : 0 };
       }
-      if (low.includes("status='approved'") && params.length === 4) {
+      if (low.startsWith("update transactions set status='approved'") && params.length === 4) {
         const [remarks, actor, txnId, bankRef] = params;
         if (bankRef && db.transactions.some(x => x.bank_txn_id === bankRef && x.txn_id !== txnId)) throw dupErr();
         const t = db.transactions.find(x => x.txn_id === txnId);
         if (t) { t.status = 'APPROVED'; t.remarks = remarks; t.processed_by = actor; if (bankRef) t.bank_txn_id = bankRef; t.updated_at = new Date(); }
         return { rows: [], rowCount: t ? 1 : 0 };
       }
-      if (low.includes("status='rejected'") && low.includes('returning')) {
+      if (low.startsWith("update transactions set status='rejected'") && low.includes('returning')) {
         const [reason, actor, txnId] = params;
         const t = db.transactions.find(x => x.txn_id === txnId && x.type === 'DEPOSIT' && x.status === 'PENDING');
         if (!t) return { rows: [], rowCount: 0 };
         t.status = 'REJECTED'; t.remarks = reason; t.processed_by = actor; t.updated_at = new Date();
         return { rows: [{ user_id: t.user_id, amount: t.amount }], rowCount: 1 };
       }
-      if (low.includes("status='approved'") && low.includes('returning')) {
+      if (low.startsWith("update transactions set status='approved'") && low.includes('returning')) {
         const [remarks, actor, txnId] = params;
         const t = db.transactions.find(x => x.txn_id === txnId && x.type === 'WITHDRAWAL' && x.status === 'PENDING');
         if (!t) return { rows: [], rowCount: 0 };
         t.status = 'APPROVED'; t.remarks = remarks; t.processed_by = actor; t.updated_at = new Date();
         return { rows: [{ user_id: t.user_id, amount: t.amount, method: t.method }], rowCount: 1 };
       }
-      if (low.includes("status='rejected'")) {
+      if (low.startsWith("update transactions set status='rejected'")) {
         const [remarks, actor, txnId] = params;
         const t = db.transactions.find(x => x.txn_id === txnId);
         if (t) { t.status = 'REJECTED'; t.remarks = remarks; t.processed_by = actor; t.updated_at = new Date(); }

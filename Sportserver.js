@@ -313,7 +313,9 @@ function registerSportsbook(app, ctx) {
       const newBal = r2(bal - stake);
       await c.query(
         `UPDATE users SET balance=$1,total_wagered=total_wagered+$2,
-         wager_requirement_left=GREATEST(0,COALESCE(wager_requirement_left,0)-$2),last_active_at=NOW() WHERE user_id=$3`,
+         wager_requirement_left=GREATEST(0,COALESCE(wager_requirement_left,0)-$2),
+         bonus_balance=CASE WHEN GREATEST(0,COALESCE(wager_requirement_left,0)-$2)=0 THEN 0 ELSE COALESCE(bonus_balance,0) END,
+         last_active_at=NOW() WHERE user_id=$3`,
         [newBal, stake, uid]
       );
       await c.query(

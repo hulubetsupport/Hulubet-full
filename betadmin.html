@@ -1,116 +1,361 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Hulu Bet Admin</title>
-<style>
-:root{--bg:#0e1116;--card:#171b22;--tx:#e8ebf0;--mu:#8b93a1;--bd:#262c36;--ac:#22c987;--rd:#f26b6b;--am:#f0a030;--bl:#5b9bff}
-@media(prefers-color-scheme:light){:root{--bg:#f4f5f7;--card:#fff;--tx:#14171f;--mu:#6b7280;--bd:#e3e6eb;--ac:#0d9f6e;--rd:#dc2626;--am:#d97706;--bl:#2563eb}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,sans-serif;padding-bottom:84px}
-header{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--card);border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:5}
-header h1{font-size:16px;margin:0;flex:1}
-main{padding:12px;max-width:1100px;margin:auto}
-nav{position:fixed;bottom:0;left:0;right:0;display:flex;overflow-x:auto;background:var(--card);border-top:1px solid var(--bd);padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));z-index:6}
-nav button{flex:1;min-width:66px;border:0;background:none;color:var(--mu);font-size:10px;padding:4px;cursor:pointer;position:relative}
-nav button span{display:block;font-size:20px}nav button.on{color:var(--ac);font-weight:700}
-nav i{position:absolute;top:0;right:12px;background:var(--rd);color:#fff;font-style:normal;font-size:10px;border-radius:9px;padding:0 5px}
-.g{display:grid;gap:10px;grid-template-columns:repeat(2,1fr);margin-bottom:12px}
-@media(min-width:700px){.g{grid-template-columns:repeat(4,1fr)}}
-.c{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:12px}
-.g .c{margin:0}.k{color:var(--mu);font-size:12px}.v{font-size:19px;font-weight:700}
-h2{font-size:15px;margin:0 0 10px}
-.tw{overflow-x:auto}table{border-collapse:collapse;width:100%}
-th,td{text-align:left;padding:8px;border-bottom:1px solid var(--bd);white-space:nowrap}th{color:var(--mu);font-size:12px}
-.b{padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:var(--bd)}
-.ok{background:#22c98722;color:var(--ac)}.no{background:#f26b6b22;color:var(--rd)}.wa{background:#f0a03022;color:var(--am)}.in{background:#5b9bff22;color:var(--bl)}
-button.a{border:0;border-radius:8px;padding:8px 12px;margin:2px;cursor:pointer;color:#fff;background:var(--bl);font-size:13px}
-button.a.g2{background:var(--ac)}button.a.r{background:var(--rd)}button.a.m{background:var(--mu)}button.a:disabled{opacity:.5}
-input,select,textarea{width:100%;background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:10px;font:inherit;font-size:16px;margin:4px 0 8px}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.li{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--bd)}
-.bar{height:8px;background:var(--bd);border-radius:4px;margin:4px 0 10px}.bar i{display:block;height:8px;border-radius:4px;background:var(--ac)}
-code{font-family:ui-monospace,monospace;background:var(--bg);padding:2px 6px;border-radius:6px;word-break:break-all;max-width:100%}
-#md{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:9;padding:16px}
-#md>div{background:var(--card);border-radius:12px;padding:16px;width:100%;max-width:420px;max-height:88%;overflow:auto}
-#ts{position:fixed;top:64px;left:50%;transform:translateX(-50%);background:var(--ac);color:#fff;padding:8px 16px;border-radius:20px;display:none;z-index:10;max-width:92%;text-align:center}
-#ts.err{background:var(--rd)}
-#login{max-width:360px;margin:8vh auto;padding:20px}
-.pin-wrap{position:relative;display:flex;align-items:center;margin:4px 0 8px}
-.pin-wrap input{margin:0;padding-right:84px}
-.pin-actions{position:absolute;right:6px;display:flex;gap:4px}
-.pin-ico{border:0;background:var(--bd);color:var(--tx);border-radius:6px;min-width:32px;height:32px;cursor:pointer;font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
-.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0 10px}
-.pin-key{border:1px solid var(--bd);background:var(--bg);color:var(--tx);border-radius:8px;min-height:42px;font-size:16px;font-weight:700;cursor:pointer}
-.pin-key:active{background:var(--bd)}
-.pin-key.fn{font-size:13px;color:var(--mu)}
-@media(max-width:700px){table{min-width:0}tr.h{display:none}tr{display:block;border:1px solid var(--bd);border-radius:10px;margin-bottom:10px;padding:6px 10px}
-td{display:flex;justify-content:space-between;align-items:center;gap:10px;border:0;padding:4px 0;white-space:normal;text-align:right;flex-wrap:wrap}
-td::before{content:attr(data-l);color:var(--mu);font-size:12px;text-align:left}}
-</style></head><body>
-<div id="login" class="c"><h2>🦁 Hulu Bet Admin</h2>
-  <label class="k">Your name (shown in the audit log)</label><input id="lname" placeholder="e.g. Ak" autocomplete="off">
-  <label class="k">Admin PIN (numbers or text)</label>
-  <div class="pin-wrap">
-    <input id="lpin" type="password" inputmode="text" placeholder="Enter Admin PIN" autocomplete="current-password">
-    <div class="pin-actions">
-      <button type="button" class="pin-ico" id="ltoggle" title="Show/Hide PIN" aria-label="Show or hide PIN">👁</button>
-      <button type="button" class="pin-ico" id="lclear" title="Clear PIN" aria-label="Clear PIN">✕</button>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Hulu Bet · Command Center 2026</title>
+  <style>
+    :root{
+      --bg:#080c12;--bg2:#0e141e;--card:#131b27;--card2:#192333;--tx:#edf2f7;--mu:#8a99ad;
+      --bd:#222e40;--bd2:#2e3d54;--ac:#10b981;--ac2:#059669;--rd:#ef4444;--am:#f59e0b;
+      --bl:#3b82f6;--cy:#06b6d4;--pu:#8b5cf6;--sh:0 12px 32px rgba(0,0,0,.38);--r:14px
+    }
+    @media(prefers-color-scheme:light){
+      :root{
+        --bg:#f1f5f9;--bg2:#e2e8f0;--card:#ffffff;--card2:#f8fafc;--tx:#0f172a;--mu:#64748b;
+        --bd:#e2e8f0;--bd2:#cbd5e1;--ac:#059669;--ac2:#047857;--rd:#dc2626;--am:#d97706;
+        --bl:#2563eb;--cy:#0891b2;--pu:#7c3aed;--sh:0 8px 24px rgba(15,23,42,.08)
+      }
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 'Inter',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+    .tabular{font-variant-numeric:tabular-nums}
+
+    /* Login Shell */
+    .auth-shell{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:radial-gradient(ellipse at top,rgba(16,185,129,.12),transparent 55%),var(--bg)}
+    #login{width:100%;max-width:400px;background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:22px;box-shadow:var(--sh)}
+    .brand-head{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+    .brand-logo{width:46px;height:46px;border-radius:14px;background:linear-gradient(135deg,#10b981,#047857);display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 8px 20px rgba(16,185,129,.25)}
+    .brand-head h2{margin:0;font-size:18px;font-weight:800;letter-spacing:-.02em}
+    .brand-head small{display:block;color:var(--mu);font-size:12px;margin-top:2px}
+    .role-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--bg);border:1px solid var(--bd);border-radius:12px;padding:4px;margin-bottom:14px}
+    .role-tab{border:0;background:transparent;color:var(--mu);padding:9px 8px;border-radius:9px;font-weight:700;font-size:12.5px;cursor:pointer;transition:.18s}
+    .role-tab.on{background:var(--card2);color:var(--tx);box-shadow:0 2px 8px rgba(0,0,0,.22);border:1px solid var(--bd2)}
+    .role-tab.on.agent{color:var(--am)}
+    .role-tab.on.admin{color:var(--ac)}
+
+    .pin-wrap{position:relative;display:flex;align-items:center;margin:4px 0 8px}
+    .pin-wrap input{margin:0;padding-right:84px}
+    .pin-actions{position:absolute;right:6px;display:flex;gap:4px}
+    .pin-ico{border:0;background:var(--bd);color:var(--tx);border-radius:7px;min-width:32px;height:32px;cursor:pointer;font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+    .pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0 12px}
+    .pin-key{border:1px solid var(--bd);background:var(--bg2);color:var(--tx);border-radius:10px;min-height:42px;font-size:16px;font-weight:700;cursor:pointer}
+    .pin-key:active{background:var(--bd)}
+    .pin-key.fn{font-size:12.5px;color:var(--mu)}
+
+    /* App Shell */
+    .shell{display:none;min-height:100vh}
+    .topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(19,27,39,.88);backdrop-filter:blur(14px);border-bottom:1px solid var(--bd)}
+    @media(prefers-color-scheme:light){.topbar{background:rgba(255,255,255,.9)}}
+    .topbar h1{font-size:16px;font-weight:800;margin:0;flex:1;display:flex;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .layout{display:flex;min-height:calc(100vh - 54px)}
+    .sidebar{display:none;width:240px;flex-shrink:0;background:var(--card);border-right:1px solid var(--bd);padding:14px 10px;flex-direction:column;gap:4px;position:sticky;top:54px;height:calc(100vh - 54px);overflow-y:auto}
+    .side-btn{width:100%;display:flex;align-items:center;gap:10px;padding:10px 12px;border:0;border-radius:11px;background:transparent;color:var(--mu);font-size:13px;font-weight:600;cursor:pointer;text-align:left;transition:.15s}
+    .side-btn:hover{background:var(--card2);color:var(--tx)}
+    .side-btn.on{background:rgba(16,185,129,.14);color:var(--ac);font-weight:800;border:1px solid rgba(16,185,129,.28)}
+    .side-btn .ico{font-size:17px;width:22px;text-align:center}
+    .side-btn .cnt{margin-left:auto;background:var(--rd);color:#fff;font-size:10.5px;font-weight:800;padding:1px 7px;border-radius:999px}
+    .content{flex:1;min-width:0;padding:16px;max-width:1280px;margin:0 auto;padding-bottom:92px}
+    nav.mob-dock{position:fixed;bottom:0;left:0;right:0;display:flex;overflow-x:auto;background:var(--card);border-top:1px solid var(--bd);padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));z-index:22}
+    nav.mob-dock button{flex:1;min-width:68px;border:0;background:none;color:var(--mu);font-size:10px;font-weight:600;padding:4px;cursor:pointer;position:relative}
+    nav.mob-dock button span{display:block;font-size:19px}
+    nav.mob-dock button.on{color:var(--ac);font-weight:800}
+    nav.mob-dock i{position:absolute;top:0;right:12px;background:var(--rd);color:#fff;font-style:normal;font-size:10px;font-weight:800;border-radius:9px;padding:0 5px}
+    @media(min-width:960px){
+      .sidebar{display:flex}
+      nav.mob-dock{display:none}
+      .content{padding:20px 24px 36px}
+    }
+
+    /* Cards, Grids, Tables */
+    .g{display:grid;gap:12px;grid-template-columns:repeat(2,1fr);margin-bottom:14px}
+    @media(min-width:720px){.g{grid-template-columns:repeat(4,1fr)}}
+    .g2cols{display:grid;gap:12px;grid-template-columns:1fr;margin-bottom:14px}
+    @media(min-width:860px){.g2cols{grid-template-columns:1.25fr 1fr}}
+    .c{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:14px;margin-bottom:14px;box-shadow:0 2px 10px rgba(0,0,0,.12)}
+    .g .c{margin:0}
+    .kpi{position:relative;overflow:hidden}
+    .kpi .k{color:var(--mu);font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+    .kpi .v{font-size:21px;font-weight:800;margin-top:4px;font-variant-numeric:tabular-nums}
+    .kpi .sub{font-size:11.5px;color:var(--mu);margin-top:2px}
+    h2{font-size:15.5px;font-weight:800;margin:0 0 10px;letter-spacing:-.01em}
+    h3{font-size:13.5px;font-weight:700;margin:0 0 8px}
+    .k{color:var(--mu);font-size:12px}
+
+    .tw{overflow-x:auto}
+    table{border-collapse:collapse;width:100%}
+    th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--bd);white-space:nowrap;font-size:13px}
+    th{color:var(--mu);font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+
+    .b{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;background:var(--bd)}
+    .ok{background:rgba(16,185,129,.16);color:var(--ac)}
+    .no{background:rgba(239,68,68,.16);color:var(--rd)}
+    .wa{background:rgba(245,158,11,.16);color:var(--am)}
+    .in{background:rgba(59,130,246,.16);color:var(--bl)}
+    .pu{background:rgba(139,92,246,.18);color:var(--pu)}
+
+    button.a{border:0;border-radius:9px;padding:7px 12px;margin:2px;cursor:pointer;color:#fff;background:var(--bl);font-size:12.5px;font-weight:700;display:inline-flex;align-items:center;gap:5px}
+    button.a.g2{background:var(--ac)}
+    button.a.r{background:var(--rd)}
+    button.a.am{background:var(--am);color:#0f172a}
+    button.a.m{background:var(--card2);color:var(--tx);border:1px solid var(--bd2)}
+    button.a:disabled{opacity:.5;cursor:not-allowed}
+
+    input,select,textarea{width:100%;background:var(--bg);color:var(--tx);border:1px solid var(--bd2);border-radius:10px;padding:10px 12px;font:inherit;font-size:14.5px;margin:4px 0 9px;outline:none}
+    input:focus,select:focus,textarea:focus{border-color:var(--ac)}
+    .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:10px}
+    .toolbar input,.toolbar select{width:auto;min-width:160px;margin:0;padding:8px 10px;font-size:13px}
+    .li{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 0;border-bottom:1px solid var(--bd)}
+    .li:last-child{border-bottom:0}
+    .bar{height:8px;background:var(--bg2);border-radius:999px;margin:5px 0 11px;overflow:hidden}
+    .bar i{display:block;height:8px;border-radius:999px;background:var(--ac)}
+    code{font-family:ui-monospace,monospace;background:var(--bg2);padding:2px 6px;border-radius:6px;word-break:break-all;font-size:12px}
+    .quick-strip{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+
+    /* Modals & Toasts */
+    #md{position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:40;padding:16px}
+    #md>div{background:var(--card);border:1px solid var(--bd2);border-radius:16px;padding:18px;width:100%;max-width:440px;max-height:90vh;overflow:auto;box-shadow:var(--sh)}
+    #ts{position:fixed;top:64px;left:50%;transform:translateX(-50%);background:var(--ac);color:#fff;padding:10px 18px;border-radius:999px;display:none;z-index:50;max-width:92%;text-align:center;font-weight:700;font-size:13px;box-shadow:var(--sh)}
+    #ts.err{background:var(--rd)}
+
+    @media(max-width:700px){
+      table{min-width:0}
+      tr.h{display:none}
+      tr{display:block;border:1px solid var(--bd);border-radius:12px;margin-bottom:10px;padding:8px 12px;background:var(--card2)}
+      td{display:flex;justify-content:space-between;align-items:center;gap:10px;border:0;padding:5px 0;white-space:normal;text-align:right;flex-wrap:wrap}
+      td::before{content:attr(data-l);color:var(--mu);font-size:11.5px;font-weight:700;text-align:left}
+    }
+  </style>
+</head>
+<body>
+
+<div class="auth-shell" id="authShell">
+  <div id="login">
+    <div class="brand-head">
+      <div class="brand-logo">🦁</div>
+      <div>
+        <h2>Hulu Bet Control 2026</h2>
+        <small>Master Admin &amp; Withdrawal Agent Portal</small>
+      </div>
     </div>
+
+    <div class="role-tabs" role="tablist">
+      <button type="button" class="role-tab admin on" id="tabAdminRole" data-role="admin">👑 Master Admin</button>
+      <button type="button" class="role-tab agent" id="tabAgentRole" data-role="agent">💸 Withdrawal Agent</button>
+    </div>
+
+    <div id="agentSetupBox" style="display:none;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.35);border-radius:12px;padding:12px;margin-bottom:12px">
+      <div style="font-weight:800;font-size:13px;color:var(--am);margin-bottom:4px">First-Time Withdrawal Agent Setup</div>
+      <p class="k" style="margin:0 0 8px">No Withdrawal Agent PIN is configured yet. Create a dedicated PIN for withdrawal-only agents (different from Master Admin PIN).</p>
+      <input id="setupAgentPin1" type="password" placeholder="New Agent PIN (4+ chars)">
+      <input id="setupAgentPin2" type="password" placeholder="Confirm Agent PIN">
+      <button type="button" class="a am" style="width:100%;justify-content:center;min-height:40px" id="btnSetupAgentPin">Save Agent PIN &amp; Sign In</button>
+    </div>
+
+    <label class="k" id="lnameLbl">Operator name (logged in audit trail)</label>
+    <input id="lname" placeholder="e.g. Aymen / Cashier1" autocomplete="off">
+
+    <label class="k" id="lpinLbl">Master Admin PIN (numbers or text)</label>
+    <div class="pin-wrap">
+      <input id="lpin" type="password" inputmode="text" placeholder="Enter Master Admin PIN" autocomplete="current-password">
+      <div class="pin-actions">
+        <button type="button" class="pin-ico" id="ltoggle" title="Show/Hide PIN" aria-label="Show or hide PIN">👁</button>
+        <button type="button" class="pin-ico" id="lclear" title="Clear PIN" aria-label="Clear PIN">✕</button>
+      </div>
+    </div>
+
+    <div class="pin-pad" id="lpad" aria-label="PIN Keypad">
+      <button type="button" class="pin-key" data-k="1">1</button>
+      <button type="button" class="pin-key" data-k="2">2</button>
+      <button type="button" class="pin-key" data-k="3">3</button>
+      <button type="button" class="pin-key" data-k="4">4</button>
+      <button type="button" class="pin-key" data-k="5">5</button>
+      <button type="button" class="pin-key" data-k="6">6</button>
+      <button type="button" class="pin-key" data-k="7">7</button>
+      <button type="button" class="pin-key" data-k="8">8</button>
+      <button type="button" class="pin-key" data-k="9">9</button>
+      <button type="button" class="pin-key fn" data-k="clear">Clear</button>
+      <button type="button" class="pin-key" data-k="0">0</button>
+      <button type="button" class="pin-key fn" data-k="bksp">⌫</button>
+    </div>
+
+    <button class="a g2" style="width:100%;min-height:44px;justify-content:center;font-size:14px" id="lbtn">Sign in</button>
+    <p class="k" id="lerr" style="color:var(--rd);min-height:18px;margin:8px 0 0"></p>
   </div>
-  <div class="pin-pad" id="lpad" aria-label="Admin PIN Keypad">
-    <button type="button" class="pin-key" data-k="1">1</button>
-    <button type="button" class="pin-key" data-k="2">2</button>
-    <button type="button" class="pin-key" data-k="3">3</button>
-    <button type="button" class="pin-key" data-k="4">4</button>
-    <button type="button" class="pin-key" data-k="5">5</button>
-    <button type="button" class="pin-key" data-k="6">6</button>
-    <button type="button" class="pin-key" data-k="7">7</button>
-    <button type="button" class="pin-key" data-k="8">8</button>
-    <button type="button" class="pin-key" data-k="9">9</button>
-    <button type="button" class="pin-key fn" data-k="clear">Clear</button>
-    <button type="button" class="pin-key" data-k="0">0</button>
-    <button type="button" class="pin-key fn" data-k="bksp">⌫</button>
-  </div>
-  <button class="a g2" style="width:100%;min-height:44px;font-weight:700" id="lbtn">Sign in</button><p class="k" id="lerr" style="color:var(--rd)"></p></div>
-<div id="app" style="display:none">
-  <header><h1>🦁 Hulu Bet Admin</h1><span class="b in" id="upd">…</span><button class="a m" data-act="refresh">⟳</button><button class="a r" data-act="logout">Exit</button></header>
-  <main id="v"></main><nav id="nav"></nav>
 </div>
-<div id="md"><div id="mb"></div></div><div id="ts"></div>
+
+<div class="shell" id="app">
+  <header class="topbar">
+    <h1>🦁 <span id="topTitle">Hulu Bet Admin</span> <span class="b ok" id="roleBadge">Master Admin</span></h1>
+    <span class="b in" id="upd">…</span>
+    <button class="a m" data-act="refresh" title="Refresh data">⟳ Refresh</button>
+    <button class="a r" data-act="logout">Exit</button>
+  </header>
+  <div class="layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <main class="content" id="v"></main>
+  </div>
+  <nav class="mob-dock" id="nav"></nav>
+</div>
+
+<div id="md"><div id="mb"></div></div>
+<div id="ts"></div>
 
 <script>
-const API = (() => { try { const q = new URLSearchParams(location.search).get('api'); if (q && /^https?:\/\//i.test(q)) return q.replace(/\/+$/, ''); } catch (_) {} if (location.hostname.endsWith('.github.io')) return 'https://hulubetserver.app.aletcloud.com'; return window.location.origin; })();
-let PIN = "", ACTOR = "Admin", D = null, U = null, SQ = "", AL = [], BOT = null, SM = null, page = "Overview", prev = { d: 0, w: 0 };
+const API = (() => {
+  try {
+    const q = new URLSearchParams(location.search).get('api');
+    if (q && /^https?:\/\//i.test(q)) return q.replace(/\/+$/, '');
+  } catch (_) {}
+  if (location.hostname.endsWith('.github.io')) return 'https://hulubetserver.app.aletcloud.com';
+  return window.location.origin;
+})();
+
+const pathLow = location.pathname.toLowerCase();
+const urlMode = new URLSearchParams(location.search).get('mode');
+let LOGIN_MODE = (pathLow.includes('/agent') || urlMode === 'agent') ? 'agent' : 'admin';
+
+let PIN = '', ACTOR = 'Admin', ROLE = 'admin';
+let D = null, AG = null, U = null, SQ = '', AL = [], BOT = null, SM = null;
+let page = 'Overview', prev = { d: 0, w: 0 };
+let wdFilterQ = '', wdFilterMethod = 'ALL', depFilterQ = '', depFilterMethod = 'ALL', userStatusFilter = 'ALL', betGameFilter = 'ALL', auditFilterQ = '';
+
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const etb = n => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ETB';
 const ago = ts => { const s = (Date.now() - new Date(ts)) / 1000; return s < 60 ? 'now' : s < 3600 ? Math.floor(s / 60) + 'm' : s < 86400 ? Math.floor(s / 3600) + 'h' : Math.floor(s / 86400) + 'd'; };
-const BC = { approved: 'ok', active: 'ok', won: 'ok', verified: 'ok', pending: 'wa', suspended: 'wa', rejected: 'no', banned: 'no', lost: 'no' };
+const BC = { approved: 'ok', active: 'ok', won: 'ok', verified: 'ok', yes: 'ok', pending: 'wa', suspended: 'wa', rejected: 'no', banned: 'no', lost: 'no', no: 'm' };
 const badge = (t, c) => `<span class="b ${c || BC[String(t).toLowerCase()] || ''}">${esc(t)}</span>`;
-const btn = (l, act, data = {}, c = '') => `<button class="a ${c}" data-act="${act}" ${Object.entries(data).map(([k, v]) => `data-${k}="${esc(v)}"`).join(' ')}>${l}</button>`;
+const btn = (l, act, data = {}, c = '') => `<button type="button" class="a ${c}" data-act="${act}" ${Object.entries(data).map(([k, v]) => `data-${k}="${esc(v)}"`).join(' ')}>${l}</button>`;
 const tbl = (h, r) => `<div class="tw"><table><tr class="h">${h.map(x => `<th>${x}</th>`).join('')}</tr>${r.map(x => `<tr>${x.map((c, j) => `<td data-l="${h[j]}">${c}</td>`).join('')}</tr>`).join('')}</table></div>`;
 const empty = t => `<p class="k">${t}</p>`;
-function toast(m, err) { const t = $('#ts'); t.textContent = m; t.className = err ? 'err' : ''; t.style.display = 'block'; clearTimeout(t.h); t.h = setTimeout(() => t.style.display = 'none', 3200); }
-function beep() { try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.frequency.value = 880; g.gain.value = .08; o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + .25); } catch (e) {} }
+
+function toast(m, err) {
+  const t = $('#ts'); t.textContent = m; t.className = err ? 'err' : '';
+  t.style.display = 'block'; clearTimeout(t.h);
+  t.h = setTimeout(() => t.style.display = 'none', 3200);
+}
+function beep() {
+  try {
+    const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain();
+    o.frequency.value = 880; g.gain.value = .07; o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + .22);
+  } catch (_) {}
+}
+function downloadCsv(filename, headers, rows) {
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const csv = [headers.map(q).join(','), ...rows.map(r => r.map(q).join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+}
+
+// ---------- Role Tabs & Setup ----------
+function setLoginMode(mode) {
+  LOGIN_MODE = mode === 'agent' ? 'agent' : 'admin';
+  $('#tabAdminRole').classList.toggle('on', LOGIN_MODE === 'admin');
+  $('#tabAgentRole').classList.toggle('on', LOGIN_MODE === 'agent');
+  $('#lerr').textContent = '';
+  if (LOGIN_MODE === 'agent') {
+    $('#lpinLbl').textContent = 'Withdrawal Agent PIN';
+    $('#lpin').placeholder = 'Enter Withdrawal Agent PIN';
+    $('#lbtn').className = 'a am';
+    $('#lbtn').textContent = 'Sign in as Withdrawal Agent';
+    checkAgentPinStatus();
+  } else {
+    $('#agentSetupBox').style.display = 'none';
+    $('#lpinLbl').textContent = 'Master Admin PIN (numbers or text)';
+    $('#lpin').placeholder = 'Enter Master Admin PIN';
+    $('#lbtn').className = 'a g2';
+    $('#lbtn').textContent = 'Sign in as Master Admin';
+  }
+}
+$('#tabAdminRole').onclick = () => setLoginMode('admin');
+$('#tabAgentRole').onclick = () => setLoginMode('agent');
+
+async function checkAgentPinStatus() {
+  try {
+    const r = await fetch(API + '/api/agent/pin-status');
+    const d = await r.json();
+    if (LOGIN_MODE === 'agent' && d.success && !d.configured) {
+      $('#agentSetupBox').style.display = 'block';
+    } else {
+      $('#agentSetupBox').style.display = 'none';
+    }
+  } catch (_) {}
+}
+
+$('#btnSetupAgentPin').onclick = async () => {
+  const p1 = $('#setupAgentPin1').value.trim();
+  const p2 = $('#setupAgentPin2').value.trim();
+  if (p1.length < 4) return $('#lerr').textContent = 'Agent PIN must be at least 4 characters';
+  if (p1 !== p2) return $('#lerr').textContent = 'Agent PINs do not match';
+  $('#btnSetupAgentPin').disabled = true;
+  try {
+    const r = await fetch(API + '/api/agent/setup-pin', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: p1 })
+    });
+    const d = await r.json();
+    if (!d.success) { $('#lerr').textContent = d.message || 'Setup failed'; return; }
+    toast(d.message || 'Agent PIN configured');
+    $('#agentSetupBox').style.display = 'none';
+    $('#lpin').value = p1;
+    await login();
+  } catch (_) {
+    $('#lerr').textContent = 'Network error configuring PIN';
+  } finally {
+    $('#btnSetupAgentPin').disabled = false;
+  }
+};
 
 // ---------- API ----------
 async function call(path, method = 'GET', body) {
   try {
-    const r = await fetch(API + path, { method, headers: { 'Content-Type': 'application/json', 'x-admin-token': PIN }, body: body ? JSON.stringify({ ...body, actor: ACTOR }) : undefined });
+    const headers = { 'Content-Type': 'application/json' };
+    if (ROLE === 'agent' || path.startsWith('/api/agent/')) headers['x-agent-token'] = PIN;
+    else headers['x-admin-token'] = PIN;
+    const r = await fetch(API + path, {
+      method, headers,
+      body: body ? JSON.stringify({ ...body, actor: ACTOR }) : undefined
+    });
     const d = await r.json().catch(() => ({ success: false, message: 'Bad response from server' }));
-    if (r.status === 403 || r.status === 429) { if (D) logout(); d.auth = true; }
+    if (r.status === 403 || r.status === 429) {
+      if ((D || AG) && !path.startsWith('/api/auth/')) logout();
+      d.auth = true;
+    }
     return d;
-  } catch (e) { return { success: false, message: 'Cannot reach server (it may be waking up – try again in 20s)' }; }
+  } catch (_) {
+    return { success: false, message: 'Cannot reach server — try again in a few seconds' };
+  }
 }
+
 async function load(silent) {
+  if (ROLE === 'agent') {
+    const d = await call('/api/agent/withdrawals');
+    if (!d.success) { if (!silent) toast(d.message || 'Load failed', true); return d; }
+    if (AG && d.pendingWithdrawals.length > prev.w) { beep(); toast('New withdrawal request received'); }
+    prev.w = d.pendingWithdrawals.length;
+    AG = d;
+    $('#upd').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (!modalOpen()) R();
+    return d;
+  }
   const d = await call('/api/admin/master-dashboard');
   if (!d.success) { if (!silent) toast(d.message || 'Load failed', true); return d; }
   if (D && (d.pendingDeposits.length > prev.d || d.pendingWithdrawals.length > prev.w)) { beep(); toast('New request received'); }
   prev = { d: d.pendingDeposits.length, w: d.pendingWithdrawals.length };
-  D = d; if (SQ) await search(SQ, true);
+  D = d;
+  if (SQ) await search(SQ, true);
   $('#upd').textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   if (!modalOpen()) R();
   return d;
 }
+
 async function act(path, body) {
   const d = await call(path, 'POST', body);
   toast(d.message || (d.success ? 'Done' : 'Failed'), !d.success);
@@ -118,29 +363,58 @@ async function act(path, body) {
   return d;
 }
 
-// ---------- login ----------
+// ---------- Login / Logout ----------
 async function login() {
-  PIN = $('#lpin').value.trim(); ACTOR = $('#lname').value.trim() || 'Admin';
-  if (!PIN) { $('#lerr').textContent = 'Enter your Admin PIN'; $('#lpin').focus(); return; }
-  $('#lbtn').disabled = true; $('#lerr').textContent = 'Connecting… (first call can take ~20s)';
+  PIN = $('#lpin').value.trim();
+  const rawName = $('#lname').value.trim();
+  if (!PIN) { $('#lerr').textContent = 'Enter your PIN'; $('#lpin').focus(); return; }
+  $('#lbtn').disabled = true;
+  $('#lerr').textContent = 'Verifying…';
   try {
+    const res = await fetch(API + '/api/auth/admin-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: PIN, mode: LOGIN_MODE, actor: rawName || (LOGIN_MODE === 'agent' ? 'Cashier' : 'Admin') })
+    });
+    const authData = await res.json().catch(() => ({ success: false, message: 'Server error' }));
+    if (!authData.success) {
+      try { sessionStorage.removeItem('hb'); } catch (_) {}
+      $('#lerr').textContent = authData.message || 'Invalid PIN';
+      PIN = ''; $('#lpin').value = ''; $('#lpin').focus();
+      return;
+    }
+    ROLE = authData.role;
+    ACTOR = authData.actor || (ROLE === 'agent' ? 'Agent: Cashier' : 'Admin');
+    page = ROLE === 'agent' ? 'AgentQueue' : 'Overview';
+
     const d = await load(true);
     if (d.success) {
-      try { sessionStorage.setItem('hb', JSON.stringify({ PIN, ACTOR })); } catch (e) {}
+      try { sessionStorage.setItem('hb', JSON.stringify({ PIN, ACTOR: rawName, ROLE, MODE: LOGIN_MODE })); } catch (_) {}
       $('#lerr').textContent = '';
-      $('#login').style.display = 'none'; $('#app').style.display = 'block'; R();
+      $('#authShell').style.display = 'none';
+      $('#app').style.display = 'block';
+      $('#topTitle').textContent = ROLE === 'agent' ? 'Withdrawal Agent Desk' : 'Hulu Bet Command 2026';
+      $('#roleBadge').textContent = ROLE === 'agent' ? 'Withdrawals Only' : 'Master Admin';
+      $('#roleBadge').className = 'b ' + (ROLE === 'agent' ? 'wa' : 'ok');
+      R();
     } else {
-      try { sessionStorage.removeItem('hb'); } catch (e) {}
-      $('#lerr').textContent = d.message || 'Login failed';
+      $('#lerr').textContent = d.message || 'Could not load dashboard';
       PIN = '';
-      $('#lpin').value = '';
-      $('#lpin').focus();
     }
   } finally {
     $('#lbtn').disabled = false;
   }
 }
-function logout() { PIN = ''; D = null; try { sessionStorage.removeItem('hb'); } catch (e) {} $('#app').style.display = 'none'; $('#login').style.display = 'block'; $('#lpin').value = ''; $('#lerr').textContent = ''; }
+
+function logout() {
+  PIN = ''; D = null; AG = null; ROLE = LOGIN_MODE;
+  try { sessionStorage.removeItem('hb'); } catch (_) {}
+  $('#app').style.display = 'none';
+  $('#authShell').style.display = 'flex';
+  $('#lpin').value = '';
+  $('#lerr').textContent = '';
+}
+
 $('#lbtn').onclick = login;
 $('#lpin').onkeydown = e => { if (e.key === 'Enter') login(); };
 $('#ltoggle').onclick = () => { const i = $('#lpin'); const show = i.type === 'password'; i.type = show ? 'text' : 'password'; $('#ltoggle').textContent = show ? '🙈' : '👁'; i.focus(); };
@@ -154,9 +428,19 @@ $('#lpad').onclick = e => {
   else inp.value = inp.value + k;
   inp.dispatchEvent(new Event('input', { bubbles: true }));
 };
-try { const s = JSON.parse(sessionStorage.getItem('hb') || 'null'); if (s && s.PIN) { $('#lpin').value = s.PIN; $('#lname').value = s.ACTOR || ''; login(); } } catch (e) {}
 
-// ---------- modal ----------
+setLoginMode(LOGIN_MODE);
+try {
+  const s = JSON.parse(sessionStorage.getItem('hb') || 'null');
+  if (s && s.PIN) {
+    if (s.MODE) setLoginMode(s.MODE);
+    $('#lpin').value = s.PIN;
+    $('#lname').value = s.ACTOR || '';
+    login();
+  }
+} catch (_) {}
+
+// ---------- Modal ----------
 const modalOpen = () => $('#md').style.display === 'flex';
 function closeM() { $('#md').style.display = 'none'; }
 $('#md').onclick = e => { if (e.target.id === 'md') closeM(); };
@@ -165,30 +449,42 @@ function ask(title, fields, ok, label = 'Confirm') {
     ? `<select id="f_${f.k}">${f.options.map(o => `<option>${esc(o)}</option>`).join('')}</select>`
     : f.long ? `<textarea id="f_${f.k}" rows="3" placeholder="${esc(f.ph || '')}">${esc(f.value || '')}</textarea>`
     : `<input id="f_${f.k}" type="${f.type || 'text'}" value="${esc(f.value || '')}" placeholder="${esc(f.ph || '')}" inputmode="${f.type === 'number' ? 'decimal' : 'text'}">`)).join('')}
-    <div class="row" style="margin-top:8px"><button class="a g2" id="mok">${esc(label)}</button><button class="a m" onclick="closeM()">Cancel</button></div>`;
+    <div class="row" style="margin-top:10px"><button type="button" class="a g2" id="mok">${esc(label)}</button><button type="button" class="a m" onclick="closeM()">Cancel</button></div>`;
   $('#md').style.display = 'flex';
   $('#mok').onclick = () => { const v = {}; fields.forEach(f => v[f.k] = $('#f_' + f.k).value.trim()); closeM(); ok(v); };
 }
-const sure = (title, text, ok) => { $('#mb').innerHTML = `<h2>${esc(title)}</h2><p class="k">${esc(text)}</p><div class="row"><button class="a g2" id="mok">Yes, continue</button><button class="a m" onclick="closeM()">Cancel</button></div>`; $('#md').style.display = 'flex'; $('#mok').onclick = () => { closeM(); ok(); }; };
+const sure = (title, text, ok) => {
+  $('#mb').innerHTML = `<h2>${esc(title)}</h2><p class="k">${esc(text)}</p><div class="row" style="margin-top:12px"><button type="button" class="a g2" id="mok">Yes, continue</button><button type="button" class="a m" onclick="closeM()">Cancel</button></div>`;
+  $('#md').style.display = 'flex';
+  $('#mok').onclick = () => { closeM(); ok(); };
+};
 
-// ---------- actions (buttons use data-act; values are escaped, never inlined in JS) ----------
+// ---------- Actions ----------
 const ACT = {
   refresh: () => load(),
   logout,
-  depOk: d => ask('Approve deposit ' + d.id, [{ k: 'ref', label: 'Telebirr / CBE reference (a reused reference is blocked)', value: d.ref }], v => act('/api/admin/approve-deposit', { txnId: d.id, bankRef: v.ref }), 'Approve & credit'),
+  navGo: d => go(d.page),
+  copy: d => { try { navigator.clipboard.writeText(d.v); toast('Copied ' + d.v); } catch (_) { toast(d.v); } },
+  depOk: d => ask('Approve deposit ' + d.id, [{ k: 'ref', label: 'Telebirr / CBE reference (reused ref is blocked)', value: d.ref }], v => act('/api/admin/approve-deposit', { txnId: d.id, bankRef: v.ref }), 'Approve & credit'),
   depNo: d => ask('Reject deposit ' + d.id, [{ k: 'reason', label: 'Reason (sent to the player)', value: 'Payment not received' }], v => act('/api/admin/reject-deposit', { txnId: d.id, reason: v.reason }), 'Reject'),
-  wdOk: d => sure('Mark ' + d.id + ' as PAID?', `Only confirm after you sent ${d.amt} to ${d.acc} (${d.m}).`, () => act('/api/admin/approve-withdrawal', { txnId: d.id })),
-  wdNo: d => ask('Reject & refund ' + d.id, [{ k: 'reason', label: 'Reason', value: 'Rejected by admin' }], v => act('/api/admin/reject-withdrawal', { txnId: d.id, reason: v.reason }), 'Reject & refund'),
-  copy: d => { try { navigator.clipboard.writeText(d.v); toast('Copied ' + d.v); } catch (e) { toast(d.v); } },
-  stat: d => sure(`Set ${d.name} to ${d.st}?`, d.st === 'active' ? 'The player can play again.' : 'The player will not be able to bet or withdraw.', () => act('/api/admin/user-status', { userId: d.id, status: d.st })),
-  topup: d => ask('Top-up ' + d.name, [{ k: 'amount', label: 'Amount (ETB)', type: 'number' }, { k: 'ref', label: 'Bank reference (optional, blocks reuse)' }], v => act('/api/admin/topup', { userId: d.id, amount: v.amount, txnId: v.ref }), 'Credit'),
+  wdOk: d => {
+    const ep = ROLE === 'agent' ? '/api/agent/approve-withdrawal' : '/api/admin/approve-withdrawal';
+    sure('Mark ' + d.id + ' as PAID?', `Only confirm AFTER sending ${d.amt} to ${d.acc} (${d.m}).`, () => act(ep, { txnId: d.id }));
+  },
+  wdNo: d => {
+    const ep = ROLE === 'agent' ? '/api/agent/reject-withdrawal' : '/api/admin/reject-withdrawal';
+    ask('Reject & refund ' + d.id, [{ k: 'reason', label: 'Reason (refunds balance immediately)', value: 'Rejected by cashier' }], v => act(ep, { txnId: d.id, reason: v.reason }), 'Reject & refund');
+  },
+  stat: d => sure(`Set ${d.name} to ${d.st}?`, d.st === 'active' ? 'Player can bet and withdraw.' : 'Player will be blocked from betting and cashouts.', () => act('/api/admin/user-status', { userId: d.id, status: d.st })),
+  topup: d => ask('Top-up ' + d.name, [{ k: 'amount', label: 'Amount (ETB)', type: 'number' }, { k: 'ref', label: 'Bank reference (optional)' }], v => act('/api/admin/topup', { userId: d.id, amount: v.amount, txnId: v.ref }), 'Credit'),
+  quickTopup: () => ask('Manual Player Top-up', [{ k: 'userId', label: 'Telegram User ID' }, { k: 'amount', label: 'Amount (ETB)', type: 'number' }, { k: 'ref', label: 'Bank reference (optional)' }], v => act('/api/admin/topup', { userId: v.userId, amount: v.amount, txnId: v.ref }), 'Credit Player'),
   adj: d => ask('Adjust balance: ' + d.name, [{ k: 'action', label: 'Action', type: 'select', options: ['ADD', 'DEDUCT'] }, { k: 'amount', label: 'Amount (ETB)', type: 'number' }, { k: 'reason', label: 'Reason (required)' }],
     v => v.reason ? act('/api/admin/adjust-balance', { userId: d.id, amount: v.amount, action: v.action, reason: v.reason }) : toast('Reason is required', true), 'Apply'),
-  promoNew: () => ask('New promo code', [{ k: 'code', label: 'Code' }, { k: 'amt', label: 'Bonus (ETB)', type: 'number' }, { k: 'max', label: 'Max uses', type: 'number', value: '100' }], v => act('/api/admin/create-promo', { code: v.code, bonusAmount: v.amt, maxUses: v.max }), 'Create'),
+  promoNew: () => ask('New promo code', [{ k: 'code', label: 'Code' }, { k: 'amt', label: 'Bonus Credit (ETB, 50x wager)', type: 'number' }, { k: 'max', label: 'Max uses', type: 'number', value: '100' }], v => act('/api/admin/create-promo', { code: v.code, bonusAmount: v.amt, maxUses: v.max }), 'Create'),
   promoToggle: d => act('/api/admin/toggle-promo', { code: d.code }),
   cashback: () => ask('Distribute cashback', [{ k: 'pct', label: 'Percent of NEW net loss (1-50)', type: 'number', value: String(D?.settings?.cashbackPercent || 10) }, { k: 'min', label: 'Minimum new net loss (ETB)', type: 'number', value: String(D?.settings?.cashbackMinLoss || 100) }],
-    v => sure('Pay ' + v.pct + '% cashback?', 'This credits real balance to every eligible player (1x wagering applies).', () => act('/api/admin/distribute-cashback', { percentage: v.pct, minLoss: v.min })), 'Next'),
-  reward: () => ask('Reward players', [{ k: 'ids', label: 'Player IDs (comma separated)', long: 1 }, { k: 'amt', label: 'Amount each (ETB, max 1000)', type: 'number' }],
+    v => sure('Pay ' + v.pct + '% cashback?', `Credits Bonus Balance to eligible players (${D?.settings?.wagerReqMult || 50}x wagering applies).`, () => act('/api/admin/distribute-cashback', { percentage: v.pct, minLoss: v.min })), 'Next'),
+  reward: () => ask('Batch reward players', [{ k: 'ids', label: 'Player IDs (comma separated)', long: 1 }, { k: 'amt', label: 'Bonus Credit each (ETB, max 1000)', type: 'number' }],
     v => act('/api/admin/reward-users', { userIds: v.ids.split(/[\s,]+/).filter(Boolean), rewardAmount: v.amt }), 'Send'),
   sportNew: () => ask('Add Live Match', [
     { k: 'sport', label: 'Sport', type: 'select', options: ['Soccer', 'Basketball', 'Boxing'] },
@@ -206,18 +502,24 @@ const ACT = {
     { k: 'awayScore', label: 'Final Away Score', type: 'number', value: d.as }
   ], async v => { await act('/api/admin/sports/settle', { matchId: d.id, ...v }); const s = await call('/api/admin/sports'); if (s.success) { SM = s.matches; R(); } }, 'Settle FT'),
   saveSet: () => {
-    const rtp = parseFloat($('#s_rtp').value), krtp = parseFloat($('#s_krtp').value), com = parseFloat($('#s_com').value);
+    const rtp = parseFloat($('#s_rtp').value), krtp = parseFloat($('#s_krtp').value), brtp = parseFloat($('#s_brtp').value), com = parseFloat($('#s_com').value);
     const wb = parseFloat($('#s_wb').value), rb = parseFloat($('#s_rb').value), cb = parseFloat($('#s_cb').value);
-    if (!(rtp >= 50 && rtp <= 99) || !(krtp >= 50 && krtp <= 99) || !(com >= 0 && com <= 20)) return toast('RTP 50-99, Keno RTP 50-99, Commission 0-20', true);
+    const fdp = parseFloat($('#s_fdp').value), fdm = parseFloat($('#s_fdm').value), wrx = parseFloat($('#s_wrx').value);
+    if (!(rtp >= 50 && rtp <= 99) || !(krtp >= 50 && krtp <= 99) || !(brtp >= 50 && brtp <= 99) || !(com >= 0 && com <= 20)) return toast('RTP 50-99, Keno/Buffalo RTP 50-99, Commission 0-20', true);
     if (!(wb >= 0 && wb <= 500) || !(rb >= 0 && rb <= 1000) || !(cb >= 1 && cb <= 50)) return toast('Welcome 0-500, Referral 0-1000, Cashback 1-50%', true);
-    sure('Save settings?', `Target RTP ${rtp}%, Keno RTP ${krtp}%, Commission ${com}%, Welcome ${wb} ETB, Referral ${rb} ETB, Cashback ${cb}%.`,
-      () => act('/api/admin/update-settings', { targetRtp: rtp / 100, kenoRtp: krtp / 100, agentCommission: com / 100, welcomeBonus: wb, referralBonus: rb, cashbackPercent: cb }));
+    if (!(fdp >= 0 && fdp <= 200) || !(fdm >= 50 && fdm <= 50000) || !(wrx >= 1 && wrx <= 100)) return toast('1st Dep Bonus 0-200%, Min 50+, Wager 1-100x', true);
+    sure('Save settings?', `RTP ${rtp}%, Keno ${krtp}%, Buffalo ${brtp}%, 1st Dep Bonus ${fdp}% on ${fdm}+ ETB (${wrx}x wager).`,
+      () => act('/api/admin/update-settings', { targetRtp: rtp / 100, kenoRtp: krtp / 100, buffaloRtp: brtp / 100, agentCommission: com / 100, welcomeBonus: wb, referralBonus: rb, cashbackPercent: cb, firstDepBonusPct: fdp, firstDepBonusMin: fdm, wagerReqMult: wrx }));
   },
-  runAudit12h: () => sure(
-    'Run 12-Hour Audit & Prune?',
-    'Summarizes settled bets older than 12 hours into permanent 12h reports and prunes expired raw rows & audit logs.',
-    () => act('/api/admin/run-12h-audit', {})
-  ),
+  setAgentPin: () => ask('Set Withdrawal Agent PIN', [
+    { k: 'pin', label: 'New Withdrawal Agent PIN (4+ chars, must differ from Master PIN)', type: 'password' },
+    { k: 'confirm', label: 'Confirm Agent PIN', type: 'password' }
+  ], v => {
+    if (!v.pin || v.pin.length < 4) return toast('Agent PIN must be 4+ chars', true);
+    if (v.pin !== v.confirm) return toast('PINs do not match', true);
+    act('/api/admin/set-agent-pin', { pin: v.pin });
+  }, 'Save Agent PIN'),
+  runAudit12h: () => sure('Run 12-Hour Audit & Prune?', 'Summarizes settled bets >12h into archived reports and prunes expired rows.', () => act('/api/admin/run-12h-audit', {})),
   testVerify: () => act('/api/admin/test-verify', {}),
   testSmsParse: () => ask('Dry-Run SMS Parser (Not Saved)', [
     { k: 'sender', label: 'Sender (optional, e.g. 127 or CBE)', value: '' },
@@ -234,9 +536,35 @@ const ACT = {
   ], v => {
     if (String(v.confirm || '').trim().toUpperCase() !== 'RESET 200K') return toast('Type RESET 200K exactly to confirm', true);
     act('/api/admin/reset-launch-db', { confirm: v.confirm, vaultBalance: Number(v.vaultBalance || 200000) });
-  }, 'Reset & Restore 200k Vault')
+  }, 'Reset & Restore 200k Vault'),
+  exportUsers: () => {
+    const list = U || D?.users || [];
+    downloadCsv('hulubet-players.csv', ['ID', 'Name', 'Username', 'Balance', 'BonusBalance', 'WagerLeft', 'Deposited', 'Wagered', 'Won', 'Status'],
+      list.map(u => [u.id, u.name, u.telegram_username, u.bal, u.bonus_balance, u.wager_requirement_left, u.total_deposited, u.total_wagered, u.total_won, u.st]));
+    toast('Players CSV exported');
+  },
+  exportDeposits: () => {
+    const list = D?.dep || [];
+    downloadCsv('hulubet-deposits.csv', ['TxnID', 'User', 'Method', 'Amount', 'Status', 'CreatedAt'],
+      list.map(t => [t.id, t.u, t.m, t.amt, t.st, t.at]));
+    toast('Deposits CSV exported');
+  },
+  exportWithdrawals: () => {
+    const list = ROLE === 'agent' ? (AG?.recentWithdrawals || []) : (D?.wd || []);
+    downloadCsv('hulubet-withdrawals.csv', ['TxnID', 'User', 'Method', 'Amount', 'Account', 'Status', 'CreatedAt'],
+      list.map(t => [t.id, t.u, t.m, t.amt, t.acc || '', t.st, t.at]));
+    toast('Withdrawals CSV exported');
+  },
+  exportAudit: () => {
+    downloadCsv('hulubet-audit.csv', ['Time', 'Actor', 'Action', 'Detail', 'IP'],
+      AL.map(a => [a.created_at, a.actor, a.action, a.detail, a.ip]));
+    toast('Audit log CSV exported');
+  }
 };
-document.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b && ACT[b.dataset.act]) ACT[b.dataset.act](b.dataset); });
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]');
+  if (b && ACT[b.dataset.act]) ACT[b.dataset.act](b.dataset);
+});
 
 let st;
 async function search(q, keep) {
@@ -245,54 +573,257 @@ async function search(q, keep) {
   const d = await call('/api/admin/users?q=' + encodeURIComponent(q));
   if (d.success) { U = d.users; if ($('#ptab')) $('#ptab').innerHTML = playersTable(U); }
 }
-window.onSearch = v => { clearTimeout(st); st = setTimeout(() => search(v.trim()), 400); };
+window.onSearch = v => { clearTimeout(st); st = setTimeout(() => search(v.trim()), 350); };
 
-// ---------- views ----------
-const playersTable = list => list.length ? tbl(['ID', 'Player', 'Balance', 'Status', 'Wagered', 'Won', 'Bets', 'Actions'], list.map(u => [
-  esc(u.id), esc(u.name) + (u.telegram_username ? ` <span class="k">@${esc(u.telegram_username)}</span>` : ''), etb(u.bal), badge(u.st), etb(u.total_wagered), etb(u.total_won), u.bets,
-  btn('Top-up', 'topup', { id: u.id, name: u.name }, 'g2') + btn('Adjust', 'adj', { id: u.id, name: u.name }) +
-  (u.st === 'active' ? btn('Suspend', 'stat', { id: u.id, name: u.name, st: 'suspended' }, 'm') + btn('Ban', 'stat', { id: u.id, name: u.name, st: 'banned' }, 'r') : btn('Activate', 'stat', { id: u.id, name: u.name, st: 'active' }, 'g2'))
-])) : empty('No players found');
+// ---------- Filters & Render Helpers ----------
+function filterPlayers(list) {
+  return (list || []).filter(u => {
+    if (userStatusFilter === 'BONUS') return Number(u.bonus_balance || 0) > 0 || Number(u.wager_requirement_left || 0) > 0;
+    if (userStatusFilter !== 'ALL' && u.st !== userStatusFilter) return false;
+    return true;
+  });
+}
+const playersTable = rawList => {
+  const list = filterPlayers(rawList);
+  return list.length ? tbl(['ID', 'Player', 'Total Bal', 'Bonus (50x)', 'Wager Left', '1st Dep', 'Status', 'Wagered', 'Won', 'Actions'], list.map(u => [
+    `<span class="mono">${esc(u.id)}</span>`,
+    esc(u.name) + (u.telegram_username ? ` <span class="k">@${esc(u.telegram_username)}</span>` : ''),
+    `<b>${etb(u.bal)}</b>`,
+    `<span style="color:var(--am)">${etb(u.bonus_balance || 0)}</span>`,
+    `<span class="k">${etb(u.wager_requirement_left || 0)}</span>`,
+    badge(u.first_deposit_completed === 'YES' ? 'YES' : 'NO'),
+    badge(u.st),
+    etb(u.total_wagered),
+    etb(u.total_won),
+    btn('Top-up', 'topup', { id: u.id, name: u.name }, 'g2') +
+    btn('Adjust', 'adj', { id: u.id, name: u.name }, 'm') +
+    (u.st === 'active'
+      ? btn('Suspend', 'stat', { id: u.id, name: u.name, st: 'suspended' }, 'am') + btn('Ban', 'stat', { id: u.id, name: u.name, st: 'banned' }, 'r')
+      : btn('Activate', 'stat', { id: u.id, name: u.name, st: 'active' }, 'g2'))
+  ])) : empty('No matching players found');
+};
 
+function renderRtpSvgChart(gs, defaultTarget) {
+  if (!gs || !gs.length) return empty('No settled game volume yet');
+  const maxW = Math.max(1, ...gs.map(g => Number(g.wagered || 0)));
+  return gs.map(g => {
+    const tRtp = g.targetRtp || defaultTarget;
+    const dev = Math.abs(g.rtp - tRtp);
+    const barColor = dev > 8 && g.wagered > 5000 ? 'var(--am)' : 'var(--ac)';
+    const volPct = Math.max(4, Math.min(100, (g.wagered / maxW) * 100));
+    return `<div style="margin-bottom:10px">
+      <div class="li" style="border:0;padding:0">
+        <span><b>${esc(g.game)}</b> <span class="k">${g.bets} bets · ${etb(g.wagered)} vol</span></span>
+        <span><b>${g.rtp}%</b> <span class="k">/ ${tRtp}% target</span></span>
+      </div>
+      <div class="bar"><i style="width:${Math.min(100, g.rtp)}%;background:${barColor}"></i></div>
+      <div style="height:4px;background:var(--bg2);border-radius:999px;margin-top:-7px;overflow:hidden"><span style="display:block;height:4px;width:${volPct}%;background:var(--bl);opacity:.55"></span></div>
+    </div>`;
+  }).join('');
+}
+
+function renderCashflowSvg(ggr, ngr, pwAmt) {
+  const vals = [Math.max(0, ggr), Math.max(0, ngr), Math.max(0, pwAmt)];
+  const mx = Math.max(100, ...vals);
+  const labels = ['GGR Today', 'NGR Month', 'Pending WD'];
+  const cols = ['#10b981', '#3b82f6', '#f59e0b'];
+  const bars = vals.map((v, i) => {
+    const h = Math.max(8, Math.round((v / mx) * 86));
+    const x = 18 + i * 74;
+    const y = 98 - h;
+    return `<rect x="${x}" y="${y}" width="44" height="${h}" rx="7" fill="${cols[i]}" opacity="0.9"></rect>
+      <text x="${x + 22}" y="114" fill="currentColor" font-size="10" text-anchor="middle" opacity="0.72">${labels[i]}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 240 122" style="width:100%;max-height:150px;display:block;color:var(--tx)">${bars}</svg>`;
+}
+
+function renderPendingWithdrawalsBlock(list) {
+  const q = wdFilterQ.toLowerCase();
+  const filtered = (list || []).filter(t => {
+    if (wdFilterMethod !== 'ALL' && t.method !== wdFilterMethod) return false;
+    if (q && ![t.txn_id, t.username, t.user_id, t.sender_account].some(v => String(v || '').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  return `<div class="toolbar">
+      <h2 style="margin:0">Pending Withdrawals (${filtered.length})</h2>
+      <div class="row">
+        <input placeholder="Search ID, player, phone…" value="${esc(wdFilterQ)}" oninput="wdFilterQ=this.value;R()">
+        <select onchange="wdFilterMethod=this.value;R()">
+          <option value="ALL" ${wdFilterMethod==='ALL'?'selected':''}>All Methods</option>
+          <option value="Telebirr" ${wdFilterMethod==='Telebirr'?'selected':''}>Telebirr</option>
+          <option value="CBE" ${wdFilterMethod==='CBE'?'selected':''}>CBE</option>
+        </select>
+        ${btn('Export CSV', 'exportWithdrawals', {}, 'm')}
+      </div>
+    </div>
+    <p class="k" style="margin-top:0">Send the payout to the player's account first, then press <b>Paid</b>. Rejecting refunds their balance atomically.</p>
+    ${filtered.length ? tbl(['ID', 'Player', 'Method', 'Amount', 'Send To', 'Review', 'Age', 'Action'], filtered.map(t => {
+      const rv = (t.remarks || '').split('REVIEW:')[1];
+      return [
+        `<span class="mono">${esc(t.txn_id)}</span>`,
+        esc(t.username || t.user_id),
+        badge(t.method, t.method === 'CBE' ? 'in' : 'pu'),
+        '<b>' + etb(t.amount) + '</b>',
+        `<code>${esc(t.sender_account)}</code> ` + btn('Copy', 'copy', { v: t.sender_account }, 'm'),
+        rv ? badge('⚠ ' + rv.trim(), 'wa') : badge('normal', 'ok'),
+        ago(t.created_at),
+        btn('Paid', 'wdOk', { id: t.txn_id, amt: etb(t.amount), acc: t.sender_account, m: t.method }, 'g2') +
+        btn('Reject', 'wdNo', { id: t.txn_id }, 'r')
+      ];
+    })) : empty('No pending withdrawals 🎉')}`;
+}
+
+// ---------- Master Admin & Agent Views ----------
 const V = {
-  Overview() {
-    const v = D.vault, gs = D.gameStats, W = gs.reduce((a, g) => a + g.wagered, 0), P = gs.reduce((a, g) => a + g.paid, 0), rtp = W ? P / W * 100 : 0;
-    const pw = D.pendingWithdrawals.reduce((a, t) => a + Number(t.amount), 0);
+  AgentQueue() {
+    const s = AG?.stats || { pendingCount: 0, pendingAmount: 0, approvedTodayCount: 0, approvedTodayAmount: 0, rejectedCount: 0 };
     return `<div class="g">
-      <div class="c"><div class="k">GGR today</div><div class="v">${etb(v.ggrToday)}</div></div>
-      <div class="c"><div class="k">NGR this month</div><div class="v">${etb(v.ngrMonth)}</div></div>
-      <div class="c"><div class="k">Casino bankroll</div><div class="v">${etb(v.vault_balance)}</div></div>
-      <div class="c"><div class="k">Total wagered</div><div class="v">${etb(v.total_wagered)}</div></div>
-      <div class="c"><div class="k">Players</div><div class="v">${D.totalUsers}</div></div>
-      <div class="c"><div class="k">Pending deposits</div><div class="v" style="color:var(--am)">${D.pendingDeposits.length}</div></div>
-      <div class="c"><div class="k">Pending withdrawals</div><div class="v" style="color:var(--am)">${D.pendingWithdrawals.length}</div><div class="k">${etb(pw)}</div></div>
-      <div class="c"><div class="k">Actual RTP / target</div><div class="v">${rtp.toFixed(1)}% <span class="k">/ ${D.settings.targetRtp}%</span></div></div></div>
-    <div class="c"><h2>RTP by game (cumulative actual vs target)</h2>${gs.length ? gs.map(g => { const tRtp = g.targetRtp || D.settings.targetRtp; return `<div class="li" style="border:0;padding:0"><span>${esc(g.game)} <span class="k">${g.bets} bets · target ${tRtp}%</span></span><span>${g.rtp}%</span></div><div class="bar"><i style="width:${Math.min(100, g.rtp)}%;${Math.abs(g.rtp - tRtp) > 8 && g.wagered > 5000 ? 'background:var(--am)' : ''}"></i></div>`; }).join('') : empty('No settled bets yet')}</div>
-    <div class="c"><h2>Latest transactions</h2>${tbl(['Type', 'Player', 'Amount', 'Status', 'Age'], D.recentTransactions.slice(0, 10).map(t => [esc(t.type), esc(t.username || t.user_id), etb(t.amount), badge(t.status), ago(t.created_at)]))}</div>`;
+      <div class="c kpi"><div class="k">Pending Requests</div><div class="v" style="color:var(--am)">${s.pendingCount}</div><div class="sub">${etb(s.pendingAmount)}</div></div>
+      <div class="c kpi"><div class="k">Paid Today</div><div class="v" style="color:var(--ac)">${s.approvedTodayCount}</div><div class="sub">${etb(s.approvedTodayAmount)}</div></div>
+      <div class="c kpi"><div class="k">Rejected Total</div><div class="v" style="color:var(--rd)">${s.rejectedCount}</div><div class="sub">Auto-refunded</div></div>
+      <div class="c kpi"><div class="k">Role Scope</div><div class="v" style="font-size:15px;color:var(--cy)">Withdrawals Only</div><div class="sub">${esc(ACTOR)}</div></div>
+    </div>
+    <div class="c">${renderPendingWithdrawalsBlock(AG?.pendingWithdrawals || [])}</div>`;
+  },
+  AgentHistory() {
+    const list = (AG?.recentWithdrawals || []).filter(t => {
+      const q = wdFilterQ.toLowerCase();
+      if (wdFilterMethod !== 'ALL' && t.m !== wdFilterMethod) return false;
+      if (q && ![t.id, t.u, t.uid, t.acc].some(v => String(v || '').toLowerCase().includes(q))) return false;
+      return true;
+    });
+    return `<div class="c">
+      <div class="toolbar">
+        <h2 style="margin:0">Recent Withdrawals (${list.length})</h2>
+        <div class="row">
+          <input placeholder="Filter ID, player, phone…" value="${esc(wdFilterQ)}" oninput="wdFilterQ=this.value;R()">
+          ${btn('Export CSV', 'exportWithdrawals', {}, 'm')}
+        </div>
+      </div>
+      ${list.length ? tbl(['ID', 'Player', 'Method', 'Amount', 'Account', 'Status', 'Age'], list.map(t => [
+        `<span class="mono">${esc(t.id)}</span>`, esc(t.u), esc(t.m), '<b>' + etb(t.amt) + '</b>', `<code>${esc(t.acc || '—')}</code>`, badge(t.st), ago(t.at)
+      ])) : empty('No withdrawal history yet')}
+    </div>`;
+  },
+  Overview() {
+    const v = D.vault, gs = D.gameStats, W = gs.reduce((a, g) => a + g.wagered, 0), P = gs.reduce((a, g) => a + g.paid, 0), rtp = W ? (P / W) * 100 : 0;
+    const pw = D.pendingWithdrawals.reduce((a, t) => a + Number(t.amount), 0);
+    const fdbPct = D.settings.firstDepBonusPct ?? 20, fdbMin = D.settings.firstDepBonusMin ?? 300, wrx = D.settings.wagerReqMult ?? 50;
+    return `<div class="quick-strip">
+      ${btn('+ Manual Top-up', 'quickTopup', {}, 'g2')}
+      ${btn('📥 Deposits (' + D.pendingDeposits.length + ')', 'navGo', { page: 'Deposits' }, D.pendingDeposits.length ? 'am' : 'm')}
+      ${btn('💸 Withdrawals (' + D.pendingWithdrawals.length + ')', 'navGo', { page: 'Withdrawals' }, D.pendingWithdrawals.length ? 'am' : 'm')}
+      ${btn('🗄️ Run 12h Audit', 'runAudit12h', {}, 'm')}
+      ${btn('📊 Export Players CSV', 'exportUsers', {}, 'm')}
+    </div>
+    <div class="g">
+      <div class="c kpi"><div class="k">GGR Today</div><div class="v" style="color:var(--ac)">${etb(v.ggrToday)}</div><div class="sub">Gross gaming revenue</div></div>
+      <div class="c kpi"><div class="k">NGR This Month</div><div class="v">${etb(v.ngrMonth)}</div><div class="sub">After awarded bonuses</div></div>
+      <div class="c kpi"><div class="k">Casino Vault</div><div class="v">${etb(v.vault_balance)}</div><div class="sub">House bankroll</div></div>
+      <div class="c kpi"><div class="k">Total Wagered</div><div class="v">${etb(v.total_wagered)}</div><div class="sub">${D.totalUsers} players</div></div>
+      <div class="c kpi"><div class="k">Pending Deposits</div><div class="v" style="color:var(--am)">${D.pendingDeposits.length}</div><div class="sub">Awaiting verification</div></div>
+      <div class="c kpi"><div class="k">Pending Withdrawals</div><div class="v" style="color:var(--am)">${D.pendingWithdrawals.length}</div><div class="sub">${etb(pw)}</div></div>
+      <div class="c kpi"><div class="k">Actual RTP / Target</div><div class="v">${rtp.toFixed(1)}%</div><div class="sub">Target ${D.settings.targetRtp}% (Keno ${D.settings.kenoRtp}% · Buffalo ${D.settings.buffaloRtp ?? 70}%)</div></div>
+      <div class="c kpi"><div class="k">Bonus Rule</div><div class="v" style="color:var(--cy)">${fdbPct}% / ${wrx}x</div><div class="sub">1st deposit ${fdbMin}+ ETB</div></div>
+    </div>
+    <div class="g2cols">
+      <div class="c"><h2>RTP &amp; Volume by Game</h2>${renderRtpSvgChart(gs, D.settings.targetRtp)}</div>
+      <div class="c">
+        <h2>Cashflow Snapshot</h2>
+        ${renderCashflowSvg(v.ggrToday, v.ngrMonth, pw)}
+        <div class="li"><span>Verify Gateway</span>${badge(D.system?.verifyMode || 'Built-in', 'in')}</div>
+        <div class="li"><span>Withdrawal Agent PIN</span>${badge(D.system?.agentPinConfigured ? 'Configured' : 'Not Set', D.system?.agentPinConfigured ? 'ok' : 'wa')}</div>
+      </div>
+    </div>
+    <div class="c"><h2>Latest Transactions</h2>${tbl(['Type', 'Player', 'Amount', 'Status', 'Age'], D.recentTransactions.slice(0, 12).map(t => [badge(t.type, t.type === 'BONUS' ? 'pu' : ''), esc(t.username || t.user_id), etb(t.amount), badge(t.status), ago(t.created_at)]))}</div>`;
   },
   Deposits() {
-    const p = D.pendingDeposits;
-    return `<div class="c"><h2>Pending deposits (${p.length})</h2>${p.length ? tbl(['ID', 'Player', 'Method', 'Amount', 'Reference', 'Agent', 'Age', 'Action'], p.map(t => [esc(t.txn_id), esc(t.username || t.user_id), esc(t.method), '<b>' + etb(t.amount) + '</b>', esc(t.bank_txn_id || '—'), esc(t.agent_assigned || '—'), ago(t.created_at),
-      btn('Approve', 'depOk', { id: t.txn_id, ref: t.bank_txn_id || '' }, 'g2') + btn('Reject', 'depNo', { id: t.txn_id }, 'r')])) : empty('No pending deposits 🎉')}</div>
-    <div class="c"><h2>Recent deposits</h2>${tbl(['ID', 'Player', 'Method', 'Amount', 'Status', 'Age'], D.dep.slice(0, 40).map(t => [esc(t.id), esc(t.u), esc(t.m), etb(t.amt), badge(t.st), ago(t.at)]))}</div>`;
+    const q = depFilterQ.toLowerCase();
+    const p = D.pendingDeposits.filter(t => {
+      if (depFilterMethod !== 'ALL' && t.method !== depFilterMethod) return false;
+      if (q && ![t.txn_id, t.username, t.user_id, t.bank_txn_id].some(v => String(v || '').toLowerCase().includes(q))) return false;
+      return true;
+    });
+    const fdbMin = D.settings.firstDepBonusMin ?? 300, fdbPct = D.settings.firstDepBonusPct ?? 20;
+    return `<div class="c">
+      <div class="toolbar">
+        <h2 style="margin:0">Pending Deposits (${p.length})</h2>
+        <div class="row">
+          <input placeholder="Search ID, player, ref…" value="${esc(depFilterQ)}" oninput="depFilterQ=this.value;R()">
+          <select onchange="depFilterMethod=this.value;R()">
+            <option value="ALL" ${depFilterMethod==='ALL'?'selected':''}>All Methods</option>
+            <option value="Telebirr" ${depFilterMethod==='Telebirr'?'selected':''}>Telebirr</option>
+            <option value="CBE" ${depFilterMethod==='CBE'?'selected':''}>CBE</option>
+          </select>
+          ${btn('Export CSV', 'exportDeposits', {}, 'm')}
+        </div>
+      </div>
+      ${p.length ? tbl(['ID', 'Player', 'Method', 'Amount', '1st Dep Bonus', 'Reference', 'Age', 'Action'], p.map(t => {
+        const amt = Number(t.amount || 0);
+        const bonusEst = amt >= fdbMin ? `+${fdbPct}% (${etb(amt * fdbPct / 100)})` : '—';
+        return [
+          `<span class="mono">${esc(t.txn_id)}</span>`,
+          esc(t.username || t.user_id),
+          esc(t.method),
+          '<b>' + etb(amt) + '</b>',
+          amt >= fdbMin ? badge(bonusEst, 'pu') : `<span class="k">&lt; ${fdbMin} ETB</span>`,
+          esc(t.bank_txn_id || '—'),
+          ago(t.created_at),
+          btn('Approve', 'depOk', { id: t.txn_id, ref: t.bank_txn_id || '' }, 'g2') + btn('Reject', 'depNo', { id: t.txn_id }, 'r')
+        ];
+      })) : empty('No pending deposits 🎉')}
+    </div>
+    <div class="c"><h2>Recent Deposits</h2>${tbl(['ID', 'Player', 'Method', 'Amount', 'Status', 'Age'], D.dep.slice(0, 40).map(t => [`<span class="mono">${esc(t.id)}</span>`, esc(t.u), esc(t.m), etb(t.amt), badge(t.st), ago(t.at)]))}</div>`;
   },
   Withdrawals() {
-    const p = D.pendingWithdrawals;
-    return `<div class="c"><h2>Pending withdrawals (${p.length})</h2><p class="k">Send the money first, then press Paid. Reject refunds the player automatically.</p>${p.length ? tbl(['ID', 'Player', 'Method', 'Amount', 'Send to', 'Review', 'Age', 'Action'], p.map(t => {
-      const rv = (t.remarks || '').split('REVIEW:')[1];
-      return [esc(t.txn_id), esc(t.username || t.user_id), esc(t.method), '<b>' + etb(t.amount) + '</b>', `<code>${esc(t.sender_account)}</code> ` + btn('Copy', 'copy', { v: t.sender_account }, 'm'), rv ? badge('⚠ ' + rv.trim(), 'wa') : badge('normal', 'ok'), ago(t.created_at),
-        btn('Paid', 'wdOk', { id: t.txn_id, amt: etb(t.amount), acc: t.sender_account, m: t.method }, 'g2') + btn('Reject', 'wdNo', { id: t.txn_id }, 'r')];
-    })) : empty('No pending withdrawals 🎉')}</div>
-    <div class="c"><h2>Recent withdrawals</h2>${tbl(['ID', 'Player', 'Method', 'Amount', 'Status', 'Age'], D.wd.slice(0, 40).map(t => [esc(t.id), esc(t.u), esc(t.m), etb(t.amt), badge(t.st), ago(t.at)]))}</div>`;
+    const rec = D.wd.filter(t => {
+      const q = wdFilterQ.toLowerCase();
+      if (wdFilterMethod !== 'ALL' && t.m !== wdFilterMethod) return false;
+      if (q && ![t.id, t.u, t.uid, t.acc].some(v => String(v || '').toLowerCase().includes(q))) return false;
+      return true;
+    });
+    return `<div class="c">${renderPendingWithdrawalsBlock(D.pendingWithdrawals)}</div>
+    <div class="c"><h2>Recent Withdrawals</h2>${tbl(['ID', 'Player', 'Method', 'Amount', 'Account', 'Status', 'Age'], rec.slice(0, 40).map(t => [`<span class="mono">${esc(t.id)}</span>`, esc(t.u), esc(t.m), etb(t.amt), `<code>${esc(t.acc || '—')}</code>`, badge(t.st), ago(t.at)]))}</div>`;
   },
-  Players() { return `<div class="c"><h2>Players</h2><input placeholder="Search name, @username or ID" value="${esc(SQ)}" oninput="onSearch(this.value)"><div id="ptab">${playersTable(U || D.users)}</div><p class="k">Showing the top 100 by balance – use search to find anyone.</p></div>`; },
+  Players() {
+    return `<div class="c">
+      <div class="toolbar">
+        <h2 style="margin:0">Players (${D.totalUsers})</h2>
+        <div class="row">
+          <select onchange="userStatusFilter=this.value;R()">
+            <option value="ALL" ${userStatusFilter==='ALL'?'selected':''}>All Statuses</option>
+            <option value="active" ${userStatusFilter==='active'?'selected':''}>Active</option>
+            <option value="BONUS" ${userStatusFilter==='BONUS'?'selected':''}>Has Bonus / 50x Wager</option>
+            <option value="suspended" ${userStatusFilter==='suspended'?'selected':''}>Suspended</option>
+            <option value="banned" ${userStatusFilter==='banned'?'selected':''}>Banned</option>
+          </select>
+          ${btn('+ Top-up', 'quickTopup', {}, 'g2')}
+          ${btn('Export CSV', 'exportUsers', {}, 'm')}
+        </div>
+      </div>
+      <input placeholder="Search player name, @username or Telegram ID…" value="${esc(SQ)}" oninput="onSearch(this.value)">
+      <div id="ptab">${playersTable(U || D.users)}</div>
+      <p class="k">Bonus credit requires ${D.settings.wagerReqMult || 50}x wagering and cannot be withdrawn directly until wager left hits 0.</p>
+    </div>`;
+  },
   Bets() {
-    return `<div class="c"><h2>Cumulative Game Performance</h2>${tbl(['Game', 'Bets', 'Wagered', 'Paid out', 'House profit', 'Actual / Target RTP'], D.gameStats.map(g => { const tRtp = g.targetRtp || D.settings.targetRtp; return [esc(g.game), g.bets, etb(g.wagered), etb(g.paid), etb(g.wagered - g.paid), badge(g.rtp + '% / ' + tRtp + '%', Math.abs(g.rtp - tRtp) <= 8 || g.wagered < 5000 ? 'ok' : 'wa')]; }))}<p class="k">Default Target RTP ${D.settings.targetRtp}% | Keno RTP ${D.settings.kenoRtp}%. Includes active (&lt;12h) + archived 12h rollups.</p></div>
-    <div class="c"><h2>Latest settled bets</h2>${tbl(['ID', 'Player', 'Game', 'Mult', 'Stake', 'Result'], D.bets.map(b => [esc(b.id), esc(b.u), esc(b.m), esc(b.p), etb(b.s), badge(b.st)]))}</div>`;
+    const games = ['ALL', ...new Set((D.bets || []).map(b => b.m))];
+    const bets = D.bets.filter(b => betGameFilter === 'ALL' || b.m === betGameFilter);
+    return `<div class="c"><h2>Cumulative Game Performance</h2>${tbl(['Game', 'Bets', 'Wagered', 'Paid Out', 'House Profit', 'Actual / Target RTP'], D.gameStats.map(g => {
+      const tRtp = g.targetRtp || D.settings.targetRtp;
+      return [esc(g.game), g.bets, etb(g.wagered), etb(g.paid), etb(g.wagered - g.paid), badge(g.rtp + '% / ' + tRtp + '%', Math.abs(g.rtp - tRtp) <= 8 || g.wagered < 5000 ? 'ok' : 'wa')];
+    }))}<p class="k">Default RTP ${D.settings.targetRtp}% | Keno RTP ${D.settings.kenoRtp}% | Buffalo RTP ${D.settings.buffaloRtp ?? 70}% (includes active + 12h archived rollups).</p></div>
+    <div class="c">
+      <div class="toolbar">
+        <h2 style="margin:0">Latest Settled Bets</h2>
+        <select onchange="betGameFilter=this.value;R()">${games.map(g => `<option value="${esc(g)}" ${betGameFilter===g?'selected':''}>${esc(g === 'ALL' ? 'All Games' : g)}</option>`).join('')}</select>
+      </div>
+      ${tbl(['ID', 'Player', 'Game', 'Mult', 'Stake', 'Result'], bets.map(b => [`<span class="mono">${esc(b.id)}</span>`, esc(b.u), esc(b.m), esc(b.p), etb(b.s), badge(b.st)]))}
+    </div>`;
   },
   Sports() {
     const list = SM || [];
-    return `<div class="c"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Live Sportsbook Fixtures (${list.length})</h2>${btn('+ Add Match', 'sportNew', {}, 'g2')}</div>
+    return `<div class="c"><div class="toolbar"><h2 style="margin:0">Live Sportsbook Fixtures (${list.length})</h2><div class="row">${btn('Sync Live Feed', 'syncSportsFeed', {}, 'm')}${btn('+ Add Match', 'sportNew', {}, 'g2')}</div></div>
       ${list.length ? tbl(['Sport', 'Match', 'Clock', 'Score', 'Open Bets', 'Exposure', 'Actions'], list.map(m => [
         esc(m.sport),
         `<b>${esc(m.home)} vs ${esc(m.away)}</b><br><span class="k">${esc(m.league)}</span>`,
@@ -308,63 +839,121 @@ const V = {
     </div>`;
   },
   Promo() {
-    return `<div class="c"><h2>Promo codes</h2>${D.promos.length ? D.promos.map(p => `<div class="li"><span><b>${esc(p.c)}</b><br><span class="k">${esc(p.d)}</span></span><span class="row">${badge(p.on ? 'active' : 'off', p.on ? 'ok' : 'no')}${btn(p.on ? 'Disable' : 'Enable', 'promoToggle', { code: p.c }, p.on ? 'm' : 'g2')}</span></div>`).join('') : empty('No promo codes')}<div style="margin-top:10px">${btn('+ New promo', 'promoNew', {}, 'g2')}</div></div>
-    <div class="c"><h2>Bonuses</h2><p class="k">Cashback pays only on new net loss since the last run, so running it twice never double-pays. All bonuses carry wagering.</p>${btn('Distribute cashback', 'cashback', {}, 'g2')}${btn('Reward players', 'reward')}</div>`;
+    const wrx = D.settings.wagerReqMult ?? 50, fdp = D.settings.firstDepBonusPct ?? 20, fdm = D.settings.firstDepBonusMin ?? 300;
+    return `<div class="c">
+      <h2>Active Bonus Rules</h2>
+      <div class="li"><span>First Deposit Bonus (${fdm}+ ETB)</span>${badge(`+${fdp}% Credit · ${wrx}x Wager`, 'pu')}</div>
+      <div class="li"><span>Bonus Credit Withdrawal Policy</span>${badge(`Playable Only · No Direct Cashout Until ${wrx}x Cleared`, 'wa')}</div>
+      <div class="li"><span>Welcome Bonus / Referral Bonus</span><span><b>${etb(D.settings.welcomeBonus)}</b> / <b>${etb(D.settings.referralBonus)}</b></span></div>
+    </div>
+    <div class="c"><h2>Promo Codes</h2>${D.promos.length ? D.promos.map(p => `<div class="li"><span><b>${esc(p.c)}</b><br><span class="k">${esc(p.d)}</span></span><span class="row">${badge(p.on ? 'active' : 'off', p.on ? 'ok' : 'no')}${btn(p.on ? 'Disable' : 'Enable', 'promoToggle', { code: p.c }, p.on ? 'm' : 'g2')}</span></div>`).join('') : empty('No promo codes')}<div style="margin-top:10px">${btn('+ New promo', 'promoNew', {}, 'g2')}</div></div>
+    <div class="c"><h2>Cashback &amp; Batch Rewards</h2><p class="k">All bonus payouts credit the player's Bonus Balance with ${wrx}x wagering (cannot be withdrawn directly until wager requirement clears).</p>${btn('Distribute Cashback', 'cashback', {}, 'g2')}${btn('Batch Reward Players', 'reward', {}, 'm')}</div>`;
   },
   Settings() {
     const s = D.settings, sys = D.system || {};
-    return `<div class="c"><h2>RTP &amp; Bonus Settings</h2>
-      <label class="k">Target RTP % (Crash, Slots, Plinko, Chicken, Avia — 50–99%)</label><input id="s_rtp" type="number" step="0.5" value="${s.targetRtp}">
-      <label class="k">Keno RTP % (Fast Keno &amp; Classic Keno — 50–99%)</label><input id="s_krtp" type="number" step="0.5" value="${s.kenoRtp ?? 70}">
-      <label class="k">Agent Commission % (0–20%)</label><input id="s_com" type="number" step="0.5" value="${s.agentCommission}">
-      <label class="k">Welcome Bonus (ETB — 0–500)</label><input id="s_wb" type="number" step="1" value="${s.welcomeBonus ?? 20}">
-      <label class="k">Referral Bonus (ETB — 0–1000)</label><input id="s_rb" type="number" step="1" value="${s.referralBonus ?? 50}">
-      <label class="k">Daily Cashback % (1–50%)</label><input id="s_cb" type="number" step="1" value="${s.cashbackPercent ?? 10}">
-      ${btn('Save settings', 'saveSet', {}, 'g2')}</div>
-    <div class="c"><h2>Server &amp; Deposit Verify Gateway</h2>
-      <div class="li"><span>Database (<code>DATABASE_URL</code>)</span>${badge(sys.databaseConnected ? 'PostgreSQL Connected' : 'Demo Memory DB', sys.databaseConnected ? 'ok' : 'wa')}</div>
-      <div class="li"><span>Telegram Bot (<code>BOT_TOKEN</code>)</span>${badge(sys.botConfigured ? 'Connected' : 'Demo / Not Set', sys.botConfigured ? 'ok' : 'wa')}</div>
-      <div class="li"><span>Admin PIN (<code>ADMIN_PIN</code>)</span>${badge(sys.customAdminPin ? 'Custom PIN Active' : 'Default Demo PIN', sys.customAdminPin ? 'ok' : 'wa')}</div>
-      <div class="li"><span>Verify Mode (<code>USE_EXTERNAL_VERIFI</code>)</span>${badge(sys.verifyMode || 'External Verify Server', 'in')}</div>
-      <div class="li"><span>Verify Endpoint (<code>VERIFI_URL</code>)</span><code>${esc(sys.verifiUrl || 'https://verifi-server-milr.onrender.com/api/verify')}</code></div>
-      <div class="li"><span>Verify Token (<code>VERIFI_TOKEN</code>)</span>${badge(sys.verifiTokenSet ? 'Configured' : 'Missing', sys.verifiTokenSet ? 'ok' : 'no')}</div>
-      <div class="li"><span>Sports API Feed (<code>SPORTS_API_URL</code>)</span>${badge(sys.sportsApiConfigured ? 'Live Feed Active' : 'Virtual Engine', sys.sportsApiConfigured ? 'ok' : 'in')}</div>
-      <div class="li"><span>Sports Endpoint</span><code>${esc(sys.sportsApiUrl || '(virtual sports engine)')}</code></div>
-      <div style="margin-top:10px">${btn('Test Verify Gateway', 'testVerify', {}, 'g2')}${btn('Test SMS Parser (Dry Run)', 'testSmsParse', {})}${btn('Sync Live Sports Feed', 'syncSportsFeed', {})}</div>
-    </div>
-    <div class="c" style="border-color:var(--rd)"><h2>Launch Database Restore (200,000 ETB Vault)</h2>
-      <p class="k">Wipes all test accounts, test bets, transactions &amp; audit logs and restores Casino Vault to <b>200,000.00 ETB</b> for production launch.</p>
-      ${btn('Restore 200k Launch DB', 'resetLaunchDb', {}, 'r')}
-    </div>
-    <div class="c"><h2>Limits (set in server.js)</h2><div class="li"><span>Deposit</span><span>${etb(s.minDep)} – ${etb(s.maxDep)}</span></div><div class="li"><span>Auto-Verify Limit</span><span>${etb(sys.autoDepMax ?? 2000)}</span></div><div class="li"><span>Withdrawal</span><span>${etb(s.minWd)} – ${etb(s.maxWd)}</span></div></div>`;
+    return `<div class="g2cols">
+      <div class="c"><h2>RTP &amp; Bonus Economics</h2>
+        <label class="k">Target RTP % (Crash, Slots, Plinko, Roulette, Chicken — 50–99%)</label><input id="s_rtp" type="number" step="0.5" value="${s.targetRtp}">
+        <label class="k">Keno RTP % (Fast Keno &amp; Classic Keno — 50–99%)</label><input id="s_krtp" type="number" step="0.5" value="${s.kenoRtp ?? 70}">
+        <label class="k">Young Buffalo RTP % (50–99%)</label><input id="s_brtp" type="number" step="0.5" value="${s.buffaloRtp ?? 70}">
+        <label class="k">Agent Commission % (0–20%)</label><input id="s_com" type="number" step="0.5" value="${s.agentCommission}">
+        <label class="k">Welcome Bonus (ETB — 0–500)</label><input id="s_wb" type="number" step="1" value="${s.welcomeBonus ?? 20}">
+        <label class="k">Referral Bonus (ETB — 0–1000)</label><input id="s_rb" type="number" step="1" value="${s.referralBonus ?? 50}">
+        <label class="k">Daily Cashback % (1–50%)</label><input id="s_cb" type="number" step="1" value="${s.cashbackPercent ?? 10}">
+        <label class="k">First Deposit Bonus % (0–200%)</label><input id="s_fdp" type="number" step="1" value="${s.firstDepBonusPct ?? 20}">
+        <label class="k">First Deposit Bonus Min (ETB)</label><input id="s_fdm" type="number" step="10" value="${s.firstDepBonusMin ?? 300}">
+        <label class="k">Bonus Wagering Multiplier (e.g. 50x)</label><input id="s_wrx" type="number" step="1" value="${s.wagerReqMult ?? 50}">
+        ${btn('Save Settings', 'saveSet', {}, 'g2')}
+      </div>
+      <div>
+        <div class="c"><h2>💸 Withdrawal Agent Access</h2>
+          <p class="k">Withdrawal Agents sign in to handle <b>pending withdrawals only</b> (Mark Paid / Reject &amp; Refund). They cannot see vault profits, players, deposits, or settings.</p>
+          <div class="li"><span>Agent PIN Status</span>${badge(sys.agentPinConfigured ? (sys.agentPinEnvManaged ? 'Active (Env Var)' : 'Active (Custom DB Hash)') : 'Not Configured', sys.agentPinConfigured ? 'ok' : 'wa')}</div>
+          <div class="li"><span>Agent Direct Link</span><code>${esc(API + '/agent')}</code> ${btn('Copy', 'copy', { v: API + '/agent' }, 'm')}</div>
+          <div style="margin-top:10px">${sys.agentPinEnvManaged ? badge('Managed via AGENT_ADMIN_PIN env var', 'in') : btn(sys.agentPinConfigured ? 'Change Withdrawal Agent PIN' : 'Set Withdrawal Agent PIN', 'setAgentPin', {}, 'am')}</div>
+        </div>
+        <div class="c"><h2>Server &amp; Gateways</h2>
+          <div class="li"><span>Database (<code>DATABASE_URL</code>)</span>${badge(sys.databaseConnected ? 'PostgreSQL Connected' : 'Demo Memory DB', sys.databaseConnected ? 'ok' : 'wa')}</div>
+          <div class="li"><span>Telegram Bot (<code>BOT_TOKEN</code>)</span>${badge(sys.botConfigured ? 'Connected' : 'Demo / Not Set', sys.botConfigured ? 'ok' : 'wa')}</div>
+          <div class="li"><span>Verify Gateway</span>${badge(sys.verifyMode || 'Built-in SMS Ledger', 'in')}</div>
+          <div class="li"><span>Verify Token</span>${badge(sys.verifiTokenSet ? 'Configured' : 'Missing', sys.verifiTokenSet ? 'ok' : 'no')}</div>
+          <div class="li"><span>Sports API Feed</span>${badge(sys.sportsApiConfigured ? 'Live Feed Active' : 'Virtual Engine', sys.sportsApiConfigured ? 'ok' : 'in')}</div>
+          <div class="row" style="margin-top:10px">${btn('Test Verify', 'testVerify', {}, 'g2')}${btn('SMS Dry-Run', 'testSmsParse', {}, 'm')}${btn('Sync Sports', 'syncSportsFeed', {}, 'm')}</div>
+        </div>
+        <div class="c" style="border-color:var(--rd)"><h2>Launch Database Restore (200k Vault)</h2>
+          <p class="k">Wipes test accounts, bets, transactions &amp; audit logs and restores Casino Vault to <b>200,000.00 ETB</b>.</p>
+          ${btn('Restore 200k Launch DB', 'resetLaunchDb', {}, 'r')}
+        </div>
+      </div>
+    </div>`;
   },
-  Audit() { return `<div class="c"><h2>Admin actions</h2>${AL.length ? tbl(['When', 'Admin', 'Action', 'Detail', 'IP'], AL.map(a => [new Date(a.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }), esc(a.actor), esc(a.action), esc(a.detail), esc(a.ip)])) : empty('Loading…')}</div>`; },
+  Audit() {
+    const q = auditFilterQ.toLowerCase();
+    const list = AL.filter(a => !q || [a.actor, a.action, a.detail, a.ip].some(v => String(v || '').toLowerCase().includes(q)));
+    return `<div class="c">
+      <div class="toolbar">
+        <h2 style="margin:0">Admin &amp; Agent Audit Trail</h2>
+        <div class="row">
+          <input placeholder="Filter actor, action, detail…" value="${esc(auditFilterQ)}" oninput="auditFilterQ=this.value;R()">
+          ${btn('Export CSV', 'exportAudit', {}, 'm')}
+        </div>
+      </div>
+      ${list.length ? tbl(['When', 'Actor', 'Action', 'Detail', 'IP'], list.map(a => [
+        new Date(a.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
+        esc(a.actor), badge(a.action, String(a.action).includes('agent') ? 'wa' : 'in'), esc(a.detail), `<span class="mono">${esc(a.ip)}</span>`
+      ])) : empty('No audit entries match')}
+    </div>`;
+  },
   '12h Audit'() {
     const st = D.retentionStats || { activeBetsInDb: 0, activeAuditLogsInDb: 0, archived12hReports: 0, retentionWindowHours: 12 };
     const reps = D.reports12h || [];
     return `<div class="g">
-      <div class="c"><div class="k">Active bets (&lt;12h)</div><div class="v">${st.activeBetsInDb}</div></div>
-      <div class="c"><div class="k">Active audit logs (&lt;12h)</div><div class="v">${st.activeAuditLogsInDb}</div></div>
-      <div class="c"><div class="k">Archived 12h reports</div><div class="v" style="color:var(--ac)">${st.archived12hReports}</div></div>
-      <div class="c"><div class="k">Retention window</div><div class="v">${st.retentionWindowHours}h</div></div>
+      <div class="c kpi"><div class="k">Active Bets (&lt;12h)</div><div class="v">${st.activeBetsInDb}</div></div>
+      <div class="c kpi"><div class="k">Active Audit Logs (&lt;12h)</div><div class="v">${st.activeAuditLogsInDb}</div></div>
+      <div class="c kpi"><div class="k">Archived 12h Reports</div><div class="v" style="color:var(--ac)">${st.archived12hReports}</div></div>
+      <div class="c kpi"><div class="k">Retention Window</div><div class="v">${st.retentionWindowHours}h</div></div>
     </div>
-    <div class="c"><div class="row" style="justify-content:space-between"><div><h2 style="margin:0">12-Hour Audit Rollup &amp; DB Cleanup</h2><p class="k" style="margin:4px 0 0">Settled bets &amp; balance audit logs older than 12h are summarized per game and purged automatically.</p></div>${btn('Run 12h Audit &amp; Prune', 'runAudit12h', {}, 'g2')}</div></div>
-    ${BOT ? `<div class="c"><h2>Telegram Bot Screen</h2><div class="li"><span>Bot status</span>${badge(BOT.configured ? 'connected' : 'demo / no token', BOT.configured ? 'ok' : 'wa')}</div><div class="li"><span>Bot username</span><code>@${esc(BOT.botUsername)}</code></div><div class="li"><span>Mini App URL</span><code>${esc(BOT.webAppUrl)}</code></div><div class="li"><span>Webhook path</span><code>${esc(BOT.webhookPath)}</code></div></div>` : ''}
+    <div class="c"><div class="toolbar"><div><h2 style="margin:0">12-Hour Audit Rollup &amp; DB Cleanup</h2><p class="k" style="margin:4px 0 0">Summarizes settled bets &amp; audit logs &gt;12h per game and prunes expired rows.</p></div>${btn('Run 12h Audit &amp; Prune', 'runAudit12h', {}, 'g2')}</div></div>
+    ${BOT ? `<div class="c"><h2>Telegram Bot Status</h2><div class="li"><span>Bot status</span>${badge(BOT.configured ? 'connected' : 'demo / no token', BOT.configured ? 'ok' : 'wa')}</div><div class="li"><span>Bot username</span><code>@${esc(BOT.botUsername)}</code></div><div class="li"><span>Mini App URL</span><code>${esc(BOT.webAppUrl)}</code></div></div>` : ''}
     <div class="c"><h2>Archived 12-Hour Game Reports (${reps.length})</h2>${reps.length ? tbl(['Period End', 'Game', 'Bets', 'Won / Lost', 'Wagered', 'Paid Out', 'Profit', 'RTP', 'Players'], reps.map(r => [
       new Date(r.periodEnd || r.createdAt).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }),
       esc(r.game), r.bets, `${r.won} / ${r.lost}`, etb(r.wagered), etb(r.payout), etb(r.profit), badge(r.rtp + '%', 'in'), r.players
-    ])) : empty('No 12-hour archived reports yet. Active rows younger than 12h stay live until the 12h window rolls over.')}</div>`;
+    ])) : empty('No 12-hour archived reports yet.')}</div>`;
   }
 };
-const NAV = [['Overview', '📊'], ['Deposits', '📥'], ['Withdrawals', '💸'], ['Players', '👥'], ['Bets', '🎲'], ['Sports', '⚽'], ['12h Audit', '🗄️'], ['Promo', '🎁'], ['Settings', '⚙️'], ['Audit', '🧾']];
+
+const ADMIN_NAV = [
+  ['Overview', '📊'], ['Deposits', '📥'], ['Withdrawals', '💸'], ['Players', '👥'],
+  ['Bets', '🎲'], ['Sports', '⚽'], ['12h Audit', '🗄️'], ['Promo', '🎁'], ['Settings', '⚙️'], ['Audit', '🧾']
+];
+const AGENT_NAV = [
+  ['AgentQueue', '💸', 'Pending Queue'],
+  ['AgentHistory', '🧾', 'Withdrawal History']
+];
+
 function R() {
-  if (!D) return;
-  const cnt = { Deposits: D.pendingDeposits.length, Withdrawals: D.pendingWithdrawals.length };
-  $('#nav').innerHTML = NAV.map(([n, i]) => `<button class="${n === page ? 'on' : ''}" onclick="go('${n}')"><span>${i}</span>${n}${cnt[n] ? `<i>${cnt[n]}</i>` : ''}</button>`).join('');
-  $('#v').innerHTML = V[page]();
+  const navItems = ROLE === 'agent' ? AGENT_NAV : ADMIN_NAV;
+  if (ROLE === 'agent' && !AG) return;
+  if (ROLE === 'admin' && !D) return;
+
+  const cnt = ROLE === 'agent'
+    ? { AgentQueue: AG.pendingWithdrawals.length }
+    : { Deposits: D.pendingDeposits.length, Withdrawals: D.pendingWithdrawals.length };
+
+  $('#nav').innerHTML = navItems.map(([k, i, lbl]) =>
+    `<button type="button" class="${k === page ? 'on' : ''}" onclick="go('${k}')"><span>${i}</span>${esc(lbl || k)}${cnt[k] ? `<i>${cnt[k]}</i>` : ''}</button>`
+  ).join('');
+
+  $('#sidebar').innerHTML = navItems.map(([k, i, lbl]) =>
+    `<button type="button" class="side-btn ${k === page ? 'on' : ''}" onclick="go('${k}')"><span class="ico">${i}</span><span>${esc(lbl || k)}</span>${cnt[k] ? `<span class="cnt">${cnt[k]}</span>` : ''}</button>`
+  ).join('');
+
+  if (V[page]) $('#v').innerHTML = V[page]();
 }
+
 async function go(p) {
   page = p; scrollTo(0, 0); R();
+  if (ROLE !== 'admin') return;
   if (p === 'Audit') { const d = await call('/api/admin/audit'); AL = d.success ? d.log : []; R(); }
   if (p === 'Sports') { const d = await call('/api/admin/sports'); SM = d.success ? d.matches : []; R(); }
   if (p === '12h Audit') {
@@ -377,9 +966,13 @@ async function go(p) {
     R();
   }
 }
+
 setInterval(() => {
-  if (!D || document.hidden || modalOpen()) return;
+  if ((!D && !AG) || document.hidden || modalOpen()) return;
+  if (ROLE === 'agent') { load(true); return; }
   if (['Overview', 'Deposits', 'Withdrawals', 'Bets'].includes(page)) load(true);
   if (page === 'Sports') call('/api/admin/sports').then(d => { if (d.success) { SM = d.matches; R(); } });
-}, 20000);
-</script></body></html>
+}, 15000);
+</script>
+</body>
+</html>

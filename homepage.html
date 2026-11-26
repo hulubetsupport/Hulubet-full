@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="description" content="HuluBet Ultra - Official Telegram Mini App Sportsbook and 12 Verified Instant & Crash Casino Games.">
+<meta name="description" content="HuluBet Ultra - Official Telegram Mini App Sportsbook and 13 Verified Instant & Crash Casino Games.">
 <meta name="hulubet-api" content="">
 <meta property="og:title" content="HuluBet Ultra - Official Sportsbook & Casino">
-<meta property="og:description" content="Play 12 verified casino games and live Ethiopian & international sportsbook in full screen.">
+<meta property="og:description" content="Play 13 verified casino games and live Ethiopian & international sportsbook in full screen.">
 <title>HuluBet Ultra - Official Sportsbook & Casino</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -1509,6 +1509,124 @@ body, html {
   gap: 8px;
 }
 .invite-promo-cta:active { filter: brightness(0.95); }
+/* Bottom-sheet Official Telegram Channel Join & Welcome Modal (no promo code box) */
+.ch-welcome-sheet {
+  width: 100%;
+  max-width: 520px;
+  border-radius: 26px 26px 0 0;
+  padding: 12px 20px calc(22px + var(--safe-bottom));
+  background:
+    radial-gradient(ellipse at 22% 0%, rgba(249, 115, 22, 0.28) 0%, rgba(249, 115, 22, 0.06) 44%, transparent 72%),
+    linear-gradient(180deg, #161419 0%, #0d1017 100%);
+  border-top: 1px solid rgba(249, 115, 22, 0.35);
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.82);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  position: relative;
+  animation: sheetRise 0.3s var(--ease-2027) both;
+}
+.ch-drag-handle {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  margin: 0 auto 16px;
+}
+.ch-header-row {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 18px;
+}
+.ch-brand-badge {
+  position: relative;
+  width: 54px;
+  height: 54px;
+  border-radius: 15px;
+  background: linear-gradient(145deg, #1b1514 0%, #0e1015 100%);
+  border: 1px solid rgba(249, 115, 22, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+}
+.ch-brand-emblem {
+  font-size: 26px;
+  line-height: 1;
+}
+.ch-tg-mini {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #229ed9;
+  color: #fff;
+  border: 2px solid #0f1117;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10.5px;
+}
+.ch-live-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff3b5c;
+  border: 2px solid #0f1117;
+  box-shadow: 0 0 10px rgba(255, 59, 92, 0.75);
+}
+.ch-close-btn {
+  margin-left: auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.ch-join-cta {
+  width: 100%;
+  min-height: 50px;
+  border: none;
+  border-radius: 15px;
+  background: linear-gradient(90deg, #f97316 0%, #ef4444 100%);
+  color: #fff;
+  font-family: 'Outfit', sans-serif;
+  font-size: 15.5px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  cursor: pointer;
+  box-shadow: 0 12px 28px rgba(249, 115, 22, 0.34);
+}
+.ch-join-cta:active { transform: scale(0.985); }
+.ch-not-now-btn {
+  align-self: center;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  padding: 13px 20px 4px;
+  cursor: pointer;
+  text-transform: uppercase;
+}
 .sheet-close-x {
   position: absolute;
   top: 12px;
@@ -1727,13 +1845,13 @@ body.is-tg-app .browser-back-pill { display: none !important; }
     <!-- Search Input -->
     <div class="search-input-box">
       <i class="fa-solid fa-magnifying-glass" style="color:var(--text-dim);"></i>
-      <input type="text" id="gameSearchInput" placeholder="Search 12 live games &amp; 24 upcoming releases...">
+      <input type="text" id="gameSearchInput" placeholder="Search 13 live games &amp; 23 upcoming releases...">
     </div>
 
-    <!-- All 12 Verified Live Games (App-Store Slide + Grid Layout) -->
+    <!-- All 13 Verified Live Games (App-Store Slide + Grid Layout) -->
     <div id="liveGamesBlock">
       <div class="section-header-title">
-        <div class="sec-left"><i class="fa-solid fa-fire"></i> <span>12 Verified Live Games</span></div>
+        <div class="sec-left"><i class="fa-solid fa-fire"></i> <span>13 Verified Live Games</span></div>
         <div class="section-header-actions">
           <button type="button" class="icon-circle-btn" onclick="scrollLiveGames(-1)" aria-label="Swipe Live Games Left"><i class="fa-solid fa-chevron-left"></i></button>
           <button type="button" class="icon-circle-btn" onclick="scrollLiveGames(1)" aria-label="Swipe Live Games Right"><i class="fa-solid fa-chevron-right"></i></button>
@@ -1743,16 +1861,16 @@ body.is-tg-app .browser-back-pill { display: none !important; }
         </div>
       </div>
       <div class="live-games-carousel" id="liveGamesContainer">
-        <!-- 12 Verified Live Game App Cards rendered dynamically via JS -->
+        <!-- 13 Verified Live Game App Cards rendered dynamically via JS -->
       </div>
     </div>
 
-    <!-- COMING SOON GAMES APP STORE SHOWCASE (24 GAMES) -->
+    <!-- COMING SOON GAMES APP STORE SHOWCASE (23 GAMES) -->
     <section class="coming-soon-section" id="comingSoonBlock" aria-label="Coming Soon Games">
       <div class="section-header-title">
         <div class="sec-left">
           <i class="fa-solid fa-wand-magic-sparkles" style="color:var(--gold-primary);"></i>
-          <span>Coming Soon · 24 New Apps</span>
+          <span>Coming Soon · 23 New Apps</span>
         </div>
         <div class="section-header-actions">
           <button type="button" class="icon-circle-btn" onclick="scrollComingSoon(-1)" aria-label="Swipe Left"><i class="fa-solid fa-chevron-left"></i></button>
@@ -1763,7 +1881,7 @@ body.is-tg-app .browser-back-pill { display: none !important; }
         </div>
       </div>
       <div class="coming-soon-carousel" id="comingSoonContainer">
-        <!-- 24 Coming Soon Game App Cards rendered cleanly via JS -->
+        <!-- 23 Coming Soon Game App Cards rendered cleanly via JS -->
       </div>
     </section>
 
@@ -1819,9 +1937,20 @@ body.is-tg-app .browser-back-pill { display: none !important; }
         </div>
         <div class="wallet-huge-amount" id="walletTotalBalTxt">ETB 0.00</div>
 
-        <div style="background:var(--bg-deep);padding:10px 14px;border-radius:10px;border:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center;">
-          <div><small style="color:var(--emerald-primary);font-size:9.5px;font-weight:800;display:block;">WITHDRAWABLE</small><b class="tabular" id="walletWithdrawableTxt">ETB 0.00</b></div>
-          <i class="fa-solid fa-shield-check" style="color:var(--emerald-primary);font-size:14px;"></i>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div style="background:var(--bg-deep);padding:10px 12px;border-radius:10px;border:1px solid var(--border-subtle);">
+            <small style="color:var(--emerald-primary);font-size:9px;font-weight:800;display:block;letter-spacing:0.04em;">WITHDRAWABLE CASH</small>
+            <b class="tabular" style="font-size:14px;" id="walletWithdrawableTxt">0.00 ETB</b>
+          </div>
+          <div style="background:var(--bg-deep);padding:10px 12px;border-radius:10px;border:1px solid rgba(245,180,0,0.28);">
+            <small style="color:var(--gold-primary);font-size:9px;font-weight:800;display:block;letter-spacing:0.04em;">BONUS CREDIT (50X)</small>
+            <b class="tabular" style="font-size:14px;color:var(--gold-primary);" id="walletBonusBalTxt">0.00 ETB</b>
+          </div>
+        </div>
+
+        <div style="background:rgba(245,180,0,0.08);padding:8px 12px;border-radius:10px;border:1px solid rgba(245,180,0,0.22);display:flex;justify-content:space-between;align-items:center;font-size:11px;">
+          <span style="color:var(--text-muted);font-weight:700;"><i class="fa-solid fa-lock" style="color:var(--gold-primary);margin-right:6px;"></i>50x Bonus Wagering Left</span>
+          <b class="tabular" style="color:var(--gold-primary);" id="walletWagerLeftTxt">0.00 ETB</b>
         </div>
 
         <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;">
@@ -1875,8 +2004,19 @@ body.is-tg-app .browser-back-pill { display: none !important; }
 
       <input type="hidden" id="depMethod" value="Telebirr">
 
+      <div id="firstDepositBonusBanner" style="background:linear-gradient(135deg,rgba(249,115,22,0.18) 0%,rgba(245,180,0,0.08) 100%);border:1px solid rgba(249,115,22,0.45);border-radius:12px;padding:11px 12px;display:flex;align-items:center;gap:10px;">
+        <div style="width:36px;height:36px;border-radius:10px;background:rgba(249,115,22,0.2);color:#fb923c;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0;">
+          <i class="fa-solid fa-gift"></i>
+        </div>
+        <div style="min-width:0;flex:1;">
+          <div style="font-size:11px;font-weight:900;color:#fb923c;letter-spacing:0.04em;" id="firstDepBannerTitle">FIRST DEPOSIT BONUS · +20% CREDIT</div>
+          <div style="font-size:11px;color:#e2e8f0;line-height:1.35;" id="firstDepBannerDesc">Deposit <b>300+ ETB</b> on your 1st deposit &amp; get <b>+20% bonus credit</b> (50x wager, playable only).</div>
+        </div>
+      </div>
+
       <div style="font-size:11px;font-weight:800;color:var(--text-muted);">Amount (min 50 ETB)</div>
-      <input type="number" id="depositAmountInput" style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px;padding:14px;color:#fff;font-size:16px;font-weight:800;outline:none;" placeholder="Enter Amount" min="50" value="100">
+      <input type="number" id="depositAmountInput" style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px;padding:14px;color:#fff;font-size:16px;font-weight:800;outline:none;" placeholder="Enter Amount" min="50" value="300" oninput="updateDepositBonusPreview()">
+      <div id="depBonusPreviewTxt" style="font-size:11.5px;font-weight:700;color:var(--gold-primary);margin-top:-4px;"></div>
 
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
         <div style="background:var(--bg-card);border:1px solid var(--border-subtle);padding:10px;border-radius:8px;text-align:center;cursor:pointer;font-weight:800;" onclick="setDepPreset(100)">100</div>
@@ -2296,49 +2436,37 @@ body.is-tg-app .browser-back-pill { display: none !important; }
     </div>
   </div>
 
-  <!-- FIRST-TIME OPEN COMMUNITY & INVITE CARDS MODAL -->
-  <div class="modal-overlay" id="modalFirstOpenCards" style="align-items:center;z-index:355;" onclick="dismissFirstOpenCards()">
-    <div style="width:min(92vw,372px);background:#0b1220;border:1px solid rgba(255,255,255,0.12);border-radius:22px;padding:16px;display:flex;flex-direction:column;gap:11px;box-shadow:0 24px 60px rgba(0,0,0,0.8);position:relative;margin:auto;" onclick="event.stopPropagation()">
-      <button type="button" class="invite-promo-close" aria-label="Close welcome cards" onclick="dismissFirstOpenCards()" style="top:10px;right:10px;width:30px;height:30px;font-size:14px;">✕</button>
-      <div style="font-family:'Outfit';font-size:17px;font-weight:900;color:#fff;padding-right:30px;">Welcome to HuluBet</div>
-
-      <!-- Card 1: Join Official Community -->
-      <div style="background:linear-gradient(135deg,#0c2438 0%,#081426 100%);border:1px solid rgba(0,210,255,0.35);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="width:38px;height:38px;border-radius:11px;background:rgba(0,210,255,0.16);color:#38bdf8;display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0;">
-            <i class="fa-brands fa-telegram"></i>
-          </div>
-          <div>
-            <div style="font-size:14px;font-weight:900;color:#fff;">Join HuluBet Community</div>
-            <div style="font-size:11px;color:var(--text-muted);">Official Telegram Channel · @HuluBetOfficial</div>
-          </div>
+  <!-- FIRST-TIME OPEN BOTTOM-SHEET CHANNEL JOIN & WELCOME MODAL (WITHOUT PROMO CODE) -->
+  <div class="modal-overlay" id="modalFirstOpenCards" style="align-items:flex-end;z-index:355;" onclick="dismissFirstOpenCards()">
+    <div class="ch-welcome-sheet" onclick="event.stopPropagation()">
+      <div class="ch-drag-handle" aria-hidden="true"></div>
+      <div class="ch-header-row">
+        <div class="ch-brand-badge">
+          <span class="ch-brand-emblem">🦁</span>
+          <span class="ch-live-dot" aria-hidden="true"></span>
+          <span class="ch-tg-mini" aria-hidden="true"><i class="fa-brands fa-telegram"></i></span>
         </div>
-        <button type="button" class="btn-emerald-huge" style="min-height:40px;padding:9px 12px;font-size:13px;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;" onclick="dismissFirstOpenCards(); window.open('https://t.me/HuluBetOfficial','_blank')">
-          <i class="fa-brands fa-telegram"></i> Join Community Channel
-        </button>
+        <div style="min-width:0;flex:1;">
+          <div style="font-size:10px;font-weight:800;letter-spacing:0.08em;color:#f97316;text-transform:uppercase;">Official Telegram Channel</div>
+          <div style="font-family:'Outfit';font-size:16.5px;font-weight:900;color:#fff;line-height:1.2;margin-top:2px;">HuluBet Official</div>
+          <div style="font-size:12px;color:#94a3b8;margin-top:1px;">@HuluBetOfficial</div>
+        </div>
+        <button type="button" class="ch-close-btn" aria-label="Close welcome sheet" onclick="dismissFirstOpenCards()">✕</button>
       </div>
 
-      <!-- Card 2: Invite 1 Friend = Gain 50 Birr -->
-      <div style="background:linear-gradient(135deg,#2c1054 0%,#140b2e 100%);border:1px solid rgba(253,224,71,0.42);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:38px;height:38px;border-radius:11px;background:rgba(253,224,71,0.16);color:#fde047;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">
-              <i class="fa-solid fa-gift"></i>
-            </div>
-            <div>
-              <div style="font-size:14px;font-weight:900;color:#fff;">1 Invite = Gain 50 Birr</div>
-              <div style="font-size:11px;color:#cbd5e1;">Share your link &amp; earn <b style="color:#fde047;">50 ብር</b> per friend</div>
-            </div>
-          </div>
-        </div>
-        <div id="firstOpenInviteUrl" style="background:rgba(5,9,16,0.7);border:1px solid rgba(255,255,255,0.12);border-radius:9px;padding:7px 10px;font-size:10.5px;color:var(--cyan-accent);word-break:break-all;font-family:'JetBrains Mono',monospace;">https://t.me/Hulubetethbot/hulubet?startapp=vip</div>
-        <div style="display:flex;gap:8px;">
-          <button type="button" class="btn-emerald-huge" style="flex:1;min-height:40px;padding:9px 12px;font-size:13px;" onclick="dismissFirstOpenCards(); shareInviteLink();"><i class="fa-solid fa-share-nodes"></i> Invite Friend</button>
-          <button type="button" class="btn-dark-huge" style="min-height:40px;padding:0 12px;font-size:12px;" onclick="copyReferralLink()">Copy</button>
-        </div>
+      <div style="font-family:'Outfit';font-size:21px;font-weight:900;color:#fff;line-height:1.25;margin-bottom:6px;">
+        Welcome to HuluBet Community
       </div>
+      <p style="font-size:13px;color:#cbd5e1;line-height:1.45;margin:0 0 20px;">
+        Join our official Telegram channel for 20% First Deposit alerts, instant ETB cashout news, and daily live winners.
+      </p>
 
-      <button type="button" class="btn-dark-huge" style="min-height:40px;padding:9px;font-size:12.5px;" onclick="dismissFirstOpenCards()">Play Now</button>
+      <button type="button" class="ch-join-cta" onclick="dismissFirstOpenCards(); window.open('https://t.me/HuluBetOfficial','_blank')">
+        <i class="fa-solid fa-paper-plane"></i>
+        <span>Join channel</span>
+      </button>
+
+      <button type="button" class="ch-not-now-btn" onclick="dismissFirstOpenCards()">NOT NOW</button>
     </div>
   </div>
 
@@ -2529,7 +2657,23 @@ function haptic(t = 'light') {
   }
 }
 
-let currentBalance = null, wagerLeft = 0, isBalanceHidden = false;
+let currentBalance = null, bonusBal = 0, lockedBonusBal = 0, withdrawableBal = 0, wagerLeft = 0;
+let firstDepCompleted = false, firstDepBonusMin = 300, firstDepBonusPct = 20, wagerReqMult = 50, isBalanceHidden = false;
+
+function applyWalletSnapshot(d) {
+  if (!d) return;
+  if (d.balance != null) currentBalance = Number(d.balance);
+  if (d.bonusBalance != null) bonusBal = Number(d.bonusBalance);
+  if (d.wagerRequirementLeft != null) wagerLeft = Number(d.wagerRequirementLeft);
+  if (d.lockedBonusBalance != null) lockedBonusBal = Number(d.lockedBonusBalance);
+  else lockedBonusBal = wagerLeft > 0 ? Math.min(currentBalance ?? 0, bonusBal) : 0;
+  if (d.withdrawableBalance != null) withdrawableBal = Number(d.withdrawableBalance);
+  else withdrawableBal = Math.max(0, (currentBalance ?? 0) - lockedBonusBal);
+  if (d.firstDepositCompleted != null) firstDepCompleted = String(d.firstDepositCompleted).toUpperCase() === 'YES';
+  if (d.firstDepBonusMin != null) firstDepBonusMin = Number(d.firstDepBonusMin);
+  if (d.firstDepBonusPct != null) firstDepBonusPct = Number(d.firstDepBonusPct);
+  if (d.wagerReqMult != null) wagerReqMult = Number(d.wagerReqMult);
+}
 
 /* Client-side request deduplication + TTL cache to reduce server & DB usage */
 const _apiGetInflight = new Map();
@@ -2654,23 +2798,58 @@ function toast(msg, type = '') {
   setTimeout(() => dismissToastEl(t), 3050);
 }
 
+function updateDepositBonusPreview() {
+  const banner = document.getElementById('firstDepositBonusBanner');
+  const title = document.getElementById('firstDepBannerTitle');
+  const desc = document.getElementById('firstDepBannerDesc');
+  const prev = document.getElementById('depBonusPreviewTxt');
+  if (banner) banner.style.display = (!firstDepCompleted && firstDepBonusPct > 0) ? 'flex' : 'none';
+  if (title) title.innerText = `FIRST DEPOSIT BONUS · +${firstDepBonusPct}% CREDIT`;
+  if (desc) desc.innerHTML = `Deposit <b>${firstDepBonusMin}+ ETB</b> on your 1st deposit &amp; get <b>+${firstDepBonusPct}% bonus credit</b> (${wagerReqMult}x wager, playable only).`;
+  if (!prev) return;
+  const amt = Number(document.getElementById('depositAmountInput')?.value || 0);
+  if (!firstDepCompleted && firstDepBonusPct > 0) {
+    if (amt >= firstDepBonusMin) {
+      const b = amt * (firstDepBonusPct / 100);
+      prev.style.color = '#fb923c';
+      prev.innerText = `Eligible! +${b.toFixed(2)} ETB bonus credit (${(b * wagerReqMult).toFixed(0)} ETB ${wagerReqMult}x wager)`;
+    } else {
+      prev.style.color = 'var(--text-muted)';
+      prev.innerText = `Deposit ${firstDepBonusMin}+ ETB on your first deposit for +${firstDepBonusPct}% bonus credit (${wagerReqMult}x wager).`;
+    }
+  } else {
+    prev.innerText = '';
+  }
+}
+
 function updateBalanceDisplay() {
   const el = document.getElementById('headerBalTxt');
   const valStr = (isBalanceHidden || currentBalance === null) ? '••••••' : currentBalance.toFixed(2) + ' ETB';
   if (el) el.innerText = valStr;
 
+  const total = currentBalance ?? 0;
+  const locked = wagerLeft > 0 ? Math.min(total, lockedBonusBal || bonusBal) : 0;
+  const realAvail = Math.max(0, total - locked);
+
   const wTotal = document.getElementById('walletTotalBalTxt');
-  if (wTotal) wTotal.innerText = (currentBalance ?? 0).toFixed(2) + ' ETB';
+  if (wTotal) wTotal.innerText = total.toFixed(2) + ' ETB';
 
   const wWith = document.getElementById('walletWithdrawableTxt');
-  if (wWith) wWith.innerText = Math.max(0, (currentBalance ?? 0) - wagerLeft).toFixed(2) + ' ETB';
+  if (wWith) wWith.innerText = realAvail.toFixed(2) + ' ETB';
+
+  const wBon = document.getElementById('walletBonusBalTxt');
+  if (wBon) wBon.innerText = bonusBal.toFixed(2) + ' ETB';
+
+  const wWag = document.getElementById('walletWagerLeftTxt');
+  if (wWag) wWag.innerText = wagerLeft.toFixed(2) + ' ETB';
 
   const wdInfo = document.getElementById('wdInfo');
   if (wdInfo) {
     wdInfo.innerText = wagerLeft > 0
-      ? `Bonus wagering left: ${wagerLeft.toFixed(2)} ETB`
-      : `Available cashout: ${(currentBalance ?? 0).toFixed(2)} ETB`;
+      ? `Bonus credit (${locked.toFixed(2)} ETB) requires ${wagerReqMult}x wagering (${wagerLeft.toFixed(2)} ETB left) — non-withdrawable until cleared.`
+      : `Available real cashout: ${realAvail.toFixed(2)} ETB`;
   }
+  updateDepositBonusPreview();
 }
 
 function toggleBalanceVisibility() {
@@ -2695,8 +2874,7 @@ async function syncDatabaseBalance(force = false) {
     const d = await api('/api/user/init' + (ref ? '?refId=' + encodeURIComponent(ref) : ''));
     if (d.success) {
       lastSyncSuccessAt = Date.now();
-      currentBalance = Number(d.balance);
-      wagerLeft = Number(d.wagerRequirementLeft || 0);
+      applyWalletSnapshot(d);
       updateBalanceDisplay();
       if (document.getElementById('gameViewport')?.style.display === 'flex') {
         try {
@@ -2728,6 +2906,7 @@ const GAME_ROUTES = {
   jetx: { key: "jetx", title: "Jet-X", sub: "Supersonic Crash", cat: "crash", badge: "LIVE", badgeCls: "live-corner", img: "https://i.postimg.cc/xTT6xFrG/IMG-20260903-152505-617.jpg", path: "/Jet-x/" },
   road: { key: "road", title: "Chicken Road 2", sub: "Street Dash", cat: "chicken", badge: "LIVE", badgeCls: "live-corner", img: "https://i.postimg.cc/9fjTSrRH/IMG-20260903-152505-599.jpg", path: "/Chekn-road/" },
   slot: { key: "slot", title: "777 Slot", sub: "Multi Hot 777", cat: "table", badge: "LIVE", badgeCls: "live-corner", img: "https://i.postimg.cc/59kzJPYp/IMG-20260903-152953-851.jpg", path: "/Slot-777-/" },
+  buffalo: { key: "buffalo", title: "Buffalo Gold Canyon", sub: "Young Buffalo · Jackpot Slot", cat: "table", badge: "NEW", badgeCls: "new-corner", img: "https://i.postimg.cc/ZR4YCWHX/Screenshot-20260922-144446-Plus(9).jpg", path: "/Buffalo/" },
   avia: { key: "avia", title: "Avia Masters", sub: "Flight Crash", cat: "crash", badge: "LIVE", badgeCls: "live-corner", img: "https://i.postimg.cc/xCfmfh3p/IMG-20260903-152505-630.jpg", path: "/Avia-master/" }
 };
 const LIVE_GAMES_LIST = Object.values(GAME_ROUTES);
@@ -2975,10 +3154,10 @@ function setHeroSlide(idx) {
 }
 
 const openWalletScreen = () => { navigateToTab('wallet'); loadHistoryList(); };
-const openDepositScreen = () => navigateToTab('deposit');
+const openDepositScreen = () => { updateDepositBonusPreview(); syncDatabaseBalance(); navigateToTab('deposit'); };
 const openModal = id => { haptic('light'); document.getElementById(id).style.display = 'flex'; };
 const closeModal = id => { haptic('light'); document.getElementById(id).style.display = 'none'; };
-const openWithdrawDrawer = () => { syncDatabaseBalance(); openModal('modalWithdrawDrawer'); };
+const openWithdrawDrawer = () => { syncDatabaseBalance(); refreshBonusStatus(); openModal('modalWithdrawDrawer'); };
 const openSupportModal = () => openModal('modalSupport');
 const openLuckyWheelModal = () => { refreshBonusStatus(); openModal('modalLuckyWheel'); };
 const openLiveChatModal = () => { openModal('modalLiveChat'); loadChatHistory(); };
@@ -3123,7 +3302,6 @@ const COMING_SOON_GAMES = [
   { id: 'multi-hot-fruity', title: 'Multi Hot Fruity', cat: 'Classic Fruit', img: 'https://i.postimg.cc/G3ztTxZS/Screenshot-20260922-144440-Plus(6).jpg', grad: 'linear-gradient(135deg,#991b1b,#450a0a)', icon: 'fa-fire-flame-curved' },
   { id: 'enkutatash', title: 'Enkutatash', cat: 'Ethiopian Slot', img: 'https://i.postimg.cc/bNBv3NY3/Screenshot-20260922-144446-Plus(7).jpg', grad: 'linear-gradient(135deg,#15803d,#052e16)', icon: 'fa-sun' },
   { id: 'foxy-hot-20', title: 'Foxy Hot 20', cat: '20 Lines Slot', img: 'https://i.postimg.cc/MGkpJPQD/Screenshot-20260922-144446-Plus(8).jpg', grad: 'linear-gradient(135deg,#c2410c,#431407)', icon: 'fa-fire' },
-  { id: 'buffalo-gold-canyon', title: 'Buffalo Gold Canyon', cat: 'Jackpot Slot', img: 'https://i.postimg.cc/ZR4YCWHX/Screenshot-20260922-144446-Plus(9).jpg', grad: 'linear-gradient(135deg,#b45309,#451a03)', icon: 'fa-coins' },
   { id: 'mother-clucker', title: 'Mother Clucker', cat: 'Arcade Slot', img: 'https://i.postimg.cc/dQWQVtCc/Screenshot-20260922-144446-Plus(10).jpg', grad: 'linear-gradient(135deg,#991b1b,#450a0a)', icon: 'fa-feather' },
   { id: 'gates-of-olympus', title: 'Gates of Olympus', cat: 'Multiplier Slot', img: 'https://i.postimg.cc/CLXFbPJr/Screenshot-20260922-144446-Plus(11).jpg', grad: 'linear-gradient(135deg,#4338ca,#1e1b4b)', icon: 'fa-bolt' },
   { id: 'weyala', title: 'Weyala', cat: 'Ethiopian Arcade', img: 'https://i.postimg.cc/6qQ9fFDD/Screenshot-20260922-144446-Plus(12).jpg', grad: 'linear-gradient(135deg,#0369a1,#082f49)', icon: 'fa-van-shuttle' },
@@ -3421,6 +3599,7 @@ function selectDepositProvider(prov) {
 function setDepPreset(val) {
   haptic('light');
   document.getElementById('depositAmountInput').value = val;
+  updateDepositBonusPreview();
 }
 
 function goToPaymentDetailsStep() {
@@ -3458,10 +3637,17 @@ async function verifyAndSubmitPayment() {
 
     if (vd.success && vd.credited) {
       haptic('success');
-      if (vd.newBalance != null) currentBalance = vd.newBalance;
-      else currentBalance = (currentBalance || 0) + amt;
+      if (vd.newBalance != null) currentBalance = Number(vd.newBalance);
+      else currentBalance = (currentBalance || 0) + amt + Number(vd.bonusAwarded || 0);
+      if (Number(vd.bonusAwarded || 0) > 0) {
+        bonusBal += Number(vd.bonusAwarded);
+        wagerLeft += Number(vd.bonusWagerReq || 0);
+      }
+      firstDepCompleted = true;
       updateBalanceDisplay();
-      toast(`Successfully credited ${amt} ETB!`, 'success');
+      syncDatabaseBalance(true);
+      refreshBonusStatus(true);
+      toast(vd.message || `Successfully credited ${amt} ETB!`, 'success');
       navigateToTab('casino');
     } else if (vd.success && vd.pending) {
       toast(vd.message || "Payment verified and queued for cashier approval.", 'info');
@@ -3488,7 +3674,7 @@ function setWdPreset(val) {
 }
 function setWdMax() {
   haptic('light');
-  const maxAvail = Math.max(0, (currentBalance || 0) - wagerLeft);
+  const maxAvail = wagerLeft > 0 ? 0 : Math.max(0, (currentBalance || 0) - lockedBonusBal);
   document.getElementById('withdrawAmountInput').value = Math.floor(maxAvail);
 }
 
@@ -3499,7 +3685,10 @@ async function submitWithdrawOrder() {
 
   if (!amount || amount < 100) return toast("Minimum cashout is 100 ETB", 'warning');
   if (!account) return toast("Account or Phone number required", 'warning');
-  if (currentBalance !== null && amount > (currentBalance - wagerLeft)) {
+  if (wagerLeft > 0) {
+    return toast(`Complete ${wagerLeft.toFixed(2)} ETB (${wagerReqMult}x) bonus wagering before withdrawing`, 'error');
+  }
+  if (currentBalance !== null && amount > Math.max(0, currentBalance - lockedBonusBal)) {
     return toast("Insufficient withdrawable balance", 'error');
   }
 
@@ -3896,10 +4085,8 @@ async function refreshBonusStatus(force = false) {
     bonusStatusInFlight = null;
   }
   if (!d) return;
-  if (d.wagerRequirementLeft != null) {
-    wagerLeft = Number(d.wagerRequirementLeft);
-    updateBalanceDisplay();
-  }
+  applyWalletSnapshot(d);
+  updateBalanceDisplay();
   const profWager = document.getElementById('profWagerLeft');
   if (profWager) profWager.innerText = wagerLeft.toFixed(2) + ' ETB';
 
@@ -4093,18 +4280,16 @@ function shareInviteLink() {
 }
 
 function dismissFirstOpenCards() {
-  try { localStorage.setItem('hulubet_first_open_cards_v1', '1'); } catch (_) {}
+  try { localStorage.setItem('hulubet_first_open_cards_v2', '1'); } catch (_) {}
   closeModal('modalFirstOpenCards');
 }
 
 function maybeShowFirstOpenCards() {
   try {
-    if (localStorage.getItem('hulubet_first_open_cards_v1') === '1') return;
+    if (localStorage.getItem('hulubet_first_open_cards_v2') === '1') return;
     const qs = new URLSearchParams(window.location.search);
     if (qs.get('skipOnboarding') === '1') return;
   } catch (_) {}
-  const el = document.getElementById('firstOpenInviteUrl');
-  if (el) el.innerText = getDirectMiniAppInviteLink();
   openModal('modalFirstOpenCards');
 }
 

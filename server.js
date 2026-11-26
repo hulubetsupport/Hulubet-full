@@ -24,7 +24,7 @@ require('dotenv').config();
 const { createMockPool } = require('./mock-db');
 const { r2, num, cashbackDue, kenoCycleState } = require('./lib/game-math');
 const { createTtlCache, createRateTracker, createChatBuffer } = require('./lib/cache');
-const { SPIN_SLICES, rollSpinPrize, getSpinAvailability, computeClaimableCashback } = require('./lib/bonus-engine');
+const { SPIN_SLICES, rollSpinPrize, getSpinAvailability, computeClaimableCashback, computeFirstDepositBonus, computeWithdrawableBalance } = require('./lib/bonus-engine');
 const { runTwelveHourAuditAndPrune, getRetentionStats, getReports12h } = require('./lib/audit-rollup');
 const { registerTelegramBot } = require('./lib/telegram-bot');
 const { mountAllGames, CRASH_GAMES } = require('./games');
@@ -37,6 +37,8 @@ const HAS_DB = Boolean(ENV.DATABASE_URL);
 const HAS_BOT_TOKEN = Boolean(ENV.BOT_TOKEN);
 const RAW_ADMIN_PIN = String(ENV.ADMIN_PIN || '').trim();
 const ADMIN_PIN = RAW_ADMIN_PIN.length >= 4 ? RAW_ADMIN_PIN : '12345678';
+const RAW_AGENT_PIN = String(ENV.AGENT_ADMIN_PIN || '').trim();
+let agentPinHash = '';
 if (!HAS_DB) console.warn('[AI Studio] DATABASE_URL not set — using in-memory mock database');
 if (!HAS_BOT_TOKEN) console.warn('[AI Studio] BOT_TOKEN not set — demo browser session enabled');
 if (RAW_ADMIN_PIN.length < 4) console.warn('[AI Studio] ADMIN_PIN not set (or <4 chars) — using default demo PIN 12345678');
@@ -48,7 +50,7 @@ const io = new Server(server, { cors: { origin: '*' }, perMessageDeflate: false 
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'x-admin-token', 'x-telegram-init-data', 'x-verify-token', 'x-webhook-token', 'Authorization']
+  allowedHeaders: ['Content-Type', 'x-admin-token', 'x-agent-token', 'x-telegram-init-data', 'x-verify-token', 'x-webhook-token', 'Authorization']
 }));
 app.use(compression({ threshold: 1024 }));
 app.use(express.json({ limit: '100kb' }));
@@ -71,9 +73,11 @@ let schemaReady = false;
 let chatSendCount = 0;
 
 const CONFIG = {
-  TARGET_RTP: 0.85, AGENT_COMMISSION: 0.02, WELCOME_BONUS: 20, REFERRAL_BONUS: 50,
-  MIN_FIRST_DEP: 50, WAGER_REQ_MULT: 3, MIN_DEP: 50, MAX_DEP: 100000, MIN_WTH: 100, MAX_WTH: 50000,
-  KENO_RTP: 0.70,   // Keno return-to-player (other games follow TARGET_RTP)
+  TARGET_RTP: 0.70, AGENT_COMMISSION: 0.02, WELCOME_BONUS: 20, REFERRAL_BONUS: 50,
+  MIN_FIRST_DEP: 50, WAGER_REQ_MULT: 50, FIRST_DEP_BONUS_MIN: 300, FIRST_DEP_BONUS_PCT: 20,
+  MIN_DEP: 50, MAX_DEP: 100000, MIN_WTH: 100, MAX_WTH: 50000,
+  KENO_RTP: 0.70,   // Keno return-to-player
+  BUFFALO_RTP: 0.70, // Young Buffalo return-to-player
   MIN_BET: 1, MAX_BET: 1000, MAX_PAYOUT: 20000, SAFETY_BUFFER: 50000, MAX_CRASH: 100,
   DAILY_WTH_LIMIT: 100000, MAX_PENDING_WTH: 2, REVIEW_AMOUNT: 10000, DEP_EXPIRE_HOURS: 24
 };
@@ -191,23 +195,63 @@ function userAuth(req, res, next) {
   next();
 }
 
-// ---- Admin auth: constant-time compare + lockout after 5 wrong tries / 15 min ----
+// ---- Admin & Agent auth: constant-time compare + scrypt hash + lockout after 5 wrong tries / 15 min ----
 const adminFails = new Map();
 const sha = s => crypto.createHash('sha256').update(String(s)).digest();
+const safePinEq = (a, b) => Boolean(a && b && crypto.timingSafeEqual(sha(a), sha(b)));
+function hashPin(pin) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = crypto.scryptSync(String(pin), salt, 32).toString('hex');
+  return `${salt}:${derived}`;
+}
+function verifyPinHash(pin, stored) {
+  const [salt, expected] = String(stored || '').split(':');
+  if (!salt || !expected) return false;
+  try {
+    const actual = crypto.scryptSync(String(pin), salt, 32);
+    const expBuf = Buffer.from(expected, 'hex');
+    return actual.length === expBuf.length && crypto.timingSafeEqual(actual, expBuf);
+  } catch (_) { return false; }
+}
+const isAgentConfigured = () => Boolean(RAW_AGENT_PIN.length >= 4 || agentPinHash);
+const checkMasterPin = given => safePinEq(given, ADMIN_PIN);
+function checkAgentPin(given) {
+  if (!given || safePinEq(given, ADMIN_PIN)) return false;
+  if (RAW_AGENT_PIN.length >= 4) return safePinEq(given, RAW_AGENT_PIN);
+  if (agentPinHash) return verifyPinHash(given, agentPinHash);
+  return false;
+}
 function adminAuth(req, res, next) {
   const f = adminFails.get(req.ip) || { n: 0, t: 0 }, fresh = Date.now() - f.t < 15 * 60e3;
   if (fresh && f.n >= 5) return res.status(429).json({ success: false, message: 'Locked for 15 minutes after 5 failed attempts.' });
   const given = String(req.headers['x-admin-token'] || req.body?.pin || (ENV.ALLOW_QUERY_PIN === '1' ? req.query.pin : '') || '').trim();
   if (!given) return res.status(403).json({ success: false, message: 'Please enter your Admin PIN.' });
-  if (!crypto.timingSafeEqual(sha(given), sha(ADMIN_PIN))) {
+  if (!checkMasterPin(given)) {
     const nextN = (fresh ? f.n : 0) + 1;
     adminFails.set(req.ip, { n: nextN, t: Date.now() });
     const left = Math.max(0, 5 - nextN);
-    return res.status(403).json({ success: false, message: left > 0 ? `Invalid Admin PIN! (${left} tries left)` : 'Invalid Admin PIN! Locked for 15 minutes.' });
+    return res.status(403).json({ success: false, message: left > 0 ? `Invalid Master Admin PIN! (${left} tries left)` : 'Invalid Admin PIN! Locked for 15 minutes.' });
   }
-  adminFails.delete(req.ip); req.actor = String(req.body?.actor || 'Admin').slice(0, 40); next();
+  adminFails.delete(req.ip); req.role = 'admin'; req.actor = String(req.body?.actor || 'Admin').slice(0, 40); next();
+}
+function agentOrAdminAuth(req, res, next) {
+  const f = adminFails.get(req.ip) || { n: 0, t: 0 }, fresh = Date.now() - f.t < 15 * 60e3;
+  if (fresh && f.n >= 5) return res.status(429).json({ success: false, message: 'Locked for 15 minutes after 5 failed attempts.' });
+  const given = String(req.headers['x-agent-token'] || req.headers['x-admin-token'] || req.body?.pin || '').trim();
+  if (!given) return res.status(403).json({ success: false, message: 'Please enter your Withdrawal Agent PIN.' });
+  if (checkMasterPin(given)) {
+    adminFails.delete(req.ip); req.role = 'admin'; req.actor = String(req.body?.actor || 'Admin').slice(0, 40); return next();
+  }
+  if (checkAgentPin(given)) {
+    adminFails.delete(req.ip); req.role = 'agent'; req.actor = ('Agent: ' + String(req.body?.actor || 'Cashier')).slice(0, 40); return next();
+  }
+  const nextN = (fresh ? f.n : 0) + 1;
+  adminFails.set(req.ip, { n: nextN, t: Date.now() });
+  const left = Math.max(0, 5 - nextN);
+  return res.status(403).json({ success: false, message: left > 0 ? `Invalid Agent PIN! (${left} tries left)` : 'Too many failed attempts! Locked for 15 minutes.' });
 }
 const admin = [limit('admin', 240, 60e3), adminAuth];
+const agentAccess = [limit('agent', 240, 60e3), agentOrAdminAuth];
 const alog = (req, action, detail) => pool.query(
   'INSERT INTO admin_actions (actor,action,detail,ip) VALUES ($1,$2,$3,$4)', [req.actor, action, String(detail).slice(0, 500), req.ip]).catch(() => {});
 
@@ -228,12 +272,25 @@ function validPicks(p) {
   if (s.size !== n.length || n.some(x => !Number.isInteger(x) || x < 1 || x > 80)) throw new Biz('Invalid number picks');
   return n.sort((a, b) => a - b);
 }
-const userView = (u, isNew) => ({
-  success: true, isNew, userId: u.user_id, username: u.telegram_username, name: u.full_name,
-  balance: num(u.balance), bonusBalance: num(u.bonus_balance), totalDeposited: num(u.total_deposited),
-  totalWagered: num(u.total_wagered), firstDepositCompleted: u.first_deposit_completed,
-  wagerRequirementLeft: num(u.wager_requirement_left), role: u.role, status: u.status
-});
+const userView = (u, isNew) => {
+  const wInfo = computeWithdrawableBalance({
+    balance: u.balance,
+    bonusBalance: u.bonus_balance,
+    wagerRequirementLeft: u.wager_requirement_left
+  });
+  return {
+    success: true, isNew, userId: u.user_id, username: u.telegram_username, name: u.full_name,
+    balance: num(u.balance), bonusBalance: num(u.bonus_balance),
+    lockedBonusBalance: wInfo.lockedBonus, withdrawableBalance: wInfo.withdrawableBalance,
+    totalDeposited: num(u.total_deposited), totalWagered: num(u.total_wagered),
+    firstDepositCompleted: u.first_deposit_completed,
+    wagerRequirementLeft: num(u.wager_requirement_left),
+    wagerReqMult: CONFIG.WAGER_REQ_MULT,
+    firstDepBonusMin: CONFIG.FIRST_DEP_BONUS_MIN,
+    firstDepBonusPct: CONFIG.FIRST_DEP_BONUS_PCT,
+    role: u.role, status: u.status
+  };
+};
 
 // ---------------------------------------------------------------- schema + settings
 async function ensureSchema() {
@@ -256,7 +313,10 @@ async function ensureSchema() {
     `ALTER TABLE sports_bets ADD COLUMN IF NOT EXISTS ticket_id VARCHAR(64), ADD COLUMN IF NOT EXISTS bet_id VARCHAR(64), ADD COLUMN IF NOT EXISTS user_id VARCHAR(64), ADD COLUMN IF NOT EXISTS username VARCHAR(128), ADD COLUMN IF NOT EXISTS match_id VARCHAR(64), ADD COLUMN IF NOT EXISTS match_title TEXT, ADD COLUMN IF NOT EXISTS market TEXT, ADD COLUMN IF NOT EXISTS odds NUMERIC(8,2), ADD COLUMN IF NOT EXISTS stake NUMERIC(14,2), ADD COLUMN IF NOT EXISTS potential_win NUMERIC(14,2), ADD COLUMN IF NOT EXISTS cashout_value NUMERIC(14,2), ADD COLUMN IF NOT EXISTS payout NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS status VARCHAR(24) DEFAULT 'IN_PLAY', ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS settled_at TIMESTAMPTZ`,
     `CREATE UNIQUE INDEX IF NOT EXISTS uq_sports_ticket ON sports_bets (ticket_id) WHERE ticket_id IS NOT NULL`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS bonus_balance NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS wager_requirement_left NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS total_won NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS total_wagered NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS total_deposited NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS referrer_id VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS referral_paid BOOLEAN DEFAULT FALSE, ADD COLUMN IF NOT EXISTS last_cashback_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS last_spin_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS cashback_settled_loss NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ`,
-    `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS bank_txn_id VARCHAR(64), ADD COLUMN IF NOT EXISTS processed_by VARCHAR(64), ADD COLUMN IF NOT EXISTS agent_assigned VARCHAR(64), ADD COLUMN IF NOT EXISTS sender_account VARCHAR(128), ADD COLUMN IF NOT EXISTS remarks TEXT`,
+    `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS net_amount NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS bank_txn_id VARCHAR(64), ADD COLUMN IF NOT EXISTS processed_by VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS agent_assigned VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS sender_account VARCHAR(128) DEFAULT '', ADD COLUMN IF NOT EXISTS remarks TEXT DEFAULT ''`,
+    `ALTER TABLE transactions ALTER COLUMN method SET DEFAULT '', ALTER COLUMN method DROP NOT NULL`,
+    `ALTER TABLE transactions ALTER COLUMN net_amount SET DEFAULT 0, ALTER COLUMN net_amount DROP NOT NULL`,
+    `ALTER TABLE transactions ALTER COLUMN username SET DEFAULT '', ALTER COLUMN username DROP NOT NULL`,
     `ALTER TABLE universal_bets ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS flight_start TIMESTAMPTZ`,
     `ALTER TABLE casino_vault ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`,
     `INSERT INTO casino_vault (id,vault_balance) VALUES (1,200000.00) ON CONFLICT DO NOTHING`,
@@ -280,33 +340,53 @@ async function ensureSchema() {
   for (const s of S) { try { await pool.query(s); } catch (e) { console.warn('schema step skipped:', e.message.slice(0, 120), '|', s.slice(0, 60)); } }
   if (HAS_DB) {
     try {
-      const keep = new Set(['id', 'bet_id', 'ticket_id', 'user_id', 'username', 'match_id', 'match_title', 'market', 'odds', 'stake', 'potential_win', 'cashout_value', 'payout', 'status', 'created_at', 'settled_at']);
-      const cols = await pool.query(`SELECT column_name,is_nullable,column_default FROM information_schema.columns WHERE table_name='sports_bets'`);
-      for (const c of cols.rows) {
-        if (!keep.has(c.column_name) && c.is_nullable === 'NO' && c.column_default === null && /^[a-z_][a-z0-9_]*$/.test(c.column_name)) {
-          await pool.query(`ALTER TABLE sports_bets ALTER COLUMN "${c.column_name}" DROP NOT NULL`).catch(() => {});
+      const keepByTable = {
+        sports_bets: new Set(['id', 'bet_id', 'ticket_id', 'user_id', 'username', 'match_id', 'match_title', 'market', 'odds', 'stake', 'potential_win', 'cashout_value', 'payout', 'status', 'created_at', 'settled_at']),
+        transactions: new Set(['txn_id', 'user_id', 'type', 'amount'])
+      };
+      for (const [tbl, keep] of Object.entries(keepByTable)) {
+        const cols = await pool.query(`SELECT column_name,is_nullable,column_default FROM information_schema.columns WHERE table_name=$1`, [tbl]);
+        for (const c of cols.rows) {
+          if (!keep.has(c.column_name) && c.is_nullable === 'NO' && c.column_default === null && /^[a-z_][a-z0-9_]*$/.test(c.column_name)) {
+            await pool.query(`ALTER TABLE "${tbl}" ALTER COLUMN "${c.column_name}" DROP NOT NULL`).catch(() => {});
+          }
         }
       }
     } catch (_) {}
   }
+  try {
+    const base = await pool.query(`INSERT INTO system_settings (key,value) VALUES ('rtp_baseline_70_v1','done') ON CONFLICT (key) DO NOTHING RETURNING key`);
+    if (base.rowCount === 1) {
+      for (const [k, v] of [['target_rtp', '0.70'], ['keno_rtp', '0.70'], ['buffalo_rtp', '0.70']]) {
+        await pool.query(`INSERT INTO system_settings (key,value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value=$2`, [k, v]);
+      }
+    }
+  } catch (_) {}
   await smsVerifier.ensureSchemaAndToken();
 }
 async function loadSettings() {
   const norm = v => { const x = parseFloat(v); return x > 1 ? x / 100 : x; };
+  if (ENV.TARGET_RTP) CONFIG.TARGET_RTP = norm(ENV.TARGET_RTP) || CONFIG.TARGET_RTP;
   if (ENV.KENO_RTP) CONFIG.KENO_RTP = norm(ENV.KENO_RTP) || CONFIG.KENO_RTP;
+  if (ENV.BUFFALO_RTP) CONFIG.BUFFALO_RTP = norm(ENV.BUFFALO_RTP) || CONFIG.BUFFALO_RTP;
   try {
     const r = await pool.query('SELECT key,value FROM system_settings');
     r.rows.forEach(({ key, value }) => {
       if (key === 'target_rtp' && Number.isFinite(norm(value))) CONFIG.TARGET_RTP = norm(value);
       if (key === 'keno_rtp' && Number.isFinite(norm(value))) CONFIG.KENO_RTP = norm(value);
+      if (key === 'buffalo_rtp' && Number.isFinite(norm(value))) CONFIG.BUFFALO_RTP = norm(value);
       if (key === 'agent_commission' && Number.isFinite(norm(value))) CONFIG.AGENT_COMMISSION = norm(value);
       if (key === 'welcome_bonus' && Number.isFinite(parseFloat(value))) CONFIG.WELCOME_BONUS = parseFloat(value);
       if (key === 'referral_bonus' && Number.isFinite(parseFloat(value))) CONFIG.REFERRAL_BONUS = parseFloat(value);
+      if (key === 'wager_req_mult') { const v = parseFloat(value); if (Number.isFinite(v) && v >= 1 && v <= 100) CONFIG.WAGER_REQ_MULT = v; }
+      if (key === 'first_dep_bonus_pct') { const v = parseFloat(value); if (Number.isFinite(v) && v >= 0 && v <= 200) CONFIG.FIRST_DEP_BONUS_PCT = v; }
+      if (key === 'first_dep_bonus_min') { const v = parseFloat(value); if (Number.isFinite(v) && v >= 50) CONFIG.FIRST_DEP_BONUS_MIN = v; }
+      if (key === 'agent_pin_hash' && typeof value === 'string' && value.includes(':')) agentPinHash = value;
       if (key === 'cashback_percent') { const v = parseFloat(value); if (Number.isFinite(v) && v >= 1 && v <= 50) CASHBACK.percent = v; }
       if (key === 'cashback_min_loss') { const v = parseFloat(value); if (Number.isFinite(v) && v >= 10) CASHBACK.minLoss = v; }
     });
   } catch (e) { console.warn('settings not loaded:', e.message); }
-  console.log(`Settings: RTP=${CONFIG.TARGET_RTP * 100}% (Keno ${CONFIG.KENO_RTP * 100}%) commission=${CONFIG.AGENT_COMMISSION * 100}% welcome=${CONFIG.WELCOME_BONUS} ref=${CONFIG.REFERRAL_BONUS} cashback=${CASHBACK.percent}%`);
+  console.log(`Settings: RTP=${CONFIG.TARGET_RTP * 100}% (Keno ${CONFIG.KENO_RTP * 100}%, Buffalo ${CONFIG.BUFFALO_RTP * 100}%) commission=${CONFIG.AGENT_COMMISSION * 100}% welcome=${CONFIG.WELCOME_BONUS} ref=${CONFIG.REFERRAL_BONUS} bonusWager=${CONFIG.WAGER_REQ_MULT}x firstDep=${CONFIG.FIRST_DEP_BONUS_PCT}%@${CONFIG.FIRST_DEP_BONUS_MIN} cashback=${CASHBACK.percent}%`);
 }
 
 // Telegram notifications (player gets a message when a request is approved/rejected; admin chat gets new requests)
@@ -348,7 +428,7 @@ const gatewayAmount = b => { const n = Number(b && (b.amount ?? (b.data && b.dat
 
 // ---------------------------------------------------------------- static frontend + modular games + sportsbook + telegram bot
 app.get('/', (_q, res) => res.sendFile(path.join(__dirname, 'homepage.html'), { maxAge: 60 * 1000 }));
-app.get(['/admin', '/betadmin', '/betadmin.html'], (_q, res) => res.sendFile(path.join(__dirname, 'betadmin.html'), { maxAge: 60 * 1000 }));
+app.get(['/admin', '/betadmin', '/betadmin.html', '/agent', '/agent-admin'], (_q, res) => res.sendFile(path.join(__dirname, 'betadmin.html'), { maxAge: 60 * 1000 }));
 app.get('/homepage.html', (_q, res) => res.sendFile(path.join(__dirname, 'homepage.html'), { maxAge: 60 * 1000 }));
 app.get('/game-bridge.js', (_q, res) => res.sendFile(path.join(__dirname, 'game-bridge.js'), { maxAge: 300 * 1000 }));
 app.use('/assets', express.static(path.join(__dirname, 'public', 'assets'), { maxAge: '7d' }));
@@ -360,6 +440,9 @@ app.get('/api/public/config', (_q, res) => res.json({
   success: true,
   welcomeBonus: CONFIG.WELCOME_BONUS,
   referralBonus: CONFIG.REFERRAL_BONUS,
+  wagerReqMult: CONFIG.WAGER_REQ_MULT,
+  firstDepBonusMin: CONFIG.FIRST_DEP_BONUS_MIN,
+  firstDepBonusPct: CONFIG.FIRST_DEP_BONUS_PCT,
   cashbackPercent: CASHBACK.percent,
   cashbackMinLoss: CASHBACK.minLoss,
   minBet: CONFIG.MIN_BET,
@@ -466,18 +549,29 @@ app.get('/api/user/history', userAuth, limit('uhist', 120, 60e3), h(async (req, 
 app.get('/api/bonus/status', userAuth, limit('bonusstat', 240, 60e3), h(async (req, res) => {
   const uid = req.tg.id;
   const ur = await pool.query(
-    `SELECT balance,bonus_balance,wager_requirement_left,total_wagered,total_won,cashback_settled_loss,last_spin_at,
+    `SELECT balance,bonus_balance,wager_requirement_left,total_wagered,total_won,cashback_settled_loss,last_spin_at,first_deposit_completed,
             (SELECT COUNT(*)::int FROM users r WHERE r.referrer_id=$1) AS referral_count
      FROM users WHERE user_id=$1`,
     [uid]
   );
   if (!ur.rows.length) throw new Biz('User not found', 404);
   const u = ur.rows[0];
+  const wInfo = computeWithdrawableBalance({
+    balance: u.balance,
+    bonusBalance: u.bonus_balance,
+    wagerRequirementLeft: u.wager_requirement_left
+  });
   res.json({
     success: true,
     balance: num(u.balance),
     bonusBalance: num(u.bonus_balance),
+    lockedBonusBalance: wInfo.lockedBonus,
+    withdrawableBalance: wInfo.withdrawableBalance,
     wagerRequirementLeft: num(u.wager_requirement_left),
+    wagerReqMult: CONFIG.WAGER_REQ_MULT,
+    firstDepositCompleted: u.first_deposit_completed,
+    firstDepBonusMin: CONFIG.FIRST_DEP_BONUS_MIN,
+    firstDepBonusPct: CONFIG.FIRST_DEP_BONUS_PCT,
     welcomeBonus: CONFIG.WELCOME_BONUS,
     referralBonus: CONFIG.REFERRAL_BONUS,
     referralCount: Number(u.referral_count || 0),
@@ -515,7 +609,7 @@ app.post('/api/bonus/lucky-spin', userAuth, limit('spin', 20, 60e3), h(async (re
       );
       const id = newId('SPN');
       await c.query(
-        `INSERT INTO transactions (txn_id,user_id,type,amount,status,remarks,processed_by) VALUES ($1,$2,'BONUS',$3,'APPROVED','Daily Lucky Spin','AUTO')`,
+        `INSERT INTO transactions (txn_id,user_id,type,method,amount,net_amount,status,remarks,processed_by) VALUES ($1,$2,'BONUS','LuckySpin',$3,$3,'APPROVED','Daily Lucky Spin','AUTO')`,
         [id, uid, prize.amount]
       );
       await audit(c, uid, 'LUCKY_SPIN', prize.amount, before, after, id);
@@ -553,28 +647,30 @@ app.post('/api/bonus/claim-cashback', userAuth, limit('claimcb', 15, 60e3), h(as
       throw new Biz(`Need ${need.toFixed(2)} ETB more net loss to reach minimum ${calc.minLoss} ETB cashback threshold.`);
     }
     const cb = calc.cashbackAmount;
+    const wr = r2(cb * CONFIG.WAGER_REQ_MULT);
     const before = num(u.balance);
     const after = r2(before + cb);
     const id = newId('CB');
     await c.query(
-      `UPDATE users SET balance=$1,bonus_balance=bonus_balance+$2,wager_requirement_left=wager_requirement_left+$2,cashback_settled_loss=$3,last_cashback_at=NOW() WHERE user_id=$4`,
-      [after, cb, calc.totalNetLoss, uid]
+      `UPDATE users SET balance=$1,bonus_balance=bonus_balance+$2,wager_requirement_left=wager_requirement_left+$3,cashback_settled_loss=$4,last_cashback_at=NOW() WHERE user_id=$5`,
+      [after, cb, wr, calc.totalNetLoss, uid]
     );
     await c.query(
-      `INSERT INTO transactions (txn_id,user_id,type,amount,status,remarks,processed_by) VALUES ($1,$2,'BONUS',$3,'APPROVED',$4,'SELF_CLAIM')`,
-      [id, uid, cb, `${calc.percent}% cashback claim`]
+      `INSERT INTO transactions (txn_id,user_id,type,method,amount,net_amount,status,remarks,processed_by) VALUES ($1,$2,'BONUS','Cashback',$3,$3,'APPROVED',$4,'SELF_CLAIM')`,
+      [id, uid, cb, `${calc.percent}% cashback claim (${CONFIG.WAGER_REQ_MULT}x wager)`]
     );
     await audit(c, uid, 'CASHBACK_CLAIM', cb, before, after, id);
-    return { cb, after, unclaimedCleared: calc.unclaimedLoss };
+    return { cb, wr, after, unclaimedCleared: calc.unclaimedLoss };
   });
 
   vaultAdd({ bonus: out.cb });
   res.json({
     success: true,
     cashbackAmount: out.cb,
+    wagerAdded: out.wr,
     newBalance: out.after,
     unclaimedLossCleared: out.unclaimedCleared,
-    message: `+${out.cb.toFixed(2)} ETB cashback added (1x wagering applies)`
+    message: `+${out.cb.toFixed(2)} ETB bonus added (${CONFIG.WAGER_REQ_MULT}x wagering applies)`
   });
 }));
 
@@ -871,16 +967,23 @@ app.post('/api/cashier/verify-deposit', userAuth, limit('verify', 12, 600e3), h(
   const out = await tx(async c => {
     const t = (await c.query(`SELECT * FROM transactions WHERE txn_id=$1 AND status='VERIFYING' FOR UPDATE`, [id])).rows[0];
     if (!t) throw new Biz('This deposit was already processed');
-    const usr = (await c.query('SELECT * FROM users WHERE user_id=$1 FOR UPDATE', [uid])).rows[0];
-    const before = num(usr.balance), after = r2(before + amt), first = usr.first_deposit_completed !== 'YES';
-    await c.query(`UPDATE users SET balance=$1,total_deposited=total_deposited+$2,first_deposit_completed='YES' WHERE user_id=$3`, [after, amt, uid]);
+    const dep = await applyDepositCredit(c, uid, amt, id, 'DEPOSIT_AUTO', 'AUTO');
     await c.query(`UPDATE transactions SET status='APPROVED',remarks='Auto-verified by gateway',processed_by='AUTO',updated_at=NOW() WHERE txn_id=$1`, [id]);
-    await audit(c, uid, 'DEPOSIT_AUTO', amt, before, after, id);
-    if (first && amt >= CONFIG.MIN_FIRST_DEP) await creditReferral(c, uid);
-    return { after };
+    return dep;
   });
+  if (out.bonusAmt > 0) vaultAdd({ bonus: out.bonusAmt });
   cacheInvalidate('admin:dashboard');
-  res.json({ success: true, txnId: id, credited: amt, newBalance: out.after, message: `Deposit of ${fmt(amt)} ETB verified and added to your balance.` });
+  res.json({
+    success: true,
+    txnId: id,
+    credited: amt,
+    bonusAwarded: out.bonusAmt,
+    bonusWagerReq: out.bonusWr,
+    newBalance: out.after,
+    message: out.bonusAmt > 0
+      ? `Deposit of ${fmt(amt)} ETB verified + ${fmt(out.bonusAmt)} ETB (${out.pct}% First Deposit Bonus, ${CONFIG.WAGER_REQ_MULT}x wager) credited!`
+      : `Deposit of ${fmt(amt)} ETB verified and added to your balance.`
+  });
 }));
 
 // Player cancels his own PENDING request (a cancelled withdrawal is refunded)
@@ -916,9 +1019,15 @@ app.post('/api/cashier/withdraw', userAuth, limit('wd', 10, 60e3), h(async (req,
   if (!/^[0-9+\-\s]{8,20}$/.test(acc)) throw new Biz('Enter a valid phone / account number');
   const out = await tx(async c => {
     const u = await lockUser(c, req.tg.id), bal = num(u.balance);
+    const wInfo = computeWithdrawableBalance({
+      balance: bal,
+      bonusBalance: u.bonus_balance,
+      wagerRequirementLeft: u.wager_requirement_left
+    });
     if (bal < amt) throw new Biz('Insufficient balance');
     if (u.first_deposit_completed !== 'YES' && num(u.total_deposited) < CONFIG.MIN_FIRST_DEP) throw new Biz(`Deposit at least ${CONFIG.MIN_FIRST_DEP} ETB first to unlock withdrawals`);
-    if (num(u.wager_requirement_left) > 0) throw new Biz(`Bonus wagering active: ${num(u.wager_requirement_left).toFixed(2)} ETB left to wager`);
+    if (wInfo.wagerRequirementLeft > 0) throw new Biz(`Bonus credit (${wInfo.lockedBonus.toFixed(2)} ETB) requires ${CONFIG.WAGER_REQ_MULT}x wagering (${wInfo.wagerRequirementLeft.toFixed(2)} ETB left) before withdrawal`);
+    if (amt > wInfo.withdrawableBalance) throw new Biz(`Insufficient withdrawable balance (max ${wInfo.withdrawableBalance.toFixed(2)} ETB)`);
     if (num(u.total_wagered) < num(u.total_deposited)) throw new Biz(`Turnover rule: wager ${r2(num(u.total_deposited) - num(u.total_wagered)).toFixed(2)} ETB more before withdrawing`);
     const inflight = await c.query(`SELECT 1 FROM universal_bets WHERE user_id=$1 AND status='IN_FLIGHT' AND flight_start > NOW() - INTERVAL '6 minutes' LIMIT 1`, [req.tg.id]);
     if (inflight.rows.length) throw new Biz('Finish your running game round first');
@@ -961,6 +1070,37 @@ app.post('/api/promo/redeem', userAuth, limit('promo', 10, 60e3), h(async (req, 
 }));
 
 // ---------------------------------------------------------------- 4. admin
+async function applyDepositCredit(c, uid, amt, refId, auditAction, actor) {
+  const usr = (await c.query('SELECT * FROM users WHERE user_id=$1 FOR UPDATE', [uid])).rows[0];
+  if (!usr) throw new Biz('User not found', 404);
+  const before = num(usr.balance);
+  const first = usr.first_deposit_completed !== 'YES';
+  const fdb = computeFirstDepositBonus({
+    amount: amt,
+    isFirstDeposit: first,
+    minAmount: CONFIG.FIRST_DEP_BONUS_MIN,
+    percent: CONFIG.FIRST_DEP_BONUS_PCT,
+    wagerMult: CONFIG.WAGER_REQ_MULT
+  });
+  const afterDep = r2(before + amt);
+  const after = r2(afterDep + fdb.bonusAmount);
+  await c.query(
+    `UPDATE users SET balance=$1,total_deposited=total_deposited+$2,first_deposit_completed='YES',bonus_balance=bonus_balance+$3,wager_requirement_left=wager_requirement_left+$4 WHERE user_id=$5`,
+    [after, amt, fdb.bonusAmount, fdb.wagerAdded, uid]
+  );
+  await audit(c, uid, auditAction, amt, before, afterDep, refId);
+  if (fdb.bonusAmount > 0) {
+    const bId = newId('FDB');
+    await c.query(
+      `INSERT INTO transactions (txn_id,user_id,type,method,amount,net_amount,status,remarks,processed_by) VALUES ($1,$2,'BONUS','FirstDepositBonus',$3,$3,'APPROVED',$4,$5)`,
+      [bId, uid, fdb.bonusAmount, `First Deposit ${fdb.percent}% Bonus (${CONFIG.WAGER_REQ_MULT}x wager)`, actor]
+    );
+    await audit(c, uid, 'FIRST_DEPOSIT_BONUS', fdb.bonusAmount, afterDep, after, bId);
+  }
+  if (first && amt >= CONFIG.MIN_FIRST_DEP) await creditReferral(c, uid);
+  return { before, after, first, bonusAmt: fdb.bonusAmount, bonusWr: fdb.wagerAdded, pct: fdb.percent };
+}
+
 async function creditReferral(c, uid) {
   const u = (await c.query('SELECT referrer_id,referral_paid FROM users WHERE user_id=$1', [uid])).rows[0];
   if (!u || u.referral_paid || !u.referrer_id) return;
@@ -1018,7 +1158,7 @@ const dashboard = h(async (_req, res) => {
 
     const targetFor = g => {
       if (g === 'KenoFast' || g === 'ClassicKeno') return r2(CONFIG.KENO_RTP * 100);
-      if (g === 'Roulette') return 97.3;
+      if (g === 'YoungBuffalo') return r2(CONFIG.BUFFALO_RTP * 100);
       if (g === 'Sportsbook') return 92.0;
       return r2(CONFIG.TARGET_RTP * 100);
     };
@@ -1042,17 +1182,23 @@ const dashboard = h(async (_req, res) => {
       settings: {
         targetRtp: r2(CONFIG.TARGET_RTP * 100),
         kenoRtp: r2(CONFIG.KENO_RTP * 100),
+        buffaloRtp: r2(CONFIG.BUFFALO_RTP * 100),
         agentCommission: r2(CONFIG.AGENT_COMMISSION * 100),
         welcomeBonus: CONFIG.WELCOME_BONUS,
         referralBonus: CONFIG.REFERRAL_BONUS,
         cashbackPercent: CASHBACK.percent,
         cashbackMinLoss: CASHBACK.minLoss,
+        firstDepBonusMin: CONFIG.FIRST_DEP_BONUS_MIN,
+        firstDepBonusPct: CONFIG.FIRST_DEP_BONUS_PCT,
+        wagerReqMult: CONFIG.WAGER_REQ_MULT,
         minDep: CONFIG.MIN_DEP, maxDep: CONFIG.MAX_DEP, minWd: CONFIG.MIN_WTH, maxWd: CONFIG.MAX_WTH
       },
       system: {
         databaseConnected: HAS_DB,
         botConfigured: HAS_BOT_TOKEN,
         customAdminPin: Boolean(RAW_ADMIN_PIN.length >= 4),
+        agentPinConfigured: isAgentConfigured(),
+        agentPinEnvManaged: Boolean(RAW_AGENT_PIN.length >= 4),
         verifyMode: USE_EXTERNAL_VERIFI ? 'External Verify Server' : 'Built-in SMS Ledger',
         verifiUrl: USE_EXTERNAL_VERIFI ? VERIFI_URL : '(built-in /api/verify)',
         verifiTokenSet: USE_EXTERNAL_VERIFI ? Boolean(ENV.VERIFI_TOKEN) : true,
@@ -1067,12 +1213,149 @@ const dashboard = h(async (_req, res) => {
 });
 const userRow = u => ({
   id: u.user_id, user_id: u.user_id, name: u.full_name || u.telegram_username, telegram_username: u.telegram_username,
-  bal: num(u.balance), balance: num(u.balance), st: String(u.status || 'active').toLowerCase(), status: String(u.status || 'active').toLowerCase(),
+  bal: num(u.balance), balance: num(u.balance),
+  bonus_balance: num(u.bonus_balance), wager_requirement_left: num(u.wager_requirement_left),
+  first_deposit_completed: u.first_deposit_completed || 'NO',
+  st: String(u.status || 'active').toLowerCase(), status: String(u.status || 'active').toLowerCase(),
   total_deposited: num(u.total_deposited), total_wagered: num(u.total_wagered), total_won: num(u.total_won),
   kyc: num(u.total_deposited) >= CONFIG.MIN_FIRST_DEP ? 'verified' : 'pending', bets: Number(u.bet_count || 0), lim: 5000
 });
 app.get('/api/admin/master-dashboard', admin, dashboard);
 app.get('/api/admin/analytics', admin, dashboard);
+
+// ---- Role login & Withdrawal Agent Portal (Withdrawals-only permissions) ----
+app.get('/api/agent/pin-status', limit('agentstat', 120, 60e3), (_req, res) => {
+  res.json({ success: true, configured: isAgentConfigured(), envManaged: Boolean(RAW_AGENT_PIN.length >= 4) });
+});
+
+app.post('/api/agent/setup-pin', limit('agentsetup', 10, 60e3), h(async (req, res) => {
+  if (isAgentConfigured()) throw new Biz('Withdrawal Agent PIN is already configured. Master Admin can update it from Settings.', 409);
+  const pin = String(req.body?.pin || '').trim();
+  if (pin.length < 4 || pin.length > 40) throw new Biz('Agent PIN must be 4 to 40 characters');
+  if (checkMasterPin(pin)) throw new Biz('Withdrawal Agent PIN must be different from Master Admin PIN');
+  const hashed = hashPin(pin);
+  await pool.query(`INSERT INTO system_settings (key,value) VALUES ('agent_pin_hash',$1) ON CONFLICT (key) DO UPDATE SET value=$1`, [hashed]);
+  agentPinHash = hashed;
+  cacheInvalidate('admin:dashboard');
+  await pool.query('INSERT INTO admin_actions (actor,action,detail,ip) VALUES ($1,$2,$3,$4)', ['Bootstrap', 'setup-agent-pin', 'Initial Withdrawal Agent PIN configured', req.ip]).catch(() => {});
+  res.json({ success: true, message: 'Withdrawal Agent PIN saved! You can sign in now.' });
+}));
+
+app.post('/api/admin/set-agent-pin', admin, h(async (req, res) => {
+  if (RAW_AGENT_PIN.length >= 4) throw new Biz('AGENT_ADMIN_PIN is set in server environment variables. Update it there to change the Agent PIN.', 400);
+  const pin = String(req.body?.pin || '').trim();
+  if (pin.length < 4 || pin.length > 40) throw new Biz('Agent PIN must be 4 to 40 characters');
+  if (checkMasterPin(pin)) throw new Biz('Withdrawal Agent PIN must be different from Master Admin PIN');
+  const hashed = hashPin(pin);
+  await pool.query(`INSERT INTO system_settings (key,value) VALUES ('agent_pin_hash',$1) ON CONFLICT (key) DO UPDATE SET value=$1`, [hashed]);
+  agentPinHash = hashed;
+  cacheInvalidate('admin:dashboard');
+  alog(req, 'set-agent-pin', 'Withdrawal Agent PIN updated');
+  res.json({ success: true, message: 'Withdrawal Agent PIN updated & active immediately.' });
+}));
+
+app.post('/api/auth/admin-login', limit('authpin', 60, 60e3), h(async (req, res) => {
+  const f = adminFails.get(req.ip) || { n: 0, t: 0 }, fresh = Date.now() - f.t < 15 * 60e3;
+  if (fresh && f.n >= 5) return res.status(429).json({ success: false, message: 'Locked for 15 minutes after 5 failed attempts.' });
+  const pin = String(req.body?.pin || '').trim();
+  const mode = String(req.body?.mode || 'auto').toLowerCase();
+  const actor = String(req.body?.actor || '').trim().slice(0, 40);
+  if (!pin) return res.status(403).json({ success: false, message: 'Please enter your PIN.' });
+
+  if (mode === 'agent') {
+    if (!isAgentConfigured()) return res.status(403).json({ success: false, message: 'Withdrawal Agent PIN is not configured yet.' });
+    if (checkAgentPin(pin)) {
+      adminFails.delete(req.ip);
+      return res.json({ success: true, role: 'agent', actor: 'Agent: ' + (actor || 'Cashier') });
+    }
+  } else if (mode === 'admin') {
+    if (checkMasterPin(pin)) {
+      adminFails.delete(req.ip);
+      return res.json({ success: true, role: 'admin', actor: actor || 'Admin' });
+    }
+  } else {
+    if (checkMasterPin(pin)) {
+      adminFails.delete(req.ip);
+      return res.json({ success: true, role: 'admin', actor: actor || 'Admin' });
+    }
+    if (checkAgentPin(pin)) {
+      adminFails.delete(req.ip);
+      return res.json({ success: true, role: 'agent', actor: 'Agent: ' + (actor || 'Cashier') });
+    }
+  }
+
+  const nextN = (fresh ? f.n : 0) + 1;
+  adminFails.set(req.ip, { n: nextN, t: Date.now() });
+  const left = Math.max(0, 5 - nextN);
+  return res.status(403).json({ success: false, message: left > 0 ? `Invalid PIN! (${left} tries left)` : 'Too many failed attempts! Locked for 15 minutes.' });
+}));
+
+app.get('/api/agent/withdrawals', agentAccess, h(async (req, res) => {
+  const [pw, wds] = await Promise.all([
+    pool.query(`SELECT * FROM transactions WHERE type='WITHDRAWAL' AND status='PENDING' ORDER BY created_at DESC LIMIT 200`),
+    pool.query(`SELECT * FROM transactions WHERE type='WITHDRAWAL' ORDER BY created_at DESC LIMIT 100`)
+  ]);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const pendingAmount = r2(pw.rows.reduce((s, t) => s + num(t.amount), 0));
+  let approvedTodayCount = 0, approvedTodayAmount = 0, rejectedCount = 0;
+  for (const t of wds.rows) {
+    const st = String(t.status).toUpperCase();
+    const dayStr = new Date(t.updated_at || t.created_at).toISOString().slice(0, 10);
+    if (st === 'APPROVED' && dayStr === todayStr) {
+      approvedTodayCount++;
+      approvedTodayAmount = r2(approvedTodayAmount + num(t.amount));
+    } else if (st === 'REJECTED') {
+      rejectedCount++;
+    }
+  }
+  res.json({
+    success: true,
+    role: req.role,
+    actor: req.actor,
+    pendingWithdrawals: pw.rows,
+    recentWithdrawals: wds.rows.map(fmtTx),
+    stats: {
+      pendingCount: pw.rows.length,
+      pendingAmount,
+      approvedTodayCount,
+      approvedTodayAmount,
+      rejectedCount
+    }
+  });
+}));
+
+app.post('/api/agent/approve-withdrawal', agentAccess, h(async (req, res) => {
+  const txnId = String(req.body.txnId || '');
+  if (!txnId) throw new Biz('Transaction ID required');
+  const r = await pool.query(
+    `UPDATE transactions SET status='APPROVED',remarks=$1,processed_by=$2,updated_at=NOW() WHERE txn_id=$3 AND type='WITHDRAWAL' AND status='PENDING' RETURNING user_id,amount,method`,
+    [`Payout completed by ${req.actor}`, req.actor, txnId]
+  );
+  if (!r.rowCount) throw new Biz('Withdrawal already processed or not found');
+  cacheInvalidate('admin:dashboard');
+  alog(req, 'agent-approve-withdrawal', txnId);
+  notify(r.rows[0].user_id, `Your withdrawal of ${fmt(r.rows[0].amount)} ETB was paid out via ${r.rows[0].method}.`);
+  res.json({ success: true, message: `Withdrawal ${txnId} marked completed` });
+}));
+
+app.post('/api/agent/reject-withdrawal', agentAccess, h(async (req, res) => {
+  const txnId = String(req.body.txnId || '');
+  if (!txnId) throw new Biz('Transaction ID required');
+  const out = await tx(async c => {
+    const t = (await c.query(`SELECT * FROM transactions WHERE txn_id=$1 AND type='WITHDRAWAL' AND status='PENDING' FOR UPDATE`, [txnId])).rows[0];
+    if (!t) throw new Biz('Withdrawal not found or already processed');
+    const amt = num(t.amount), u = (await c.query('SELECT balance FROM users WHERE user_id=$1 FOR UPDATE', [t.user_id])).rows[0];
+    const before = num(u.balance), after = r2(before + amt);
+    await c.query('UPDATE users SET balance=$1 WHERE user_id=$2', [after, t.user_id]);
+    await c.query(`UPDATE transactions SET status='REJECTED',remarks=$1,processed_by=$2,updated_at=NOW() WHERE txn_id=$3`, [String(req.body.reason || 'Rejected by withdrawal agent (refunded)').slice(0, 200), req.actor, txnId]);
+    await audit(c, t.user_id, 'WITHDRAWAL_REFUND', amt, before, after, txnId);
+    return { amt, uid: t.user_id };
+  });
+  cacheInvalidate('admin:dashboard');
+  alog(req, 'agent-reject-withdrawal', `${txnId} refund ${out.amt}`);
+  notify(out.uid, `Your withdrawal of ${fmt(out.amt)} ETB was rejected and the money was returned to your balance.`);
+  res.json({ success: true, message: `Withdrawal ${txnId} rejected, ${out.amt} ETB refunded to ${out.uid}` });
+}));
 
 app.get('/api/admin/reports-12h', admin, h(async (req, res) => {
   const [retentionStats, reports] = await Promise.all([
@@ -1176,20 +1459,19 @@ app.post('/api/admin/approve-deposit', admin, h(async (req, res) => {
   const out = await tx(async c => {
     const t = (await c.query(`SELECT * FROM transactions WHERE txn_id=$1 AND type='DEPOSIT' AND status='PENDING' FOR UPDATE`, [txnId])).rows[0];
     if (!t) throw new Biz('Deposit already processed or not found');
-    const amt = num(t.amount), u = (await c.query('SELECT * FROM users WHERE user_id=$1 FOR UPDATE', [t.user_id])).rows[0];
-    if (!u) throw new Biz('User not found', 404);
-    const before = num(u.balance), after = r2(before + amt), first = u.first_deposit_completed !== 'YES';
-    await c.query(`UPDATE users SET balance=$1,total_deposited=total_deposited+$2,first_deposit_completed='YES' WHERE user_id=$3`, [after, amt, t.user_id]);
+    const amt = num(t.amount);
+    const dep = await applyDepositCredit(c, t.user_id, amt, txnId, 'DEPOSIT_APPROVE', req.actor);
     await payAgent(c, t.agent_assigned || req.actor, amt);
     await c.query(`UPDATE transactions SET status='APPROVED',remarks=$1,processed_by=$2,bank_txn_id=COALESCE($4,bank_txn_id),updated_at=NOW() WHERE txn_id=$3`, [`Approved by ${req.actor}`, req.actor, txnId, bankRef]);
-    await audit(c, t.user_id, 'DEPOSIT_APPROVE', amt, before, after, txnId);
-    if (first && amt >= CONFIG.MIN_FIRST_DEP) await creditReferral(c, t.user_id);
-    return { amt, uid: t.user_id };
+    return { amt, uid: t.user_id, ...dep };
   });
+  if (out.bonusAmt > 0) vaultAdd({ bonus: out.bonusAmt });
   cacheInvalidate('admin:dashboard');
-  alog(req, 'approve-deposit', `${txnId} ${out.amt} -> ${out.uid}`);
-  notify(out.uid, `Your deposit of ${fmt(out.amt)} ETB was approved.`);
-  res.json({ success: true, message: `Deposit ${txnId} approved (+${out.amt} ETB to ${out.uid})` });
+  alog(req, 'approve-deposit', `${txnId} ${out.amt}${out.bonusAmt > 0 ? ' +fdb ' + out.bonusAmt : ''} -> ${out.uid}`);
+  notify(out.uid, out.bonusAmt > 0
+    ? `Your deposit of ${fmt(out.amt)} ETB was approved + ${fmt(out.bonusAmt)} ETB (${out.pct}% First Deposit Bonus, ${CONFIG.WAGER_REQ_MULT}x wager) added!`
+    : `Your deposit of ${fmt(out.amt)} ETB was approved.`);
+  res.json({ success: true, bonusAwarded: out.bonusAmt, message: `Deposit ${txnId} approved (+${out.amt} ETB${out.bonusAmt > 0 ? ` + ${out.bonusAmt} ETB 20% bonus` : ''} to ${out.uid})` });
 }));
 app.post('/api/admin/reject-deposit', admin, h(async (req, res) => {
   const reason = String(req.body.reason || 'Payment verification failed').slice(0, 200);
@@ -1231,20 +1513,27 @@ app.post('/api/admin/reject-withdrawal', admin, h(async (req, res) => {
 app.post('/api/admin/topup', admin, h(async (req, res) => {
   const uid = String(req.body.userId || '').trim(), amt = r2(req.body.amount), ref = String(req.body.txnId || '').trim().toUpperCase() || null;
   if (!uid || !(amt >= CONFIG.MIN_DEP && amt <= CONFIG.MAX_DEP)) throw new Biz('Valid user ID and amount required');
-  await tx(async c => {
+  const out = await tx(async c => {
     const u = (await c.query('SELECT * FROM users WHERE user_id=$1 FOR UPDATE', [uid])).rows[0];
     if (!u) throw new Biz('User not found. Check the ID.', 404);
-    const before = num(u.balance), after = r2(before + amt), first = u.first_deposit_completed !== 'YES', id = newId('DEP');
+    const id = newId('DEP');
     await c.query(`INSERT INTO transactions (txn_id,user_id,username,type,method,amount,net_amount,bank_txn_id,status,processed_by,remarks)
       VALUES ($1,$2,$3,'DEPOSIT','Manual_1Click',$4,$4,$5,'APPROVED',$6,'Manual top-up')`, [id, uid, u.telegram_username, amt, ref, req.actor]); // unique index rejects a reused bank reference
-    await c.query(`UPDATE users SET balance=$1,total_deposited=total_deposited+$2,first_deposit_completed='YES' WHERE user_id=$3`, [after, amt, uid]);
+    const dep = await applyDepositCredit(c, uid, amt, id, 'TOPUP', req.actor);
     await payAgent(c, req.actor, amt);
-    await audit(c, uid, 'TOPUP', amt, before, after, id);
-    if (first && amt >= CONFIG.MIN_FIRST_DEP) await creditReferral(c, uid);
+    return dep;
   });
+  if (out.bonusAmt > 0) vaultAdd({ bonus: out.bonusAmt });
   cacheInvalidate('admin:dashboard');
-  alog(req, 'topup', `${uid} ${amt} ref=${ref}`);
-  res.json({ success: true, message: `Credited ${amt} ETB to player ${uid}` });
+  alog(req, 'topup', `${uid} ${amt}${out.bonusAmt > 0 ? ' +fdb ' + out.bonusAmt : ''} ref=${ref}`);
+  res.json({
+    success: true,
+    bonusAwarded: out.bonusAmt,
+    newBalance: out.after,
+    message: out.bonusAmt > 0
+      ? `Credited ${amt} ETB + ${out.bonusAmt} ETB (${out.pct}% First Deposit Bonus, ${CONFIG.WAGER_REQ_MULT}x wager) to player ${uid}`
+      : `Credited ${amt} ETB to player ${uid}`
+  });
 }));
 app.post('/api/admin/adjust-balance', admin, h(async (req, res) => {
   const uid = String(req.body.userId || '').trim(), amt = r2(req.body.amount), action = req.body.action;
@@ -1255,7 +1544,7 @@ app.post('/api/admin/adjust-balance', admin, h(async (req, res) => {
     if (!u) throw new Biz('User not found', 404);
     const before = num(u.balance), after = action === 'DEDUCT' ? Math.max(0, r2(before - amt)) : r2(before + amt), id = newId('ADJ');
     await c.query('UPDATE users SET balance=$1 WHERE user_id=$2', [after, uid]);
-    await c.query(`INSERT INTO transactions (txn_id,user_id,type,amount,status,remarks,processed_by) VALUES ($1,$2,'ADJUSTMENT',$3,'APPROVED',$4,$5)`,
+    await c.query(`INSERT INTO transactions (txn_id,user_id,type,method,amount,net_amount,status,remarks,processed_by) VALUES ($1,$2,'ADJUSTMENT','Adjustment',$3,$3,'APPROVED',$4,$5)`,
       [id, uid, amt, String(req.body.reason || `${action} by admin`).slice(0, 200), req.actor]);
     await audit(c, uid, `BALANCE_${action}`, amt, before, after, id);
   });
@@ -1264,7 +1553,7 @@ app.post('/api/admin/adjust-balance', admin, h(async (req, res) => {
   res.json({ success: true, message: `Adjusted ${amt} ETB (${action}) for ${uid}` });
 }));
 
-// Pays pct of each player's NEW net loss since the previous cashback (so it can never double-pay), with 1x wagering.
+// Pays pct of each player's NEW net loss since the previous cashback (so it can never double-pay), with WAGER_REQ_MULT (50x) wagering.
 async function runCashback(pct, cutoff, actor, label) {
   return tx(async c => {
     const rows = (await c.query(`SELECT user_id,balance,(total_wagered-total_won) AS net_loss,COALESCE(cashback_settled_loss,0) AS settled FROM users
@@ -1272,9 +1561,9 @@ async function runCashback(pct, cutoff, actor, label) {
     let n = 0, total = 0; const items = [];
     for (const u of rows) {
       const fresh = num(u.net_loss) - num(u.settled), cb = r2(fresh * pct); if (cb <= 0) continue;
-      const before = num(u.balance), after = r2(before + cb), id = newId('CB');
-      await c.query(`UPDATE users SET balance=$1,bonus_balance=bonus_balance+$2,wager_requirement_left=wager_requirement_left+$2,cashback_settled_loss=$3,last_cashback_at=NOW() WHERE user_id=$4`, [after, cb, num(u.net_loss), u.user_id]);
-      await c.query(`INSERT INTO transactions (txn_id,user_id,type,amount,status,remarks,processed_by) VALUES ($1,$2,'BONUS',$3,'APPROVED',$4,$5)`, [id, u.user_id, cb, label, actor]);
+      const before = num(u.balance), after = r2(before + cb), wr = r2(cb * CONFIG.WAGER_REQ_MULT), id = newId('CB');
+      await c.query(`UPDATE users SET balance=$1,bonus_balance=bonus_balance+$2,wager_requirement_left=wager_requirement_left+$3,cashback_settled_loss=$4,last_cashback_at=NOW() WHERE user_id=$5`, [after, cb, wr, num(u.net_loss), u.user_id]);
+      await c.query(`INSERT INTO transactions (txn_id,user_id,type,method,amount,net_amount,status,remarks,processed_by) VALUES ($1,$2,'BONUS','Cashback',$3,$3,'APPROVED',$4,$5)`, [id, u.user_id, cb, label, actor]);
       await audit(c, u.user_id, 'CASHBACK', cb, before, after, id);
       n++; total += cb; items.push({ uid: u.user_id, cb, loss: r2(fresh) });
     }
@@ -1284,18 +1573,18 @@ async function runCashback(pct, cutoff, actor, label) {
 }
 async function notifyCashback(items, percent) {   // not inside the transaction; paced to stay under Telegram's rate limit
   for (const it of items.slice(0, 5000)) {
-    await notify(it.uid, `Cashback: ${fmt(it.cb)} ETB (${percent}% of your net loss of ${fmt(it.loss)} ETB) was added to your balance. 1x wagering applies.`);
+    await notify(it.uid, `Cashback: ${fmt(it.cb)} ETB (${percent}% of your net loss of ${fmt(it.loss)} ETB) was added to your bonus credit. ${CONFIG.WAGER_REQ_MULT}x wagering applies.`);
     await new Promise(r => setTimeout(r, 60));
   }
 }
 app.post('/api/admin/distribute-cashback', admin, h(async (req, res) => {
   const pct = Number(req.body.percentage) / 100, cutoff = Number(req.body.minLoss || 100);
   if (!(pct > 0 && pct <= 0.5)) throw new Biz('Percentage must be between 1 and 50');
-  const out = await runCashback(pct, cutoff, req.actor, `${req.body.percentage}% cashback`);
+  const out = await runCashback(pct, cutoff, req.actor, `${req.body.percentage}% cashback (${CONFIG.WAGER_REQ_MULT}x wager)`);
   cacheInvalidate('admin:dashboard');
   alog(req, 'cashback', `${req.body.percentage}% -> ${out.n} players, ${out.total.toFixed(2)} ETB`);
   notifyCashback(out.items, req.body.percentage);
-  res.json({ success: true, message: `Distributed ${out.total.toFixed(2)} ETB cashback to ${out.n} players (1x wagering applies)` });
+  res.json({ success: true, message: `Distributed ${out.total.toFixed(2)} ETB cashback to ${out.n} players (${CONFIG.WAGER_REQ_MULT}x wagering applies)` });
 }));
 
 let cashbackFailedAt = 0;
@@ -1367,10 +1656,14 @@ app.post('/api/admin/reward-users', admin, h(async (req, res) => {
 app.post('/api/admin/update-settings', admin, h(async (req, res) => {
   const norm = v => { const x = parseFloat(v); return x > 1 ? x / 100 : x; };
   const saveKey = (k, val) => pool.query(`INSERT INTO system_settings (key,value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value=$2`, [k, String(val)]);
-  const { targetRtp, agentCommission, kenoRtp, welcomeBonus, referralBonus, cashbackPercent } = req.body;
+  const { targetRtp, agentCommission, kenoRtp, buffaloRtp, welcomeBonus, referralBonus, cashbackPercent, firstDepBonusPct, firstDepBonusMin, wagerReqMult } = req.body;
   if (kenoRtp !== undefined) {
     const v = norm(kenoRtp); if (!(v >= 0.5 && v <= 0.99)) throw new Biz('Keno RTP must be between 50% and 99%');
     CONFIG.KENO_RTP = v; await saveKey('keno_rtp', v);
+  }
+  if (buffaloRtp !== undefined) {
+    const v = norm(buffaloRtp); if (!(v >= 0.5 && v <= 0.99)) throw new Biz('Young Buffalo RTP must be between 50% and 99%');
+    CONFIG.BUFFALO_RTP = v; await saveKey('buffalo_rtp', v);
   }
   if (targetRtp !== undefined) {
     const v = norm(targetRtp); if (!(v >= 0.5 && v <= 0.99)) throw new Biz('RTP must be between 50% and 99%');
@@ -1392,8 +1685,20 @@ app.post('/api/admin/update-settings', admin, h(async (req, res) => {
     const v = r2(cashbackPercent); if (!Number.isFinite(v) || v < 1 || v > 50) throw new Biz('Cashback % must be 1 to 50');
     CASHBACK.percent = v; await saveKey('cashback_percent', v);
   }
+  if (firstDepBonusPct !== undefined) {
+    const v = r2(firstDepBonusPct); if (!Number.isFinite(v) || v < 0 || v > 200) throw new Biz('First deposit bonus % must be 0 to 200');
+    CONFIG.FIRST_DEP_BONUS_PCT = v; await saveKey('first_dep_bonus_pct', v);
+  }
+  if (firstDepBonusMin !== undefined) {
+    const v = r2(firstDepBonusMin); if (!Number.isFinite(v) || v < 50 || v > 50000) throw new Biz('First deposit min must be 50 to 50000 ETB');
+    CONFIG.FIRST_DEP_BONUS_MIN = v; await saveKey('first_dep_bonus_min', v);
+  }
+  if (wagerReqMult !== undefined) {
+    const v = Math.round(Number(wagerReqMult)); if (!Number.isFinite(v) || v < 1 || v > 100) throw new Biz('Bonus wager multiplier must be 1x to 100x');
+    CONFIG.WAGER_REQ_MULT = v; await saveKey('wager_req_mult', v);
+  }
   cacheInvalidate('admin:dashboard');
-  alog(req, 'update-settings', JSON.stringify({ targetRtp, kenoRtp, agentCommission, welcomeBonus, referralBonus, cashbackPercent }));
+  alog(req, 'update-settings', JSON.stringify({ targetRtp, kenoRtp, buffaloRtp, agentCommission, welcomeBonus, referralBonus, cashbackPercent, firstDepBonusPct, firstDepBonusMin, wagerReqMult }));
   res.json({ success: true, message: 'Settings saved & applied immediately' });
 }));
 app.post('/api/admin/user-status', admin, h(async (req, res) => {
