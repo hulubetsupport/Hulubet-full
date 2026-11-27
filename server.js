@@ -73,7 +73,7 @@ let schemaReady = false;
 let chatSendCount = 0;
 
 const CONFIG = {
-  TARGET_RTP: 0.70, AGENT_COMMISSION: 0.02, WELCOME_BONUS: 20, REFERRAL_BONUS: 50,
+  TARGET_RTP: 0.70, AGENT_COMMISSION: 0.02, WELCOME_BONUS: 20, REFERRAL_BONUS: 10,
   MIN_FIRST_DEP: 50, WAGER_REQ_MULT: 50, FIRST_DEP_BONUS_MIN: 300, FIRST_DEP_BONUS_PCT: 20,
   MIN_DEP: 50, MAX_DEP: 100000, MIN_WTH: 100, MAX_WTH: 50000,
   KENO_RTP: 0.70,   // Keno return-to-player
@@ -415,8 +415,9 @@ const fmt = n => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, m
 
 // ---- Unified payment gateway (Telebirr / CBE): uses external verify server when configured, or built-in SMS ledger as fallback
 const AUTO_DEP_MAX = Number(ENV.AUTO_DEP_MAX || 2000);   // verified deposits above this wait for a cashier instead of auto-crediting
-const DEFAULT_VERIFI_URL = 'https://verifi-server-milr.onrender.com/api/verify';
+const DEFAULT_VERIFI_URL = 'https://verifiy-server.app.aletcloud.com/api/verify';
 const VERIFI_URL = String(ENV.VERIFI_URL || DEFAULT_VERIFI_URL).trim();
+const VERIFY_BASE_URL = VERIFI_URL.replace(/\/api\/verify\/?$/i, '');
 const USE_EXTERNAL_VERIFI = ENV.USE_EXTERNAL_VERIFI === '1' || (ENV.USE_EXTERNAL_VERIFI !== '0' && Boolean(ENV.VERIFI_TOKEN));
 const smsVerifier = createSmsVerifyService({ pool, env: ENV, admin, h });
 async function verifyWithGateway(ref, amount, claimMeta = null) {
@@ -424,6 +425,7 @@ async function verifyWithGateway(ref, amount, claimMeta = null) {
     if (!ENV.VERIFI_TOKEN) throw new Biz('Automatic verification is not available right now. Use "Send Deposit Request".', 503);
     const u = new URL(VERIFI_URL);
     u.searchParams.set('token', ENV.VERIFI_TOKEN); u.searchParams.set('ref', ref); u.searchParams.set('amount', String(amount));
+    if (claimMeta?.username) u.searchParams.set('username', String(claimMeta.username));
     const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 35000);
     try {
       const r = await fetch(u, { signal: ctl.signal }), text = await r.text();
@@ -436,6 +438,47 @@ async function verifyWithGateway(ref, amount, claimMeta = null) {
   }
   const body = await smsVerifier.verifyPaymentDirect(ref, amount, '', claimMeta);
   return { ok: true, body, raw: '' };
+}
+async function verifyWithdrawalWithGateway({ txnId, method, amount, recipientAccount, customerName, ref, actor, readOnly = false }) {
+  if (USE_EXTERNAL_VERIFI) {
+    if (!ENV.VERIFI_TOKEN) throw new Biz('VERIFI_TOKEN is not configured for External Verify Server', 503);
+    const ep = readOnly ? '/api/check-withdrawal' : '/api/verify-withdrawal';
+    const u = new URL(`${VERIFY_BASE_URL}${ep}`);
+    u.searchParams.set('token', ENV.VERIFI_TOKEN);
+    if (amount !== undefined && amount !== null && Number.isFinite(Number(amount))) u.searchParams.set('amount', String(amount));
+    if (txnId) u.searchParams.set('withdrawal_id', String(txnId));
+    if (customerName) u.searchParams.set('name', String(customerName));
+    if (ref) u.searchParams.set('ref', String(ref));
+    if (method) u.searchParams.set('bank', String(method));
+    if (recipientAccount) u.searchParams.set('account', String(recipientAccount));
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 25000);
+    try {
+      const r = await fetch(u, { signal: ctl.signal }), text = await r.text();
+      if (r.status === 401 || r.status === 403) {
+        throw new Biz('Verification gateway rejected server token.', 503);
+      }
+      let body = {}; try { body = JSON.parse(text); } catch (e) {}
+      const stRaw = String(body.status || '');
+      const stLow = stRaw.toLowerCase();
+      const isMatched = r.ok && (stLow === 'verified' || stLow === 'found' || body.verified === true);
+      return {
+        matched: isMatched,
+        status: stRaw || (r.ok ? 'Not_Found' : `HTTP_${r.status}`),
+        bank: body.bank || method || '',
+        ref: body.ref_no || body.ref || ref || '',
+        amount: Number(body.amount ?? amount ?? 0),
+        party: body.customer_name || body.party || '',
+        recipientAccount: body.recipient_account || recipientAccount || '',
+        agentId: body.agent_id || null,
+        agentName: body.agent || body.agent_name || 'Owner',
+        matchMode: body.match_mode || (ref ? 'ref' : 'name'),
+        expected: body.expected,
+        actual: body.actual,
+        reason: body.message || body.reason || (isMatched ? '' : `Verify server returned ${stRaw || r.status}`)
+      };
+    } finally { clearTimeout(timer); }
+  }
+  return smsVerifier.matchWithdrawalSms({ txnId, method, amount, recipientAccount, customerName, ref, actor, readOnly });
 }
 const gatewayVerified = b => !!b && (String(b.status || '').toLowerCase() === 'verified' || b.verified === true);
 const gatewayAmount = b => { const n = Number(b && (b.amount ?? (b.data && b.data.amount))); return Number.isFinite(n) && n > 0 ? n : null; };
@@ -1008,6 +1051,10 @@ app.post('/api/cashier/verify-deposit', userAuth, limit('verify', 12, 600e3), h(
       await release('Reference already claimed in SMS ledger');
       throw new Biz('This payment reference was already used.', 409);
     }
+    if (st === 'Invalid_Transaction_Type') {
+      await release('Invalid transaction type (ATM/Airtime/Bill)');
+      throw new Biz('This transaction is an ATM, Airtime, or Bill payment and cannot be used for deposits.', 400);
+    }
     if (st === 'InvalidAmount' && Number.isFinite(Number(g.body?.actual))) {
       const actual = Number(g.body.actual);
       await release(`Amount differs (${actual})`);
@@ -1023,7 +1070,7 @@ app.post('/api/cashier/verify-deposit', userAuth, limit('verify', 12, 600e3), h(
   const gAmt = gatewayAmount(g.body);
   if (gAmt !== null && Math.abs(gAmt - amt) > 0.01) { await release(`Amount differs (${gAmt})`); throw new Biz(`The payment amount (${gAmt} ETB) does not match the amount you entered.`, 400); }
 
-  const verifiedAgent = String(g.body?.agent_name || initialAgent || 'Owner').slice(0, 64);
+  const verifiedAgent = String(g.body?.agent_name || g.body?.agent || initialAgent || 'Owner').slice(0, 64);
 
   if (amt > AUTO_DEP_MAX) {
     await pool.query(`UPDATE transactions SET status='PENDING',agent_assigned=$2,remarks='Verified by gateway, waiting for cashier (large amount)',updated_at=NOW() WHERE txn_id=$1 AND status='VERIFYING'`, [id, verifiedAgent]);
@@ -1183,12 +1230,21 @@ const payAgent = (c, agent, amt) => opt(c,
   `UPDATE agents SET total_deposits_processed=total_deposits_processed+$1,total_commission_earned=total_commission_earned+$2 WHERE telegram_username ILIKE $3 OR agent_id=$3`,
   [amt, r2(amt * CONFIG.AGENT_COMMISSION), agent]);
 const fmtTx = t => ({
-  id: t.txn_id, u: t.username || t.user_id, uid: t.user_id, m: t.method || 'Telebirr',
+  id: t.txn_id, u: t.username || t.user_id, uid: t.user_id, playerName: t.playerName || t.full_name || t.username || t.user_id,
+  m: t.method || 'Telebirr',
   amt: num(t.amount), st: String(t.status).toLowerCase(), acc: t.sender_account,
   agent: t.agent_assigned || '', targetAcc: t.target_account_name || '',
   payoutRef: t.payout_ref || '', payoutVerified: Boolean(t.payout_verified),
   processedBy: t.processed_by || '', at: t.created_at
 });
+async function attachPlayerNames(rows) {
+  if (!Array.isArray(rows) || !rows.length) return rows;
+  const uids = [...new Set(rows.map(r => r.user_id).filter(Boolean).map(String))];
+  if (!uids.length) return rows;
+  const uRes = await pool.query(`SELECT user_id,full_name FROM users WHERE user_id=ANY($1)`, [uids]).catch(() => ({ rows: [] }));
+  const map = new Map(uRes.rows.map(u => [String(u.user_id), u.full_name || '']));
+  return rows.map(r => ({ ...r, playerName: map.get(String(r.user_id)) || r.username || r.user_id }));
+}
 
 const dashboard = h(async (_req, res) => {
   const payload = await cache.getOrLoad('admin:dashboard', 3000, async () => {
@@ -1241,12 +1297,16 @@ const dashboard = h(async (_req, res) => {
       targetRtp: targetFor(g.game)
     }));
 
+    const [pwNamed, wdsNamed] = await Promise.all([
+      attachPlayerNames(pw.rows),
+      attachPlayerNames(wds.rows)
+    ]);
     return {
       success: true,
       vault: { gross_profit: num(v.gross_profit), vault_balance: num(v.vault_balance), total_wagered: num(v.total_wagered), ggrToday: num(ggr.rows[0].d), ngrMonth: r2(num(ggr.rows[0].m) - num(bonusM.rows[0].s)), vaultBalance: num(v.vault_balance), totalWagered: num(v.total_wagered) },
       totalUsers: Number(cnt.rows[0].n), currentRtp: CONFIG.TARGET_RTP, currentCommission: CONFIG.AGENT_COMMISSION,
-      pendingDeposits: pd.rows, pendingWithdrawals: pw.rows, completedHistory: rec.rows.filter(t => t.status !== 'PENDING'), recentTransactions: rec.rows,
-      usersList, users: usersList, dep: deps.rows.map(fmtTx), wd: wds.rows.map(fmtTx),
+      pendingDeposits: pd.rows, pendingWithdrawals: pwNamed, completedHistory: rec.rows.filter(t => t.status !== 'PENDING'), recentTransactions: rec.rows,
+      usersList, users: usersList, dep: deps.rows.map(fmtTx), wd: wdsNamed.map(fmtTx),
       bets: bets.rows.map(b => ({ id: b.bet_id, u: b.username || b.user_id, m: b.game_name, p: num(b.multiplier) + 'x', s: num(b.bet_amount), st: String(b.status).toLowerCase() })),
       promos: promos.rows.map(p => ({ c: p.code, code: p.code, d: `+${p.bonus_amount} ETB (${p.times_used}/${p.max_uses})`, on: p.is_active ? 1 : 0 })),
       gameStats,
@@ -1368,10 +1428,14 @@ app.get('/api/agent/withdrawals', agentAccess, h(async (req, res) => {
     pool.query(`SELECT * FROM transactions WHERE type='WITHDRAWAL' AND status='PENDING' ORDER BY created_at DESC LIMIT 200`),
     pool.query(`SELECT * FROM transactions WHERE type='WITHDRAWAL' ORDER BY created_at DESC LIMIT 100`)
   ]);
+  const [pwNamed, wdsNamed] = await Promise.all([
+    attachPlayerNames(pw.rows),
+    attachPlayerNames(wds.rows)
+  ]);
   const todayStr = new Date().toISOString().slice(0, 10);
-  const pendingAmount = r2(pw.rows.reduce((s, t) => s + num(t.amount), 0));
+  const pendingAmount = r2(pwNamed.reduce((s, t) => s + num(t.amount), 0));
   let approvedTodayCount = 0, approvedTodayAmount = 0, rejectedCount = 0;
-  for (const t of wds.rows) {
+  for (const t of wdsNamed) {
     const st = String(t.status).toUpperCase();
     const dayStr = new Date(t.updated_at || t.created_at).toISOString().slice(0, 10);
     if (st === 'APPROVED' && dayStr === todayStr) {
@@ -1385,16 +1449,56 @@ app.get('/api/agent/withdrawals', agentAccess, h(async (req, res) => {
     success: true,
     role: req.role,
     actor: req.actor,
-    pendingWithdrawals: pw.rows,
-    recentWithdrawals: wds.rows.map(fmtTx),
+    pendingWithdrawals: pwNamed,
+    recentWithdrawals: wdsNamed.map(fmtTx),
     stats: {
-      pendingCount: pw.rows.length,
+      pendingCount: pwNamed.length,
       pendingAmount,
       approvedTodayCount,
       approvedTodayAmount,
       rejectedCount
     }
   });
+}));
+
+async function resolveWithdrawalCustomerName(userId, overrideName = '') {
+  const clean = String(overrideName || '').trim().slice(0, 120);
+  if (clean) return clean;
+  const u = (await pool.query('SELECT full_name FROM users WHERE user_id=$1', [userId]).catch(() => ({ rows: [] }))).rows[0];
+  return String(u?.full_name || '').trim();
+}
+
+app.post('/api/agent/check-withdrawal-sms', agentAccess, h(async (req, res) => {
+  const txnId = String(req.body.txnId || '').trim();
+  const payoutRef = String(req.body.payoutRef || req.body.smsRef || '').trim().toUpperCase().slice(0, 64);
+  if (!txnId) throw new Biz('Withdrawal transaction ID required');
+  const w = (await pool.query(`SELECT * FROM transactions WHERE txn_id=$1 AND type='WITHDRAWAL'`, [txnId])).rows[0];
+  if (!w) throw new Biz('Withdrawal not found', 404);
+  const customerName = await resolveWithdrawalCustomerName(w.user_id, req.body.customerName || req.body.name);
+  const m = await verifyWithdrawalWithGateway({
+    txnId, method: w.method, amount: w.amount, recipientAccount: w.sender_account, customerName, ref: payoutRef, actor: req.actor, readOnly: true
+  });
+  res.json({ success: true, preview: m, customerName });
+}));
+
+app.post('/api/agent/match-withdrawal-sms', agentAccess, h(async (req, res) => {
+  const txnId = String(req.body.txnId || '').trim();
+  const smsRef = String(req.body.smsRef || req.body.payoutRef || '').trim().toUpperCase().slice(0, 64);
+  if (!txnId) throw new Biz('Withdrawal transaction ID required');
+  const w = (await pool.query(`SELECT * FROM transactions WHERE txn_id=$1 AND type='WITHDRAWAL'`, [txnId])).rows[0];
+  if (!w) throw new Biz('Withdrawal not found', 404);
+  const customerName = await resolveWithdrawalCustomerName(w.user_id, req.body.customerName || req.body.name);
+  const m = await verifyWithdrawalWithGateway({
+    txnId, method: w.method, amount: w.amount, recipientAccount: w.sender_account, customerName, ref: smsRef, actor: req.actor, readOnly: false
+  });
+  if (!m.matched) throw new Biz(m.reason || 'No matching Sent_Locked payout SMS found');
+  await pool.query(
+    `UPDATE transactions SET payout_ref=$1,payout_verified=TRUE,agent_assigned=COALESCE(NULLIF($2,''),agent_assigned),updated_at=NOW() WHERE txn_id=$3`,
+    [m.ref, m.agentName || '', txnId]
+  );
+  cacheInvalidate('admin:dashboard');
+  alog(req, 'agent-match-withdrawal-sms', `${txnId} <-> ${m.ref} (${m.agentName || 'Owner'})`);
+  res.json({ success: true, match: m, message: `Withdrawal ${txnId} verified against ${m.bank} SMS (${m.ref}, ${m.agentName || 'Owner'})` });
 }));
 
 app.post('/api/agent/approve-withdrawal', agentAccess, h(async (req, res) => {
@@ -1409,8 +1513,9 @@ app.post('/api/agent/approve-withdrawal', agentAccess, h(async (req, res) => {
   const row = r.rows[0];
   let matched = null;
   try {
-    matched = await smsVerifier.matchWithdrawalSms({
-      txnId, method: row.method, amount: row.amount, recipientAccount: row.sender_account, ref: payoutRef, actor: req.actor
+    const customerName = await resolveWithdrawalCustomerName(row.user_id, req.body.customerName || req.body.name);
+    matched = await verifyWithdrawalWithGateway({
+      txnId, method: row.method, amount: row.amount, recipientAccount: row.sender_account, customerName, ref: payoutRef, actor: req.actor, readOnly: false
     });
     if (matched?.matched) {
       await pool.query(`UPDATE transactions SET payout_ref=$1,payout_verified=TRUE,agent_assigned=COALESCE(NULLIF($2,''),agent_assigned) WHERE txn_id=$3`, [matched.ref, matched.agentName || '', txnId]);
@@ -1421,7 +1526,7 @@ app.post('/api/agent/approve-withdrawal', agentAccess, h(async (req, res) => {
   cacheInvalidate('admin:dashboard');
   alog(req, 'agent-approve-withdrawal', `${txnId}${matched?.matched ? ' smsVerified=' + matched.ref : ''}`);
   notify(row.user_id, `Your withdrawal of ${fmt(row.amount)} ETB was paid out via ${row.method}.`);
-  res.json({ success: true, payoutVerified: Boolean(matched?.matched), payoutRef: matched?.ref || payoutRef || '', message: `Withdrawal ${txnId} marked completed${matched?.matched ? ' (SMS verified)' : ''}` });
+  res.json({ success: true, payoutVerified: Boolean(matched?.matched), payoutRef: matched?.ref || payoutRef || '', match: matched || null, message: `Withdrawal ${txnId} marked completed${matched?.matched ? ' (SMS verified)' : ''}` });
 }));
 
 app.post('/api/agent/reject-withdrawal', agentAccess, h(async (req, res) => {
@@ -1687,6 +1792,8 @@ app.get('/api/admin/finance-report', admin, h(async (req, res) => {
     }))
   ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 60);
 
+  const unvWds = await attachPlayerNames(wdsRes.rows.filter(w => !w.payout_verified).slice(0, 50));
+
   res.json({
     success: true,
     ownerWalletBalance,
@@ -1698,7 +1805,7 @@ app.get('/api/admin/finance-report', admin, h(async (req, res) => {
     agentSummary,
     ledger: ledgerRes.rows,
     smsFeed,
-    unverifiedWithdrawals: wdsRes.rows.filter(w => !w.payout_verified).slice(0, 50)
+    unverifiedWithdrawals: unvWds
   });
 }));
 
@@ -1780,14 +1887,28 @@ app.post('/api/admin/owner-send-sms', admin, h(async (req, res) => {
   });
 }));
 
-app.post('/api/admin/match-withdrawal-sms', admin, h(async (req, res) => {
+app.post('/api/admin/check-withdrawal-sms', admin, h(async (req, res) => {
   const txnId = String(req.body.txnId || '').trim();
-  const smsRef = String(req.body.smsRef || '').trim().toUpperCase();
+  const smsRef = String(req.body.smsRef || req.body.payoutRef || '').trim().toUpperCase().slice(0, 64);
   if (!txnId) throw new Biz('Withdrawal transaction ID required');
   const w = (await pool.query(`SELECT * FROM transactions WHERE txn_id=$1 AND type='WITHDRAWAL'`, [txnId])).rows[0];
   if (!w) throw new Biz('Withdrawal not found', 404);
-  const m = await smsVerifier.matchWithdrawalSms({
-    txnId, method: w.method, amount: w.amount, recipientAccount: w.sender_account, ref: smsRef, actor: req.actor
+  const customerName = await resolveWithdrawalCustomerName(w.user_id, req.body.customerName || req.body.name);
+  const m = await verifyWithdrawalWithGateway({
+    txnId, method: w.method, amount: w.amount, recipientAccount: w.sender_account, customerName, ref: smsRef, actor: req.actor, readOnly: true
+  });
+  res.json({ success: true, preview: m, customerName });
+}));
+
+app.post('/api/admin/match-withdrawal-sms', admin, h(async (req, res) => {
+  const txnId = String(req.body.txnId || '').trim();
+  const smsRef = String(req.body.smsRef || req.body.payoutRef || '').trim().toUpperCase();
+  if (!txnId) throw new Biz('Withdrawal transaction ID required');
+  const w = (await pool.query(`SELECT * FROM transactions WHERE txn_id=$1 AND type='WITHDRAWAL'`, [txnId])).rows[0];
+  if (!w) throw new Biz('Withdrawal not found', 404);
+  const customerName = await resolveWithdrawalCustomerName(w.user_id, req.body.customerName || req.body.name);
+  const m = await verifyWithdrawalWithGateway({
+    txnId, method: w.method, amount: w.amount, recipientAccount: w.sender_account, customerName, ref: smsRef, actor: req.actor, readOnly: false
   });
   if (!m.matched) throw new Biz(m.reason || 'No matching outgoing SMS found');
   await pool.query(
@@ -1795,8 +1916,8 @@ app.post('/api/admin/match-withdrawal-sms', admin, h(async (req, res) => {
     [m.ref, m.agentName || '', txnId]
   );
   cacheInvalidate('admin:dashboard');
-  alog(req, 'match-withdrawal-sms', `${txnId} <-> ${m.ref} (${m.agentName})`);
-  res.json({ success: true, match: m, message: `Withdrawal ${txnId} verified against ${m.bank} SMS (${m.ref}, ${m.agentName})` });
+  alog(req, 'match-withdrawal-sms', `${txnId} <-> ${m.ref} (${m.agentName || 'Owner'})`);
+  res.json({ success: true, match: m, message: `Withdrawal ${txnId} verified against ${m.bank} SMS (${m.ref}, ${m.agentName || 'Owner'})` });
 }));
 
 app.get('/api/admin/users', admin, h(async (req, res) => {
@@ -1849,8 +1970,9 @@ app.post('/api/admin/approve-withdrawal', admin, h(async (req, res) => {
   const row = r.rows[0];
   let matched = null;
   try {
-    matched = await smsVerifier.matchWithdrawalSms({
-      txnId, method: row.method, amount: row.amount, recipientAccount: row.sender_account, ref: payoutRef, actor: req.actor
+    const customerName = await resolveWithdrawalCustomerName(row.user_id, req.body.customerName || req.body.name);
+    matched = await verifyWithdrawalWithGateway({
+      txnId, method: row.method, amount: row.amount, recipientAccount: row.sender_account, customerName, ref: payoutRef, actor: req.actor, readOnly: false
     });
     if (matched?.matched) {
       await pool.query(`UPDATE transactions SET payout_ref=$1,payout_verified=TRUE,agent_assigned=COALESCE(NULLIF($2,''),agent_assigned) WHERE txn_id=$3`, [matched.ref, matched.agentName || '', txnId]);
@@ -1861,7 +1983,7 @@ app.post('/api/admin/approve-withdrawal', admin, h(async (req, res) => {
   cacheInvalidate('admin:dashboard');
   alog(req, 'approve-withdrawal', `${txnId}${matched?.matched ? ' smsVerified=' + matched.ref : ''}`);
   notify(row.user_id, `Your withdrawal of ${fmt(row.amount)} ETB was paid out via ${row.method}.`);
-  res.json({ success: true, payoutVerified: Boolean(matched?.matched), payoutRef: matched?.ref || payoutRef || '', message: `Withdrawal ${txnId} marked completed${matched?.matched ? ' (SMS verified)' : ''}` });
+  res.json({ success: true, payoutVerified: Boolean(matched?.matched), payoutRef: matched?.ref || payoutRef || '', match: matched || null, message: `Withdrawal ${txnId} marked completed${matched?.matched ? ' (SMS verified)' : ''}` });
 }));
 app.post('/api/admin/reject-withdrawal', admin, h(async (req, res) => {
   const txnId = String(req.body.txnId || '');

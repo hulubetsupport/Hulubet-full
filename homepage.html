@@ -1389,6 +1389,82 @@ body, html {
   font-size: 14px;
   outline: none;
 }
+.dep-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.dep-grid-card {
+  position: relative;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 14px;
+  padding: 16px 10px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: var(--text-white);
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.14s ease;
+  text-align: center;
+}
+.dep-grid-card:active { transform: scale(0.98); }
+.dep-grid-card.active {
+  border-color: var(--emerald-primary);
+  background: linear-gradient(180deg, rgba(0, 240, 118, 0.12) 0%, rgba(15, 22, 35, 0.96) 100%);
+  box-shadow: 0 6px 20px rgba(0, 240, 118, 0.12);
+}
+.dep-grid-logo-wrap {
+  width: 58px;
+  height: 58px;
+  border-radius: 15px;
+  background: #ffffff;
+  padding: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.dep-grid-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.dep-grid-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  color: var(--text-white);
+}
+.dep-grid-check {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  font-size: 15px;
+  color: var(--border-subtle);
+  transition: color 0.16s ease;
+}
+.dep-grid-card.active .dep-grid-check {
+  color: var(--emerald-primary);
+}
+.btn-copy-chip {
+  background: rgba(0, 240, 118, 0.12);
+  border: 1px solid rgba(0, 240, 118, 0.35);
+  color: var(--emerald-primary);
+  border-radius: 8px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.btn-copy-chip:active { transform: scale(0.96); }
 
 /* Bottom Dock */
 .bottom-dock-nav {
@@ -1978,31 +2054,9 @@ body.is-tg-app .browser-back-pill { display: none !important; }
     </div>
 
     <div style="padding:12px;display:flex;flex-direction:column;gap:12px;">
-      <div style="font-size:11px;font-weight:800;color:var(--text-muted);">Select Payment Provider</div>
+      <div style="font-size:11px;font-weight:800;color:var(--text-muted);">Select Payment Method</div>
 
-      <div style="background:var(--bg-card);border:1.5px solid var(--emerald-primary);border-radius:12px;padding:12px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" id="choiceTelebirr" onclick="selectDepositProvider('Telebirr')">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <i class="fa-solid fa-mobile-screen" style="color:#0284c7;font-size:18px;"></i>
-          <div>
-            <b>Telebirr (ቴሌብር)</b>
-            <div id="depAccTelebirr" style="font-size:10.5px;color:var(--emerald-primary);font-family:'JetBrains Mono';">0996910607 (Aymen)</div>
-          </div>
-        </div>
-        <i class="fa-solid fa-circle-check" id="checkTelebirr" style="color:var(--emerald-primary);"></i>
-      </div>
-
-      <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px;padding:12px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;" id="choiceCBE" onclick="selectDepositProvider('CBE')">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <i class="fa-solid fa-building-columns" style="color:var(--gold-primary);font-size:18px;"></i>
-          <div>
-            <b>CBE (የኢትዮጵያ ንግድ ባንክ)</b>
-            <div id="depAccCBE" style="font-size:10.5px;color:var(--gold-primary);font-family:'JetBrains Mono';">1000562339427 (Aymen)</div>
-          </div>
-        </div>
-        <i class="fa-solid fa-circle-check" id="checkCBE" style="color:var(--border-subtle);"></i>
-      </div>
-
-      <div id="depSubAccountsBox" style="display:none;flex-direction:column;gap:6px;"></div>
+      <div id="depositAccountGrid" class="dep-grid" role="radiogroup" aria-label="Deposit Payment Methods"></div>
 
       <input type="hidden" id="depMethod" value="Telebirr">
       <input type="hidden" id="depAccountId" value="">
@@ -2061,20 +2115,25 @@ body.is-tg-app .browser-back-pill { display: none !important; }
         </div>
 
         <div style="width:100%;font-size:12px;">
-          <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border-subtle);">
-            <span style="color:var(--text-muted);">Account Number</span>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <b class="tabular" style="color:var(--emerald-primary);" id="checkoutAccNum">0996910607</b>
-              <i class="fa-regular fa-copy" style="cursor:pointer;color:var(--emerald-primary);" onclick="copyText(document.getElementById('checkoutAccNum').innerText)"></i>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-subtle);">
+            <span style="color:var(--text-muted);">Account / Telebirr Number</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <b class="tabular" style="color:var(--emerald-primary);font-size:13.5px;" id="checkoutAccNum">0996910607</b>
+              <button type="button" class="btn-copy-chip" aria-label="Copy account number" onclick="copyText(document.getElementById('checkoutAccNum').innerText)">
+                <i class="fa-regular fa-copy"></i> Copy
+              </button>
             </div>
           </div>
-          <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border-subtle);">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border-subtle);">
             <span style="color:var(--text-muted);">Account Name</span>
             <b id="checkoutAccName">Aymen</b>
           </div>
-          <div style="display:flex;justify-content:space-between;padding:7px 0;">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;">
             <span style="color:var(--text-muted);">Payment Method</span>
-            <b id="checkoutMethodName">Telebirr</b>
+            <div style="display:flex;align-items:center;gap:7px;">
+              <img id="checkoutMethodLogo" src="/assets/aistudio/images__11__b9b443b2.jpeg" alt="Bank Logo" style="width:22px;height:22px;border-radius:6px;background:#fff;padding:2px;object-fit:contain;">
+              <b id="checkoutMethodName">Telebirr</b>
+            </div>
           </div>
         </div>
       </div>
@@ -2152,10 +2211,10 @@ body.is-tg-app .browser-back-pill { display: none !important; }
       <div style="background:var(--bg-card);border:1px solid var(--border-active);border-radius:var(--radius-lg);padding:18px;display:flex;flex-direction:column;gap:10px;">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
           <span style="color:var(--emerald-primary);font-size:10px;font-weight:800;letter-spacing:0.06em;">REFERRAL PROGRAM</span>
-          <button type="button" onclick="openInvitePromoModal()" style="background:rgba(109,40,217,0.28);border:1px solid rgba(192,132,252,0.5);color:#fde047;font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:999px;cursor:pointer;" id="invitePromoChipBtn">50 ብር Promo</button>
+          <button type="button" onclick="openInvitePromoModal()" style="background:rgba(109,40,217,0.28);border:1px solid rgba(192,132,252,0.5);color:#fde047;font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:999px;cursor:pointer;" id="invitePromoChipBtn">10 ብር Promo</button>
         </div>
-        <div style="font-family:'Outfit';font-size:22px;font-weight:900;" id="inviteHeadlineTxt">Invite friends. Earn Br 50.</div>
-        <p style="font-size:11.5px;color:var(--text-muted);" id="inviteSubTxt">Invite 1 friend and gain 50 Birr whenever they complete their first deposit. Paid automatically!</p>
+        <div style="font-family:'Outfit';font-size:22px;font-weight:900;" id="inviteHeadlineTxt">Invite friends. Earn Br 10.</div>
+        <p style="font-size:11.5px;color:var(--text-muted);" id="inviteSubTxt">Invite 1 friend and gain 10 Birr whenever they complete their first deposit. Paid automatically!</p>
         <div style="background:var(--bg-deep);border:1px solid var(--border-subtle);border-radius:10px;padding:9px 12px;font-size:11px;color:var(--cyan-accent);word-break:break-all;font-family:'JetBrains Mono',monospace;" id="inviteDirectUrlTxt">https://t.me/Hulubetethbot/hulubet?startapp=vip</div>
         <div style="background:var(--bg-deep);border:1px solid var(--border-subtle);border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;font-size:11.5px;">
           <span style="color:var(--text-muted);">Friends Invited</span>
@@ -2198,7 +2257,7 @@ body.is-tg-app .browser-back-pill { display: none !important; }
           <i class="fa-solid fa-chevron-right" style="color:var(--text-dim);"></i>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:14px;min-height:52px;border-bottom:1px solid var(--border-subtle);cursor:pointer;" onclick="navigateToTab('invite')">
-          <span><i class="fa-solid fa-user-plus" style="color:var(--gold-primary);margin-right:10px;"></i> Invite 1 Friend &amp; Earn 50 Birr</span>
+          <span><i class="fa-solid fa-user-plus" style="color:var(--gold-primary);margin-right:10px;"></i> Invite 1 Friend &amp; Earn 10 Birr</span>
           <i class="fa-solid fa-chevron-right" style="color:var(--text-dim);"></i>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:14px;min-height:52px;border-bottom:1px solid var(--border-subtle);cursor:pointer;" onclick="openPromoModal()">
@@ -2215,14 +2274,14 @@ body.is-tg-app .browser-back-pill { display: none !important; }
       <div style="background:linear-gradient(135deg,#0f1f18 0%,#0b1322 100%);border:1px solid rgba(0,240,118,0.32);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:9px;">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
           <div style="font-family:'Outfit';font-size:14.5px;font-weight:900;color:#fff;">
-            <i class="fa-solid fa-gift" style="color:var(--gold-primary);margin-right:6px;"></i>Invite Link · Gain 50 Birr
+            <i class="fa-solid fa-gift" style="color:var(--gold-primary);margin-right:6px;"></i>Invite Link · Gain 10 Birr
           </div>
           <span style="font-size:10.5px;font-weight:800;color:var(--emerald-primary);" id="profInviteCount">0 Invited</span>
         </div>
-        <div style="font-size:11px;color:var(--text-muted);">Invite 1 friend with your direct Mini App link and earn <b style="color:var(--gold-primary);">50 ብር</b> automatically on their first deposit.</div>
+        <div style="font-size:11px;color:var(--text-muted);">Invite 1 friend with your direct Mini App link and earn <b style="color:var(--gold-primary);">10 ብር</b> automatically on their first deposit.</div>
         <div style="background:var(--bg-deep);border:1px solid var(--border-subtle);border-radius:10px;padding:9px 11px;font-size:11px;color:var(--cyan-accent);word-break:break-all;font-family:'JetBrains Mono',monospace;" id="profInviteLink">https://t.me/Hulubetethbot/hulubet?startapp=vip</div>
         <div style="display:flex;gap:8px;">
-          <button type="button" class="btn-emerald-huge" style="flex:1;min-height:42px;padding:10px;font-size:13px;" onclick="shareInviteLink()"><i class="fa-solid fa-share-nodes"></i> Invite &amp; Earn 50 Br</button>
+          <button type="button" class="btn-emerald-huge" style="flex:1;min-height:42px;padding:10px;font-size:13px;" onclick="shareInviteLink()"><i class="fa-solid fa-share-nodes"></i> Invite &amp; Earn 10 Br</button>
           <button type="button" class="btn-dark-huge" style="min-height:42px;padding:0 14px;font-size:12.5px;" onclick="copyReferralLink()" aria-label="Copy direct invite link"><i class="fa-regular fa-copy"></i> Copy</button>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);font-size:10.5px;color:var(--text-muted);">
@@ -2404,7 +2463,7 @@ body.is-tg-app .browser-back-pill { display: none !important; }
       <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px;text-align:center;">Have a promo code? Enter it below to claim bonus ETB.</p>
       <input type="text" id="promoCodeInput" class="verify-input-field" placeholder="Enter Promo Code" style="text-transform:uppercase;margin-bottom:12px;" maxlength="24">
       <button type="button" class="btn-emerald-huge" id="btnRedeemPromo" style="width:100%;margin-bottom:8px;" onclick="redeemPromoCode()">Redeem Code</button>
-      <button type="button" class="btn-dark-huge" style="width:100%;font-size:12px;padding:10px;min-height:40px;color:#fde047;" id="promoInviteBonusBtn" onclick="closeModal('modalPromo'); openInvitePromoModal();">50 ብር Invite Friend Bonus ↗</button>
+      <button type="button" class="btn-dark-huge" style="width:100%;font-size:12px;padding:10px;min-height:40px;color:#fde047;" id="promoInviteBonusBtn" onclick="closeModal('modalPromo'); openInvitePromoModal();">10 ብር Invite Friend Bonus ↗</button>
     </div>
   </div>
 
@@ -2414,9 +2473,9 @@ body.is-tg-app .browser-back-pill { display: none !important; }
       <button type="button" class="invite-promo-close" aria-label="Close invite promo" onclick="closeModal('modalInvitePromo')">✕</button>
       <div class="invite-promo-body">
         <div style="font-size:20px;font-weight:800;color:#f8fafc;">ይጋብዙና ያግኙ</div>
-        <div style="font-size:38px;font-weight:900;color:#fde047;line-height:1.05;" id="invitePromoAmtTxt">50 ብር</div>
+        <div style="font-size:38px;font-weight:900;color:#fde047;line-height:1.05;" id="invitePromoAmtTxt">10 ብር</div>
         <div style="font-size:11px;color:#cbd5e1;font-weight:600;margin-bottom:6px;">ለእያንዳንዱ ጓደኛ</div>
-        <div style="font-size:17px;font-weight:800;line-height:1.35;color:#ffffff;">ጓደኛዎን ይጋብዙ፣<br><span id="invitePromoSubAmtTxt">50</span> ብር ጉርሻ ያግኙ!</div>
+        <div style="font-size:17px;font-weight:800;line-height:1.35;color:#ffffff;">ጓደኛዎን ይጋብዙ፣<br><span id="invitePromoSubAmtTxt">10</span> ብር ጉርሻ ያግኙ!</div>
         <div style="margin:10px 0 6px;position:relative;width:150px;height:118px;display:flex;align-items:center;justify-content:center;">
           <svg viewBox="0 0 160 130" width="144" height="114" aria-hidden="true">
             <ellipse cx="80" cy="70" rx="68" ry="42" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1"/>
@@ -2562,12 +2621,54 @@ let GAME_ORIGIN = SERVER_URL || window.location.origin;
 let NEEDS_BACKEND_SETUP = !SERVER_URL;
 if (!SERVER_URL) SERVER_URL = window.location.origin;
 
+const BANK_LOGOS = {
+  Telebirr: '/assets/aistudio/images__11__b9b443b2.jpeg',
+  CBE: '/assets/aistudio/images__10__101542e1.jpeg'
+};
 const PAYMENT_ACCOUNTS = {
   Telebirr: { id: null, num: "0996910607", name: "Aymen", ownerLabel: "Owner", qr: "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=0996910607" },
   CBE: { id: null, num: "1000562339427", name: "Aymen", ownerLabel: "Owner", qr: "https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=1000562339427" }
 };
 let dynamicPaymentAccounts = [];
 let selectedDepositAccountId = null;
+
+function buildDepositGridCards() {
+  const byMethod = { Telebirr: [], CBE: [] };
+  for (const a of dynamicPaymentAccounts) {
+    const m = a.method === 'CBE' ? 'CBE' : 'Telebirr';
+    byMethod[m].push(a);
+  }
+  const sortMethod = list => [...list].sort((a, b) => {
+    if (Boolean(b.isPrimary) !== Boolean(a.isPrimary)) return Number(Boolean(b.isPrimary)) - Number(Boolean(a.isPrimary));
+    return Number(a.id || 0) - Number(b.id || 0);
+  });
+  const tList = sortMethod(byMethod.Telebirr);
+  const cList = sortMethod(byMethod.CBE);
+  const cards = [];
+  if (tList.length) {
+    tList.forEach((a, i) => cards.push({
+      ...a,
+      method: 'Telebirr',
+      label: i === 0 ? 'Telebirr' : `Telebirr ${i + 1}`,
+      logo: BANK_LOGOS.Telebirr,
+      qr: `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(a.num)}`
+    }));
+  } else {
+    cards.push({ ...PAYMENT_ACCOUNTS.Telebirr, method: 'Telebirr', label: 'Telebirr', logo: BANK_LOGOS.Telebirr, isPrimary: true });
+  }
+  if (cList.length) {
+    cList.forEach((a, i) => cards.push({
+      ...a,
+      method: 'CBE',
+      label: i === 0 ? 'CBE' : `CBE ${i + 1}`,
+      logo: BANK_LOGOS.CBE,
+      qr: `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(a.num)}`
+    }));
+  } else {
+    cards.push({ ...PAYMENT_ACCOUNTS.CBE, method: 'CBE', label: 'CBE', logo: BANK_LOGOS.CBE, isPrimary: true });
+  }
+  return cards;
+}
 
 function applyDynamicPaymentAccounts(accountsList, primaryMap) {
   if (Array.isArray(accountsList) && accountsList.length) {
@@ -2606,62 +2707,53 @@ function applyDynamicPaymentAccounts(accountsList, primaryMap) {
 }
 
 function getSelectedDepositAccount(prov) {
+  const cards = buildDepositGridCards();
+  const exact = cards.find(c =>
+    selectedDepositAccountId != null && c.id != null && String(c.id) === String(selectedDepositAccountId)
+  );
+  if (exact) return exact;
   const method = prov === 'CBE' ? 'CBE' : 'Telebirr';
-  const methodList = dynamicPaymentAccounts.filter(a => a.method === method);
-  const exact = methodList.find(a => selectedDepositAccountId && String(a.id) === String(selectedDepositAccountId));
-  if (exact) return { ...exact, qr: `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(exact.num)}` };
-  const primary = methodList.find(a => a.isPrimary) || methodList[0];
-  if (primary) return { ...primary, qr: `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(primary.num)}` };
-  return PAYMENT_ACCOUNTS[method];
+  return cards.find(c => c.method === method) || cards[0];
 }
 
-function selectDepositSubAccount(accId) {
+function selectDepositAccount(method, accId) {
   haptic('light');
-  selectedDepositAccountId = accId;
-  const hidden = document.getElementById('depAccountId');
-  if (hidden) hidden.value = accId ?? '';
+  const depM = document.getElementById('depMethod');
+  const depId = document.getElementById('depAccountId');
+  if (depM) depM.value = method === 'CBE' ? 'CBE' : 'Telebirr';
+  selectedDepositAccountId = (accId === '' || accId === 'null' || accId == null) ? null : Number(accId);
+  if (depId) depId.value = selectedDepositAccountId ?? '';
   renderDepositAccountCards();
 }
 
 function renderDepositAccountCards() {
-  const tEl = document.getElementById('depAccTelebirr');
-  const cEl = document.getElementById('depAccCBE');
-  if (tEl) {
-    const t = PAYMENT_ACCOUNTS.Telebirr;
-    tEl.innerText = `${t.num} (${t.name}${t.ownerLabel && t.ownerLabel !== 'Owner' ? ' · ' + t.ownerLabel : ''})`;
+  const grid = document.getElementById('depositAccountGrid');
+  if (!grid) return;
+  const cards = buildDepositGridCards();
+  const curMethod = document.getElementById('depMethod')?.value || 'Telebirr';
+  let activeCard = cards.find(c =>
+    selectedDepositAccountId != null && c.id != null && String(c.id) === String(selectedDepositAccountId)
+  );
+  if (!activeCard) {
+    activeCard = cards.find(c => c.method === curMethod) || cards[0];
+    selectedDepositAccountId = activeCard?.id ?? null;
   }
-  if (cEl) {
-    const c = PAYMENT_ACCOUNTS.CBE;
-    cEl.innerText = `${c.num} (${c.name}${c.ownerLabel && c.ownerLabel !== 'Owner' ? ' · ' + c.ownerLabel : ''})`;
-  }
-  const prov = document.getElementById('depMethod')?.value || 'Telebirr';
-  const box = document.getElementById('depSubAccountsBox');
-  if (!box) return;
-  const list = dynamicPaymentAccounts.filter(a => a.method === prov);
-  if (list.length <= 1) {
-    selectedDepositAccountId = list[0]?.id ?? null;
-    const hidden = document.getElementById('depAccountId');
-    if (hidden) hidden.value = selectedDepositAccountId ?? '';
-    box.style.display = 'none';
-    box.innerHTML = '';
-    return;
-  }
-  const activeAcc = getSelectedDepositAccount(prov);
-  selectedDepositAccountId = activeAcc?.id ?? list[0].id;
-  const hidden = document.getElementById('depAccountId');
-  if (hidden) hidden.value = selectedDepositAccountId ?? '';
-  box.style.display = 'flex';
-  box.innerHTML = `<div style="font-size:10.5px;font-weight:800;color:var(--text-muted);">Choose Active ${escHtml(prov)} Account:</div>` +
-    list.map(a => {
-      const sel = String(a.id) === String(selectedDepositAccountId);
-      return `<div onclick="selectDepositSubAccount(${Number(a.id)})" style="background:var(--bg-card);border:1.5px solid ${sel ? 'var(--emerald-primary)' : 'var(--border-subtle)'};border-radius:10px;padding:9px 11px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;">
-        <div>
-          <b style="font-size:12px;">${escHtml(a.name)}</b> <span style="font-size:10px;color:var(--cyan-accent);font-weight:800;">(${escHtml(a.ownerLabel)})</span>
-          <div style="font-size:10.5px;color:var(--text-muted);font-family:'JetBrains Mono';">${escHtml(a.num)}</div>
-        </div>
-        <i class="fa-solid fa-circle-check" style="color:${sel ? 'var(--emerald-primary)' : 'var(--border-subtle)'};"></i>
-      </div>`;
-    }).join('');
+  const depM = document.getElementById('depMethod');
+  const depId = document.getElementById('depAccountId');
+  if (depM && activeCard) depM.value = activeCard.method;
+  if (depId) depId.value = selectedDepositAccountId ?? '';
+
+  grid.innerHTML = cards.map(c => {
+    const isSel = c === activeCard;
+    const idArg = c.id != null ? String(Number(c.id)) : 'null';
+    return `<button type="button" class="dep-grid-card${isSel ? ' active' : ''}" role="radio" aria-checked="${isSel ? 'true' : 'false'}" data-method="${escHtml(c.method)}" data-account-id="${c.id ?? ''}" onclick="selectDepositAccount('${escHtml(c.method)}', ${idArg})">
+      <i class="fa-solid fa-circle-check dep-grid-check" aria-hidden="true"></i>
+      <div class="dep-grid-logo-wrap">
+        <img class="dep-grid-logo" src="${escHtml(c.logo)}" alt="${escHtml(c.label)}">
+      </div>
+      <div class="dep-grid-title">${escHtml(c.label)}</div>
+    </button>`;
+  }).join('');
 }
 
 async function loadDynamicPaymentAccounts(force = false) {
@@ -3693,15 +3785,7 @@ async function redeemPromoCode() {
 }
 
 function selectDepositProvider(prov) {
-  haptic('light');
-  document.getElementById('depMethod').value = prov;
-  selectedDepositAccountId = null;
-  const isTele = prov === 'Telebirr';
-  document.getElementById('choiceTelebirr').style.borderColor = isTele ? 'var(--emerald-primary)' : 'var(--border-subtle)';
-  document.getElementById('checkTelebirr').style.color = isTele ? 'var(--emerald-primary)' : 'var(--border-subtle)';
-  document.getElementById('choiceCBE').style.borderColor = !isTele ? 'var(--emerald-primary)' : 'var(--border-subtle)';
-  document.getElementById('checkCBE').style.color = !isTele ? 'var(--emerald-primary)' : 'var(--border-subtle)';
-  renderDepositAccountCards();
+  selectDepositAccount(prov, null);
 }
 
 function setDepPreset(val) {
@@ -3719,8 +3803,13 @@ function goToPaymentDetailsStep() {
 
   document.getElementById('checkoutPayAmount').innerText = amt + ' ETB';
   document.getElementById('checkoutAccNum').innerText = acc.num;
-  document.getElementById('checkoutAccName').innerText = acc.name + (acc.ownerLabel && acc.ownerLabel !== 'Owner' ? ` (${acc.ownerLabel})` : '');
-  document.getElementById('checkoutMethodName').innerText = prov;
+  document.getElementById('checkoutAccName').innerText = acc.name;
+  document.getElementById('checkoutMethodName').innerText = acc.label || prov;
+  const logoEl = document.getElementById('checkoutMethodLogo');
+  if (logoEl) {
+    logoEl.src = acc.logo || (prov === 'CBE' ? BANK_LOGOS.CBE : BANK_LOGOS.Telebirr);
+    logoEl.alt = acc.label || prov;
+  }
   document.getElementById('qrCodeImg').src = acc.qr;
   document.getElementById('depositRefInput').value = '';
 
@@ -4206,7 +4295,7 @@ async function refreshBonusStatus(force = false) {
   const profWager = document.getElementById('profWagerLeft');
   if (profWager) profWager.innerText = wagerLeft.toFixed(2) + ' ETB';
 
-  const rb = Number(d.referralBonus ?? 50);
+  const rb = Number(d.referralBonus ?? 10);
   const invHead = document.getElementById('inviteHeadlineTxt');
   const invSub = document.getElementById('inviteSubTxt');
   const invCnt = document.getElementById('inviteCountTxt');

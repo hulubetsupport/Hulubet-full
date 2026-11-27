@@ -487,8 +487,46 @@ const ACT = {
   wdOk: d => {
     const ep = ROLE === 'agent' ? '/api/agent/approve-withdrawal' : '/api/admin/approve-withdrawal';
     ask('Mark ' + d.id + ' as PAID?', [
+      { k: 'customerName', label: 'Recipient Customer Name (full or first name, 1–2 typo tolerance)', value: d.pname || '', ph: 'e.g. Abdrohman Mohamed' },
       { k: 'payoutRef', label: `Payout Ref for ${d.amt} -> ${d.acc} (${d.m}) — optional, leave blank to auto-match SMS`, ph: 'e.g. DKO3L700HN or FT... (optional)' }
-    ], v => act(ep, { txnId: d.id, payoutRef: v.payoutRef || '' }), 'Confirm Paid');
+    ], v => act(ep, { txnId: d.id, payoutRef: v.payoutRef || '', customerName: v.customerName || '' }), 'Confirm Paid');
+  },
+  checkWdSms: async (d) => {
+    const checkEp = ROLE === 'agent' ? '/api/agent/check-withdrawal-sms' : '/api/admin/check-withdrawal-sms';
+    const approveEp = ROLE === 'agent' ? '/api/agent/approve-withdrawal' : '/api/admin/approve-withdrawal';
+    const r = await call(checkEp, 'POST', { txnId: d.id, customerName: d.pname || '', payoutRef: d.ref || '', smsRef: d.ref || '' });
+    const g = r?.preview || r?.gateway;
+    if (!r?.success || !g) return toast(r?.message || 'SMS check failed', true);
+    const st = g.status || 'Not_Found';
+    const found = st === 'Found';
+    const stBadge = found ? badge('Found · Ready to Lock', 'ok') : badge(st, st === 'AlreadyUsed' ? 'wa' : 'no');
+    const detailHtml = found
+      ? `<div class="li"><span>Bank / Ref</span><span><b>${esc(g.bank || d.m)}</b> · <code>${esc(g.ref || '—')}</code></span></div>
+         <div class="li"><span>Amount</span><b>${etb(g.amount || 0)}</b></div>
+         <div class="li"><span>SMS Party / Acc</span><span>${esc(g.party || '—')}${g.recipientAccount ? ` · <code>${esc(g.recipientAccount)}</code>` : ''}</span></div>
+         <div class="li"><span>Agent / Match Mode</span><span>${esc(g.agent || g.agentName || 'Owner')} · <span class="k">${esc(g.matchMode || 'auto')}</span></span></div>`
+      : `<p class="k" style="margin:6px 0">No matching <b>Sent_Locked</b> SMS found yet${g.message ? ` (${esc(g.message)})` : ''}. Try adjusting the customer name or entering the bank Ref to re-check (read-only).</p>`;
+    $('#mb').innerHTML = `<h2>Withdrawal SMS Preview · ${esc(d.id)}</h2>
+      <div class="li"><span>Gateway Status</span>${stBadge}</div>
+      ${detailHtml}
+      <label class="k" style="margin-top:8px;display:block">Customer Name (re-check)</label>
+      <input id="chk_name" value="${esc(d.pname || '')}" placeholder="Full or first name">
+      <label class="k">Ref / FT / TB Code (optional re-check)</label>
+      <input id="chk_ref" value="${esc(d.ref || g.ref || '')}" placeholder="e.g. DKO3L700HN or FT...">
+      <div class="row" style="margin-top:10px">
+        <button type="button" class="a m" id="chkRe">Re-check</button>
+        ${found ? `<button type="button" class="a g2" id="chkLock">Lock &amp; Confirm Paid</button>` : ''}
+        <button type="button" class="a m" onclick="closeM()">Close</button>
+      </div>`;
+    $('#md').style.display = 'flex';
+    $('#chkRe').onclick = () => ACT.checkWdSms({ ...d, pname: $('#chk_name').value.trim(), ref: $('#chk_ref').value.trim() });
+    if (found && $('#chkLock')) {
+      $('#chkLock').onclick = () => {
+        const cn = $('#chk_name').value.trim(), rf = $('#chk_ref').value.trim() || g.ref || '';
+        closeM();
+        act(approveEp, { txnId: d.id, payoutRef: rf, customerName: cn });
+      };
+    }
   },
   wdNo: d => {
     const ep = ROLE === 'agent' ? '/api/agent/reject-withdrawal' : '/api/admin/reject-withdrawal';
@@ -646,8 +684,9 @@ const ACT = {
   ], v => act('/api/admin/sms-agents', { name: v.name, matchText: v.matchText }), 'Create Webhook Token'),
   smsAgentToggle: d => act('/api/admin/sms-agents/toggle', { id: Number(d.id) }),
   matchWdSms: d => ask('Verify Withdrawal via Outgoing SMS: ' + d.id, [
+    { k: 'customerName', label: 'Recipient Customer Name (full or first name, optional)', value: d.pname || '', ph: 'e.g. Abdrohman Mohamed' },
     { k: 'smsRef', label: `SMS Ref (optional — leave blank to auto-match ${d.amt} to ${d.acc})`, ph: 'e.g. DKO3L700HN or FT... (optional)' }
-  ], v => act('/api/admin/match-withdrawal-sms', { txnId: d.id, smsRef: v.smsRef || '' }), 'Match SMS')
+  ], v => act('/api/admin/match-withdrawal-sms', { txnId: d.id, smsRef: v.smsRef || '', customerName: v.customerName || '' }), 'Match & Lock SMS')
 };
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-act]');
@@ -729,7 +768,7 @@ function renderPendingWithdrawalsBlock(list) {
   const q = wdFilterQ.toLowerCase();
   const filtered = (list || []).filter(t => {
     if (wdFilterMethod !== 'ALL' && t.method !== wdFilterMethod) return false;
-    if (q && ![t.txn_id, t.username, t.user_id, t.sender_account].some(v => String(v || '').toLowerCase().includes(q))) return false;
+    if (q && ![t.txn_id, t.playerName, t.username, t.user_id, t.sender_account].some(v => String(v || '').toLowerCase().includes(q))) return false;
     return true;
   });
   return `<div class="toolbar">
@@ -744,18 +783,21 @@ function renderPendingWithdrawalsBlock(list) {
         ${btn('Export CSV', 'exportWithdrawals', {}, 'm')}
       </div>
     </div>
-    <p class="k" style="margin-top:0">Send the payout to the player's account first, then press <b>Paid</b>. Rejecting refunds their balance atomically.</p>
+    <p class="k" style="margin-top:0">Send the payout to the player's account first, check outgoing SMS if needed, then press <b>Paid</b>. Rejecting refunds their balance atomically.</p>
     ${filtered.length ? tbl(['ID', 'Player', 'Method', 'Amount', 'Send To', 'Review', 'Age', 'Action'], filtered.map(t => {
       const rv = (t.remarks || '').split('REVIEW:')[1];
+      const pname = t.playerName || t.username || t.user_id || '';
+      const pDisp = pname + (t.username && t.playerName && t.username !== t.playerName ? ` (@${t.username})` : '');
       return [
         `<span class="mono">${esc(t.txn_id)}</span>`,
-        esc(t.username || t.user_id),
+        esc(pDisp),
         badge(t.method, t.method === 'CBE' ? 'in' : 'pu'),
         '<b>' + etb(t.amount) + '</b>',
         `<code>${esc(t.sender_account)}</code> ` + btn('Copy', 'copy', { v: t.sender_account }, 'm'),
         rv ? badge('⚠ ' + rv.trim(), 'wa') : badge('normal', 'ok'),
         ago(t.created_at),
-        btn('Paid', 'wdOk', { id: t.txn_id, amt: etb(t.amount), acc: t.sender_account, m: t.method }, 'g2') +
+        btn('Check SMS', 'checkWdSms', { id: t.txn_id, amt: etb(t.amount), acc: t.sender_account, m: t.method, pname }, 'm') +
+        btn('Paid', 'wdOk', { id: t.txn_id, amt: etb(t.amount), acc: t.sender_account, m: t.method, pname }, 'g2') +
         btn('Reject', 'wdNo', { id: t.txn_id }, 'r')
       ];
     })) : empty('No pending withdrawals 🎉')}`;
@@ -876,7 +918,7 @@ const V = {
     });
     return `<div class="c">${renderPendingWithdrawalsBlock(D.pendingWithdrawals)}</div>
     <div class="c"><h2>Recent Withdrawals</h2>${tbl(['ID', 'Player', 'Method', 'Amount', 'Account', 'Payout Verification', 'Status', 'Age'], rec.slice(0, 40).map(t => [
-      `<span class="mono">${esc(t.id)}</span>`, esc(t.u), esc(t.m), etb(t.amt), `<code>${esc(t.acc || '—')}</code>`,
+      `<span class="mono">${esc(t.id)}</span>`, esc(t.playerName || t.u), esc(t.m), etb(t.amt), `<code>${esc(t.acc || '—')}</code>`,
       t.payoutVerified ? badge('SMS ✓ ' + (t.payoutRef || ''), 'ok') + ` <span class="k">${esc(t.agent || t.processedBy || '')}</span>` : (t.payoutRef ? badge(t.payoutRef, 'in') : badge(t.processedBy || 'Manual', 'wa')),
       badge(t.st), ago(t.at)
     ]))}</div>`;
@@ -982,15 +1024,19 @@ const V = {
 
     ${unv.length ? `<div class="c">
       <h2>🔍 Unverified Withdrawals (${unv.length}) — Match with Outgoing Transfer SMS</h2>
-      ${tbl(['Txn ID', 'Player', 'Method', 'Amount', 'Send To', 'Status', 'Action'], unv.slice(0, 20).map(w => [
-        `<span class="mono">${esc(w.txn_id)}</span>`,
-        esc(w.username || w.user_id),
-        badge(w.method, w.method === 'CBE' ? 'in' : 'pu'),
-        `<b>${etb(w.amount)}</b>`,
-        `<code>${esc(w.sender_account)}</code>`,
-        badge(w.status),
-        btn('Verify via SMS', 'matchWdSms', { id: w.txn_id, amt: etb(w.amount), acc: w.sender_account }, 'g2')
-      ]))}
+      ${tbl(['Txn ID', 'Player', 'Method', 'Amount', 'Send To', 'Status', 'Action'], unv.slice(0, 20).map(w => {
+        const pname = w.playerName || w.username || w.user_id || '';
+        return [
+          `<span class="mono">${esc(w.txn_id)}</span>`,
+          esc(pname),
+          badge(w.method, w.method === 'CBE' ? 'in' : 'pu'),
+          `<b>${etb(w.amount)}</b>`,
+          `<code>${esc(w.sender_account)}</code>`,
+          badge(w.status),
+          btn('Check SMS', 'checkWdSms', { id: w.txn_id, amt: etb(w.amount), acc: w.sender_account, m: w.method, pname }, 'm') +
+          btn('Verify via SMS', 'matchWdSms', { id: w.txn_id, amt: etb(w.amount), acc: w.sender_account, pname }, 'g2')
+        ];
+      }))}
     </div>` : ''}
 
     <div class="c">
@@ -1084,7 +1130,7 @@ const V = {
         <label class="k">Young Buffalo RTP % (50–99%)</label><input id="s_brtp" type="number" step="0.5" value="${s.buffaloRtp ?? 70}">
         <label class="k">Agent Commission % (0–20%)</label><input id="s_com" type="number" step="0.5" value="${s.agentCommission}">
         <label class="k">Welcome Bonus (ETB — 0–500)</label><input id="s_wb" type="number" step="1" value="${s.welcomeBonus ?? 20}">
-        <label class="k">Referral Bonus (ETB — 0–1000)</label><input id="s_rb" type="number" step="1" value="${s.referralBonus ?? 50}">
+        <label class="k">Referral Bonus (ETB — 0–1000)</label><input id="s_rb" type="number" step="1" value="${s.referralBonus ?? 10}">
         <label class="k">Daily Cashback % (1–50%)</label><input id="s_cb" type="number" step="1" value="${s.cashbackPercent ?? 10}">
         <label class="k">First Deposit Bonus % (0–200%)</label><input id="s_fdp" type="number" step="1" value="${s.firstDepBonusPct ?? 20}">
         <label class="k">First Deposit Bonus Min (ETB)</label><input id="s_fdm" type="number" step="10" value="${s.firstDepBonusMin ?? 300}">

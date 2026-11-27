@@ -226,6 +226,11 @@ function createMockPool() {
       const rows = [...db.users.values()].filter(u => ids.has(u.user_id)).map(u => ({ user_id: u.user_id, balance: u.balance }));
       return { rows, rowCount: rows.length };
     }
+    if (low.startsWith('select user_id,full_name from users where user_id=any($1')) {
+      const ids = new Set((params[0] || []).map(String));
+      const rows = [...db.users.values()].filter(u => ids.has(u.user_id)).map(u => ({ user_id: u.user_id, full_name: u.full_name }));
+      return { rows, rowCount: rows.length };
+    }
     if (low.includes('from users where user_id=$1')) {
       const u = db.users.get(String(params[0]));
       if (!u) return { rows: [], rowCount: 0 };
@@ -1321,24 +1326,46 @@ function createMockPool() {
         .map(x => ({ id: x.id, v2_code: x.v2_code, amount: x.amount, sender_name: x.sender_name, attempts: x.resolve_attempts || 0 }));
       return { rows, rowCount: rows.length };
     }
-    if (low.startsWith("select * from cbe_transactions where (ref_no=$1 or v2_code=$1) and tx_type='transferred'")) {
-      const r = db.cbe_transactions.find(x => (x.ref_no === params[0] || x.v2_code === params[0]) && x.tx_type === 'Transferred');
+    if (low.startsWith('select * from cbe_transactions where id=$1')) {
+      const r = db.cbe_transactions.find(x => x.id === Number(params[0]));
       return r ? { rows: [{ ...r }], rowCount: 1 } : { rows: [], rowCount: 0 };
     }
-    if (low.startsWith("select * from telebirr_transactions where (ref_no=$1) and tx_type='transferred'")) {
-      const r = db.telebirr_transactions.find(x => x.ref_no === params[0] && x.tx_type === 'Transferred');
+    if (low.startsWith('select * from telebirr_transactions where id=$1')) {
+      const r = db.telebirr_transactions.find(x => x.id === Number(params[0]));
+      return r ? { rows: [{ ...r }], rowCount: 1 } : { rows: [], rowCount: 0 };
+    }
+    if (low.startsWith('select * from cbe_transactions where (ref_no=$1 or v2_code=$1)')) {
+      const r = db.cbe_transactions.find(x =>
+        (x.ref_no === params[0] || x.v2_code === params[0]) &&
+        (low.includes("tx_type='transferred'") ? x.tx_type === 'Transferred' : true)
+      );
+      return r ? { rows: [{ ...r }], rowCount: 1 } : { rows: [], rowCount: 0 };
+    }
+    if (low.startsWith('select * from telebirr_transactions where (ref_no=$1)')) {
+      const r = db.telebirr_transactions.find(x =>
+        x.ref_no === params[0] &&
+        (low.includes("tx_type='transferred'") ? x.tx_type === 'Transferred' : true)
+      );
       return r ? { rows: [{ ...r }], rowCount: 1 } : { rows: [], rowCount: 0 };
     }
     if (low.startsWith("select * from cbe_transactions where tx_type='transferred'")) {
       const rows = db.cbe_transactions
-        .filter(x => x.tx_type === 'Transferred' && !x.claimed_txn_id)
+        .filter(x =>
+          x.tx_type === 'Transferred' &&
+          !x.claimed_txn_id &&
+          (low.includes("status='sent_locked'") ? x.status === 'Sent_Locked' : true)
+        )
         .sort((a, b) => b.id - a.id)
         .slice(0, 100);
       return { rows, rowCount: rows.length };
     }
     if (low.startsWith("select * from telebirr_transactions where tx_type='transferred'")) {
       const rows = db.telebirr_transactions
-        .filter(x => x.tx_type === 'Transferred' && !x.claimed_txn_id)
+        .filter(x =>
+          x.tx_type === 'Transferred' &&
+          !x.claimed_txn_id &&
+          (low.includes("status='sent_locked'") ? x.status === 'Sent_Locked' : true)
+        )
         .sort((a, b) => b.id - a.id)
         .slice(0, 100);
       return { rows, rowCount: rows.length };
