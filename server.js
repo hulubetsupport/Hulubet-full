@@ -30,7 +30,7 @@ const { registerTelegramBot } = require('./lib/telegram-bot');
 const { mountAllGames, CRASH_GAMES } = require('./games');
 const { registerSportsbook } = require('./Sportserver');
 const { createSmsVerifyService, parsers: smsParsers } = require('./lib/sms-verify-server');
-const { normalizePeriod, periodCutoffMs, buildBestWinsPeriods, buildUserHistorySummary } = require('./lib/stats-engine');
+const { normalizePeriod, periodCutoffMs, parseAdminRange, buildBestWinsPeriods, applyBestWinsShowcaseBaseline, buildUserHistorySummary } = require('./lib/stats-engine');
 
 const ENV = process.env;
 const HAS_DB = Boolean(ENV.DATABASE_URL);
@@ -316,7 +316,7 @@ async function ensureSchema() {
     `CREATE TABLE IF NOT EXISTS payment_accounts (id SERIAL PRIMARY KEY,method VARCHAR(32) NOT NULL,account_name VARCHAR(120) NOT NULL,account_number VARCHAR(64) NOT NULL,owner_label VARCHAR(80) DEFAULT 'Owner',sms_agent_id INTEGER,is_active BOOLEAN DEFAULT TRUE,is_primary BOOLEAN DEFAULT FALSE,notes TEXT DEFAULT '',created_at TIMESTAMPTZ DEFAULT NOW())`,
     `CREATE TABLE IF NOT EXISTS owner_agent_ledger (id SERIAL PRIMARY KEY,entry_type VARCHAR(32) NOT NULL,method VARCHAR(32) DEFAULT 'Telebirr',agent_name VARCHAR(80) NOT NULL,account_id INTEGER,amount NUMERIC(14,2) NOT NULL,bank_ref VARCHAR(64),owner_balance_before NUMERIC(14,2) DEFAULT 0,owner_balance_after NUMERIC(14,2) DEFAULT 0,raw_sms TEXT DEFAULT '',notes TEXT DEFAULT '',actor VARCHAR(80) DEFAULT 'Admin',created_at TIMESTAMPTZ DEFAULT NOW())`,
     `CREATE UNIQUE INDEX IF NOT EXISTS uq_owner_ledger_ref ON owner_agent_ledger (bank_ref) WHERE bank_ref IS NOT NULL AND bank_ref <> ''`,
-    `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS net_amount NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS bank_txn_id VARCHAR(64), ADD COLUMN IF NOT EXISTS processed_by VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS agent_assigned VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS sender_account VARCHAR(128) DEFAULT '', ADD COLUMN IF NOT EXISTS remarks TEXT DEFAULT '', ADD COLUMN IF NOT EXISTS target_account_id INTEGER, ADD COLUMN IF NOT EXISTS target_account_name VARCHAR(120) DEFAULT '', ADD COLUMN IF NOT EXISTS target_account_number VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS payout_ref VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS payout_verified BOOLEAN DEFAULT FALSE`,
+    `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS net_amount NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS bank_txn_id VARCHAR(64), ADD COLUMN IF NOT EXISTS processed_by VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS agent_assigned VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS sender_account VARCHAR(128) DEFAULT '', ADD COLUMN IF NOT EXISTS recipient_name VARCHAR(120) DEFAULT '', ADD COLUMN IF NOT EXISTS remarks TEXT DEFAULT '', ADD COLUMN IF NOT EXISTS target_account_id INTEGER, ADD COLUMN IF NOT EXISTS target_account_name VARCHAR(120) DEFAULT '', ADD COLUMN IF NOT EXISTS target_account_number VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS payout_ref VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS payout_verified BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE transactions ALTER COLUMN method SET DEFAULT '', ALTER COLUMN method DROP NOT NULL`,
     `ALTER TABLE transactions ALTER COLUMN net_amount SET DEFAULT 0, ALTER COLUMN net_amount DROP NOT NULL`,
     `ALTER TABLE transactions ALTER COLUMN username SET DEFAULT '', ALTER COLUMN username DROP NOT NULL`,
@@ -883,13 +883,13 @@ app.get('/api/public/best-wins', limit('bestwins', 120, 60e3), h(async (_req, re
       success: true,
       cachedAt: Date.now(),
       ttlSeconds: 60,
-      periods: buildBestWinsPeriods({
+      periods: applyBestWinsShowcaseBaseline(buildBestWinsPeriods({
         gameRows: gRes.rows,
         reportRows: rRes.rows,
         sportsSummary: sRes.rows[0] || null,
         topWinRows: wRes.rows,
         maskFn: mask
-      })
+      }))
     };
   });
   res.set('Cache-Control', 'public, max-age=30');
@@ -1129,7 +1129,9 @@ app.get('/api/cashier/history', userAuth, limit('hist', 180, 60e3), h(async (req
 
 app.post('/api/cashier/withdraw', userAuth, limit('wd', 10, 60e3), h(async (req, res) => {
   const amt = r2(req.body.amount), acc = String(req.body.accountNumber || '').trim(), method = PAY_METHODS.includes(req.body.method) ? req.body.method : 'Telebirr';
+  const firstName = String(req.body.firstName || req.body.customerName || req.body.recipientName || '').trim().slice(0, 120);
   if (!(amt >= CONFIG.MIN_WTH && amt <= CONFIG.MAX_WTH)) throw new Biz(`Withdrawal must be between ${CONFIG.MIN_WTH} and ${CONFIG.MAX_WTH} ETB`);
+  if (firstName.length < 2) throw new Biz('Enter recipient first name (min 2 letters) for Telebirr / CBE payout');
   if (!/^[0-9+\-\s]{8,20}$/.test(acc)) throw new Biz('Enter a valid phone / account number');
   const out = await tx(async c => {
     const u = await lockUser(c, req.tg.id), bal = num(u.balance);
@@ -1154,14 +1156,14 @@ app.post('/api/cashier/withdraw', userAuth, limit('wd', 10, 60e3), h(async (req,
     const note = 'Awaiting admin payout' + (flags.length ? ' | REVIEW: ' + flags.join(', ') : '');
     const newBal = r2(bal - amt), id = newId('WTH');
     await c.query('UPDATE users SET balance=$1 WHERE user_id=$2', [newBal, req.tg.id]);
-    await c.query(`INSERT INTO transactions (txn_id,user_id,username,type,method,amount,net_amount,sender_account,status,remarks)
-      VALUES ($1,$2,$3,'WITHDRAWAL',$4,$5,$5,$6,'PENDING',$7)`, [id, req.tg.id, u.telegram_username, method, amt, acc, note]);
+    await c.query(`INSERT INTO transactions (txn_id,user_id,username,type,method,amount,net_amount,sender_account,recipient_name,status,remarks)
+      VALUES ($1,$2,$3,'WITHDRAWAL',$4,$5,$5,$6,$7,'PENDING',$8)`, [id, req.tg.id, u.telegram_username, method, amt, acc, firstName, note]);
     await audit(c, req.tg.id, 'WITHDRAWAL_HOLD', amt, bal, newBal, id);
-    return { id, newBal, note, uname: u.telegram_username };
+    return { id, newBal, note, uname: u.telegram_username, firstName };
   });
   cacheInvalidate('admin:dashboard');
-  notifyAdmins(`NEW WITHDRAWAL ${out.id}\n${fmt(amt)} ETB via ${method} to ${acc}\nPlayer: @${out.uname || '-'} (${req.tg.id})${out.note.includes('REVIEW') ? '\n' + out.note.split('| ')[1] : ''}`);
-  res.json({ success: true, txnId: out.id, newBalance: out.newBal });
+  notifyAdmins(`NEW WITHDRAWAL ${out.id}\n${fmt(amt)} ETB via ${method} to ${acc}\nName: ${out.firstName}\nPlayer: @${out.uname || '-'} (${req.tg.id})${out.note.includes('REVIEW') ? '\n' + out.note.split('| ')[1] : ''}`);
+  res.json({ success: true, txnId: out.id, recipientName: out.firstName, newBalance: out.newBal });
 }));
 
 app.post('/api/promo/redeem', userAuth, limit('promo', 10, 60e3), h(async (req, res) => {
@@ -1230,7 +1232,9 @@ const payAgent = (c, agent, amt) => opt(c,
   `UPDATE agents SET total_deposits_processed=total_deposits_processed+$1,total_commission_earned=total_commission_earned+$2 WHERE telegram_username ILIKE $3 OR agent_id=$3`,
   [amt, r2(amt * CONFIG.AGENT_COMMISSION), agent]);
 const fmtTx = t => ({
-  id: t.txn_id, u: t.username || t.user_id, uid: t.user_id, playerName: t.playerName || t.full_name || t.username || t.user_id,
+  id: t.txn_id, u: t.username || t.user_id, uid: t.user_id,
+  recipientName: t.recipient_name || t.recipientName || '',
+  playerName: t.recipient_name || t.recipientName || t.playerName || t.full_name || t.username || t.user_id,
   m: t.method || 'Telebirr',
   amt: num(t.amount), st: String(t.status).toLowerCase(), acc: t.sender_account,
   agent: t.agent_assigned || '', targetAcc: t.target_account_name || '',
@@ -1243,34 +1247,99 @@ async function attachPlayerNames(rows) {
   if (!uids.length) return rows;
   const uRes = await pool.query(`SELECT user_id,full_name FROM users WHERE user_id=ANY($1)`, [uids]).catch(() => ({ rows: [] }));
   const map = new Map(uRes.rows.map(u => [String(u.user_id), u.full_name || '']));
-  return rows.map(r => ({ ...r, playerName: map.get(String(r.user_id)) || r.username || r.user_id }));
+  return rows.map(r => {
+    const recName = String(r.recipient_name || '').trim();
+    const accName = map.get(String(r.user_id)) || '';
+    return {
+      ...r,
+      recipientName: recName,
+      playerName: recName || accName || r.username || r.user_id
+    };
+  });
 }
 
-const dashboard = h(async (_req, res) => {
-  const payload = await cache.getOrLoad('admin:dashboard', 3000, async () => {
+const dashboard = h(async (req, res) => {
+  const rangeInfo = parseAdminRange(req.query.range || 'all', 'all');
+  const payload = await cache.getOrLoad(`admin:dashboard:${rangeInfo.key}`, 3000, async () => {
     const q = (s, p) => pool.query(s, p);
-    const [vault, cnt, pd, pw, rec, deps, wds, bets, promos, users, ggr, gs, gs12, spStats, retentionStats, reports12h, bonusM] = await Promise.all([
+    const cutoffDate = rangeInfo.ms ? new Date(Date.now() - rangeInfo.ms) : new Date(0);
+    const include12hReports = !rangeInfo.ms || rangeInfo.ms > 12 * 3600 * 1000;
+
+    const [
+      vault, cnt, pd, pw, rec, deps, wds, bets, spBets, promos, users,
+      ggr, gs, gs12, spStats, retentionStats, reports12h, bonusM,
+      userBetAgg, userTxAgg, rangeNewUsersRes
+    ] = await Promise.all([
       q('SELECT * FROM casino_vault WHERE id=1'),
       q('SELECT COUNT(*) n FROM users'),
       q(`SELECT * FROM transactions WHERE type='DEPOSIT' AND status='PENDING' ORDER BY created_at DESC LIMIT 200`),
       q(`SELECT * FROM transactions WHERE type='WITHDRAWAL' AND status='PENDING' ORDER BY created_at DESC LIMIT 200`),
-      q(`SELECT * FROM transactions ORDER BY created_at DESC LIMIT 50`),
-      q(`SELECT * FROM transactions WHERE type='DEPOSIT' ORDER BY created_at DESC LIMIT 100`),
-      q(`SELECT * FROM transactions WHERE type='WITHDRAWAL' ORDER BY created_at DESC LIMIT 100`),
-      q(`SELECT * FROM universal_bets WHERE status<>'IN_FLIGHT' ORDER BY created_at DESC LIMIT 50`),
+      q(`SELECT * FROM transactions ORDER BY created_at DESC LIMIT 80`),
+      q(`SELECT * FROM transactions WHERE type='DEPOSIT' ORDER BY created_at DESC LIMIT 150`),
+      q(`SELECT * FROM transactions WHERE type='WITHDRAWAL' ORDER BY created_at DESC LIMIT 150`),
+      q(`SELECT * FROM universal_bets WHERE status<>'IN_FLIGHT' AND created_at>=$1 ORDER BY created_at DESC LIMIT 200`, [cutoffDate]),
+      q(`SELECT * FROM sports_bets WHERE created_at>=$1 ORDER BY created_at DESC LIMIT 80`, [cutoffDate]).catch(() => ({ rows: [] })),
       q('SELECT * FROM promo_codes ORDER BY code'),
-      q(`SELECT u.*,(SELECT COUNT(*) FROM universal_bets b WHERE b.user_id=u.user_id) AS bet_count FROM users u ORDER BY u.balance DESC LIMIT 100`),
+      q(`SELECT u.*,(SELECT COUNT(*) FROM universal_bets b WHERE b.user_id=u.user_id) AS bet_count FROM users u ORDER BY u.balance DESC LIMIT 250`),
       q(`SELECT COALESCE(SUM(house_profit) FILTER (WHERE created_at>=date_trunc('day',NOW())),0) d,
                 COALESCE(SUM(house_profit) FILTER (WHERE created_at>=date_trunc('month',NOW())),0) m FROM universal_bets WHERE status IN ('WON','LOST')`),
-      q(`SELECT game_name,COUNT(*) bets,COALESCE(SUM(bet_amount),0) wagered,COALESCE(SUM(payout),0) paid FROM universal_bets WHERE status IN ('WON','LOST') GROUP BY game_name`),
-      q(`SELECT game_name,COALESCE(SUM(total_bets),0) bets,COALESCE(SUM(total_wagered),0) wagered,COALESCE(SUM(total_payout),0) paid FROM game_12h_reports GROUP BY game_name`).catch(() => ({ rows: [] })),
-      q(`SELECT COUNT(*) bets,COALESCE(SUM(stake),0) wagered,COALESCE(SUM(payout),0) paid FROM sports_bets WHERE status IN ('WON','LOST','CASHED_OUT')`).catch(() => ({ rows: [{ bets: 0, wagered: 0, paid: 0 }] })),
+      q(`SELECT game_name,COUNT(*) bets,COALESCE(SUM(bet_amount),0) wagered,COALESCE(SUM(payout),0) paid FROM universal_bets WHERE status IN ('WON','LOST') AND created_at>=$1 GROUP BY game_name`, [cutoffDate]),
+      include12hReports
+        ? q(`SELECT game_name,COALESCE(SUM(total_bets),0) bets,COALESCE(SUM(total_wagered),0) wagered,COALESCE(SUM(total_payout),0) paid FROM game_12h_reports WHERE COALESCE(period_end,created_at)>=$1 GROUP BY game_name`, [cutoffDate]).catch(() => ({ rows: [] }))
+        : Promise.resolve({ rows: [] }),
+      q(`SELECT COUNT(*) bets,COALESCE(SUM(stake),0) wagered,COALESCE(SUM(payout),0) paid FROM sports_bets WHERE status IN ('WON','LOST','CASHED_OUT') AND created_at>=$1`, [cutoffDate]).catch(() => ({ rows: [{ bets: 0, wagered: 0, paid: 0 }] })),
       getRetentionStats(pool).catch(() => ({ activeBetsInDb: 0, activeAuditLogsInDb: 0, archived12hReports: 0, retentionWindowHours: 12 })),
       getReports12h(pool, 100).catch(() => []),
-      q(`SELECT COALESCE(SUM(amount),0) s FROM transactions WHERE type='BONUS' AND created_at>=date_trunc('month',NOW())`).catch(() => ({ rows: [{ s: 0 }] }))
+      q(`SELECT COALESCE(SUM(amount),0) s FROM transactions WHERE type='BONUS' AND created_at>=date_trunc('month',NOW())`).catch(() => ({ rows: [{ s: 0 }] })),
+      q(`SELECT user_id,COUNT(*) bets,COALESCE(SUM(bet_amount),0) wagered,COALESCE(SUM(payout),0) paid FROM universal_bets WHERE status IN ('WON','LOST') AND created_at>=$1 GROUP BY user_id`, [cutoffDate]).catch(() => ({ rows: [] })),
+      q(`SELECT user_id,type,COALESCE(SUM(amount),0) total,COUNT(*) cnt FROM transactions WHERE status='APPROVED' AND created_at>=$1 GROUP BY user_id,type`, [cutoffDate]).catch(() => ({ rows: [] })),
+      q(`SELECT COUNT(*) n FROM users WHERE created_at>=$1`, [cutoffDate]).catch(() => ({ rows: [{ n: 0 }] }))
     ]);
+
     const v = vault.rows[0] || {};
-    const usersList = users.rows.map(userRow);
+    const userRangeMap = new Map();
+    const ensureUR = uid => {
+      const k = String(uid || '');
+      let cur = userRangeMap.get(k);
+      if (!cur) {
+        cur = { bets: 0, wagered: 0, won: 0, dep: 0, wd: 0, bonus: 0 };
+        userRangeMap.set(k, cur);
+      }
+      return cur;
+    };
+    userBetAgg.rows.forEach(r => {
+      const cur = ensureUR(r.user_id);
+      cur.bets += Number(r.bets || 0);
+      cur.wagered = r2(cur.wagered + num(r.wagered));
+      cur.won = r2(cur.won + num(r.paid));
+    });
+    let rangeDepTotal = 0, rangeWdTotal = 0, rangeBonusTotal = 0;
+    userTxAgg.rows.forEach(r => {
+      const cur = ensureUR(r.user_id);
+      const t = String(r.type || '').toUpperCase();
+      const amt = num(r.total);
+      if (t === 'DEPOSIT') { cur.dep = r2(cur.dep + amt); rangeDepTotal = r2(rangeDepTotal + amt); }
+      else if (t === 'WITHDRAWAL') { cur.wd = r2(cur.wd + amt); rangeWdTotal = r2(rangeWdTotal + amt); }
+      else if (t === 'BONUS') { cur.bonus = r2(cur.bonus + amt); rangeBonusTotal = r2(rangeBonusTotal + amt); }
+    });
+
+    const userLookup = new Map();
+    const usersList = users.rows.map(u => {
+      const row = userRow(u);
+      const rs = userRangeMap.get(String(u.user_id)) || { bets: 0, wagered: 0, won: 0, dep: 0, wd: 0, bonus: 0 };
+      const enriched = {
+        ...row,
+        rangeBets: rs.bets,
+        rangeWagered: rs.wagered,
+        rangeWon: rs.won,
+        rangeNet: r2(rs.won - rs.wagered),
+        rangeDep: rs.dep,
+        rangeWd: rs.wd,
+        rangeBonus: rs.bonus
+      };
+      userLookup.set(String(u.user_id), enriched);
+      return enriched;
+    });
 
     const gameMap = new Map();
     const addGameStat = (name, b, w, p) => {
@@ -1297,17 +1366,87 @@ const dashboard = h(async (_req, res) => {
       targetRtp: targetFor(g.game)
     }));
 
+    const rangeBetsCount = gameStats.reduce((a, g) => a + g.bets, 0);
+    const rangeWageredTotal = r2(gameStats.reduce((a, g) => a + g.wagered, 0));
+    const rangePaidTotal = r2(gameStats.reduce((a, g) => a + g.paid, 0));
+    const rangeGgr = r2(rangeWageredTotal - rangePaidTotal);
+    const rangeNgr = r2(rangeGgr - rangeBonusTotal);
+    const rangeRtp = rangeWageredTotal > 0 ? r2((rangePaidTotal / rangeWageredTotal) * 100) : 0;
+    const activePlayersRange = [...userRangeMap.values()].filter(x => x.bets > 0 || x.dep > 0 || x.wd > 0).length;
+
+    const casinoBetRows = bets.rows.map(b => {
+      const stake = num(b.bet_amount);
+      const payout = num(b.payout);
+      const uObj = userLookup.get(String(b.user_id));
+      return {
+        id: b.bet_id,
+        uid: String(b.user_id),
+        u: b.username || b.user_id,
+        playerName: uObj?.name || b.username || b.user_id,
+        m: b.game_name,
+        mult: num(b.multiplier),
+        p: num(b.multiplier) + 'x',
+        s: stake,
+        win: payout,
+        net: r2(payout - stake),
+        st: String(b.status).toLowerCase(),
+        at: b.created_at,
+        source: 'casino'
+      };
+    });
+    const sportsBetRows = (spBets.rows || []).map(s => {
+      const stake = num(s.stake);
+      const payout = num(s.payout);
+      const uid = String(s.user_id);
+      const uObj = userLookup.get(uid);
+      return {
+        id: s.ticket_id || s.bet_id,
+        uid,
+        u: s.username || uid,
+        playerName: uObj?.name || s.username || uid,
+        m: 'Sportsbook',
+        mult: num(s.odds),
+        p: num(s.odds) + 'x',
+        s: stake,
+        win: payout,
+        net: r2(payout - stake),
+        st: String(s.status || '').toLowerCase(),
+        at: s.created_at,
+        source: 'sports'
+      };
+    });
+    const mergedBets = [...casinoBetRows, ...sportsBetRows]
+      .sort((a, b) => new Date(b.at) - new Date(a.at))
+      .slice(0, 200);
+
     const [pwNamed, wdsNamed] = await Promise.all([
       attachPlayerNames(pw.rows),
       attachPlayerNames(wds.rows)
     ]);
     return {
       success: true,
+      range: rangeInfo,
+      rangeSummary: {
+        key: rangeInfo.key,
+        label: rangeInfo.label,
+        bets: rangeBetsCount,
+        wagered: rangeWageredTotal,
+        paid: rangePaidTotal,
+        ggr: rangeGgr,
+        ngr: rangeNgr,
+        rtp: rangeRtp,
+        deposits: rangeDepTotal,
+        withdrawals: rangeWdTotal,
+        bonuses: rangeBonusTotal,
+        activePlayers: activePlayersRange,
+        newUsers: Number(rangeNewUsersRes.rows[0]?.n || 0),
+        totalUsers: Number(cnt.rows[0].n)
+      },
       vault: { gross_profit: num(v.gross_profit), vault_balance: num(v.vault_balance), total_wagered: num(v.total_wagered), ggrToday: num(ggr.rows[0].d), ngrMonth: r2(num(ggr.rows[0].m) - num(bonusM.rows[0].s)), vaultBalance: num(v.vault_balance), totalWagered: num(v.total_wagered) },
       totalUsers: Number(cnt.rows[0].n), currentRtp: CONFIG.TARGET_RTP, currentCommission: CONFIG.AGENT_COMMISSION,
       pendingDeposits: pd.rows, pendingWithdrawals: pwNamed, completedHistory: rec.rows.filter(t => t.status !== 'PENDING'), recentTransactions: rec.rows,
       usersList, users: usersList, dep: deps.rows.map(fmtTx), wd: wdsNamed.map(fmtTx),
-      bets: bets.rows.map(b => ({ id: b.bet_id, u: b.username || b.user_id, m: b.game_name, p: num(b.multiplier) + 'x', s: num(b.bet_amount), st: String(b.status).toLowerCase() })),
+      bets: mergedBets,
       promos: promos.rows.map(p => ({ c: p.code, code: p.code, d: `+${p.bonus_amount} ETB (${p.times_used}/${p.max_uses})`, on: p.is_active ? 1 : 0 })),
       gameStats,
       retentionStats,
@@ -1461,9 +1600,11 @@ app.get('/api/agent/withdrawals', agentAccess, h(async (req, res) => {
   });
 }));
 
-async function resolveWithdrawalCustomerName(userId, overrideName = '') {
+async function resolveWithdrawalCustomerName(userId, overrideName = '', txnRow = null) {
   const clean = String(overrideName || '').trim().slice(0, 120);
   if (clean) return clean;
+  const fromTxn = String(txnRow?.recipient_name || txnRow?.recipientName || '').trim().slice(0, 120);
+  if (fromTxn) return fromTxn;
   const u = (await pool.query('SELECT full_name FROM users WHERE user_id=$1', [userId]).catch(() => ({ rows: [] }))).rows[0];
   return String(u?.full_name || '').trim();
 }
@@ -1474,7 +1615,7 @@ app.post('/api/agent/check-withdrawal-sms', agentAccess, h(async (req, res) => {
   if (!txnId) throw new Biz('Withdrawal transaction ID required');
   const w = (await pool.query(`SELECT * FROM transactions WHERE txn_id=$1 AND type='WITHDRAWAL'`, [txnId])).rows[0];
   if (!w) throw new Biz('Withdrawal not found', 404);
-  const customerName = await resolveWithdrawalCustomerName(w.user_id, req.body.customerName || req.body.name);
+  const customerName = await resolveWithdrawalCustomerName(w.user_id, req.body.customerName || req.body.name, w);
   const m = await verifyWithdrawalWithGateway({
     txnId, method: w.method, amount: w.amount, recipientAccount: w.sender_account, customerName, ref: payoutRef, actor: req.actor, readOnly: true
   });
@@ -1487,7 +1628,7 @@ app.post('/api/agent/match-withdrawal-sms', agentAccess, h(async (req, res) => {
   if (!txnId) throw new Biz('Withdrawal transaction ID required');
   const w = (await pool.query(`SELECT * FROM transactions WHERE txn_id=$1 AND type='WITHDRAWAL'`, [txnId])).rows[0];
   if (!w) throw new Biz('Withdrawal not found', 404);
-  const customerName = await resolveWithdrawalCustomerName(w.user_id, req.body.customerName || req.body.name);
+  const customerName = await resolveWithdrawalCustomerName(w.user_id, req.body.customerName || req.body.name, w);
   const m = await verifyWithdrawalWithGateway({
     txnId, method: w.method, amount: w.amount, recipientAccount: w.sender_account, customerName, ref: smsRef, actor: req.actor, readOnly: false
   });
@@ -1506,14 +1647,14 @@ app.post('/api/agent/approve-withdrawal', agentAccess, h(async (req, res) => {
   const payoutRef = String(req.body.payoutRef || '').trim().toUpperCase().slice(0, 64);
   if (!txnId) throw new Biz('Transaction ID required');
   const r = await pool.query(
-    `UPDATE transactions SET status='APPROVED',remarks=$1,processed_by=$2,updated_at=NOW() WHERE txn_id=$3 AND type='WITHDRAWAL' AND status='PENDING' RETURNING user_id,amount,method,sender_account`,
+    `UPDATE transactions SET status='APPROVED',remarks=$1,processed_by=$2,updated_at=NOW() WHERE txn_id=$3 AND type='WITHDRAWAL' AND status='PENDING' RETURNING user_id,amount,method,sender_account,recipient_name`,
     [`Payout completed by ${req.actor}`, req.actor, txnId]
   );
   if (!r.rowCount) throw new Biz('Withdrawal already processed or not found');
   const row = r.rows[0];
   let matched = null;
   try {
-    const customerName = await resolveWithdrawalCustomerName(row.user_id, req.body.customerName || req.body.name);
+    const customerName = await resolveWithdrawalCustomerName(row.user_id, req.body.customerName || req.body.name, row);
     matched = await verifyWithdrawalWithGateway({
       txnId, method: row.method, amount: row.amount, recipientAccount: row.sender_account, customerName, ref: payoutRef, actor: req.actor, readOnly: false
     });
@@ -1893,7 +2034,7 @@ app.post('/api/admin/check-withdrawal-sms', admin, h(async (req, res) => {
   if (!txnId) throw new Biz('Withdrawal transaction ID required');
   const w = (await pool.query(`SELECT * FROM transactions WHERE txn_id=$1 AND type='WITHDRAWAL'`, [txnId])).rows[0];
   if (!w) throw new Biz('Withdrawal not found', 404);
-  const customerName = await resolveWithdrawalCustomerName(w.user_id, req.body.customerName || req.body.name);
+  const customerName = await resolveWithdrawalCustomerName(w.user_id, req.body.customerName || req.body.name, w);
   const m = await verifyWithdrawalWithGateway({
     txnId, method: w.method, amount: w.amount, recipientAccount: w.sender_account, customerName, ref: smsRef, actor: req.actor, readOnly: true
   });
@@ -1906,7 +2047,7 @@ app.post('/api/admin/match-withdrawal-sms', admin, h(async (req, res) => {
   if (!txnId) throw new Biz('Withdrawal transaction ID required');
   const w = (await pool.query(`SELECT * FROM transactions WHERE txn_id=$1 AND type='WITHDRAWAL'`, [txnId])).rows[0];
   if (!w) throw new Biz('Withdrawal not found', 404);
-  const customerName = await resolveWithdrawalCustomerName(w.user_id, req.body.customerName || req.body.name);
+  const customerName = await resolveWithdrawalCustomerName(w.user_id, req.body.customerName || req.body.name, w);
   const m = await verifyWithdrawalWithGateway({
     txnId, method: w.method, amount: w.amount, recipientAccount: w.sender_account, customerName, ref: smsRef, actor: req.actor, readOnly: false
   });
@@ -1964,13 +2105,13 @@ app.post('/api/admin/reject-deposit', admin, h(async (req, res) => {
 app.post('/api/admin/approve-withdrawal', admin, h(async (req, res) => {
   const txnId = String(req.body.txnId || '');
   const payoutRef = String(req.body.payoutRef || '').trim().toUpperCase().slice(0, 64);
-  const r = await pool.query(`UPDATE transactions SET status='APPROVED',remarks=$1,processed_by=$2,updated_at=NOW() WHERE txn_id=$3 AND type='WITHDRAWAL' AND status='PENDING' RETURNING user_id,amount,method,sender_account`,
+  const r = await pool.query(`UPDATE transactions SET status='APPROVED',remarks=$1,processed_by=$2,updated_at=NOW() WHERE txn_id=$3 AND type='WITHDRAWAL' AND status='PENDING' RETURNING user_id,amount,method,sender_account,recipient_name`,
     [`Payout completed by ${req.actor}`, req.actor, txnId]);
   if (!r.rowCount) throw new Biz('Withdrawal already processed or not found');
   const row = r.rows[0];
   let matched = null;
   try {
-    const customerName = await resolveWithdrawalCustomerName(row.user_id, req.body.customerName || req.body.name);
+    const customerName = await resolveWithdrawalCustomerName(row.user_id, req.body.customerName || req.body.name, row);
     matched = await verifyWithdrawalWithGateway({
       txnId, method: row.method, amount: row.amount, recipientAccount: row.sender_account, customerName, ref: payoutRef, actor: req.actor, readOnly: false
     });

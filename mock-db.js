@@ -183,7 +183,8 @@ function createMockPool() {
         cashback_settled_loss: 0,
         last_active_at: new Date(),
         role: 'player',
-        status: 'active'
+        status: 'active',
+        created_at: new Date()
       };
       db.users.set(id, u);
       return { rows: [{ ...u }], rowCount: 1 };
@@ -191,6 +192,11 @@ function createMockPool() {
     if (low.startsWith('select count(*) n from users where referrer_id=$1')) {
       const refId = String(params[0]);
       const n = [...db.users.values()].filter(u => u.referrer_id === refId).length;
+      return { rows: [{ n: String(n) }], rowCount: 1 };
+    }
+    if (low.startsWith('select count(*) n from users where created_at>=$1')) {
+      const cutoff = params[0] ? new Date(params[0]).getTime() : 0;
+      const n = [...db.users.values()].filter(u => new Date(u.created_at || u.last_active_at || 0).getTime() >= cutoff).length;
       return { rows: [{ n: String(n) }], rowCount: 1 };
     }
     if (low.startsWith('select count(*) n from users')) {
@@ -208,7 +214,8 @@ function createMockPool() {
       }
       list.sort((a, b) => b.balance - a.balance);
       const offset = params.length === 3 ? Number(params[2] || 0) : 0;
-      const rows = list.slice(offset, offset + 100).map(u => ({
+      const lim = low.includes('limit 250') ? 250 : 100;
+      const rows = list.slice(offset, offset + lim).map(u => ({
         ...u,
         bet_count: db.universal_bets.filter(b => b.user_id === u.user_id).length
       }));
@@ -532,7 +539,9 @@ function createMockPool() {
       return { rows, rowCount: rows.length };
     }
     if (low.startsWith("select * from universal_bets where status<>'in_flight'")) {
-      const rows = db.universal_bets.filter(b => b.status !== 'IN_FLIGHT').slice(0, 50);
+      const cutoff = params[0] ? new Date(params[0]).getTime() : 0;
+      const lim = low.includes('limit 200') ? 200 : 50;
+      const rows = db.universal_bets.filter(b => b.status !== 'IN_FLIGHT' && new Date(b.created_at).getTime() >= cutoff).slice(0, lim);
       return { rows, rowCount: rows.length };
     }
     if (low.startsWith('select coalesce(sum(house_profit)')) {
@@ -549,12 +558,27 @@ function createMockPool() {
       return { rows: [{ d, m }], rowCount: 1 };
     }
     if (low.startsWith('select game_name,count(*) bets')) {
+      const cutoff = params[0] ? new Date(params[0]).getTime() : 0;
       const map = new Map();
       for (const b of db.universal_bets) {
         if (!['WON', 'LOST'].includes(b.status)) continue;
+        if (new Date(b.created_at).getTime() < cutoff) continue;
         const cur = map.get(b.game_name) || { game_name: b.game_name, bets: 0, wagered: 0, paid: 0 };
         cur.bets++; cur.wagered += b.bet_amount; cur.paid += b.payout;
         map.set(b.game_name, cur);
+      }
+      const rows = [...map.values()];
+      return { rows, rowCount: rows.length };
+    }
+    if (low.startsWith('select user_id,count(*) bets,coalesce(sum(bet_amount),0) wagered,coalesce(sum(payout),0) paid from universal_bets')) {
+      const cutoff = params[0] ? new Date(params[0]).getTime() : 0;
+      const map = new Map();
+      for (const b of db.universal_bets) {
+        if (!['WON', 'LOST'].includes(b.status)) continue;
+        if (new Date(b.created_at).getTime() < cutoff) continue;
+        const cur = map.get(b.user_id) || { user_id: b.user_id, bets: 0, wagered: 0, paid: 0 };
+        cur.bets++; cur.wagered += b.bet_amount; cur.paid += b.payout;
+        map.set(b.user_id, cur);
       }
       const rows = [...map.values()];
       return { rows, rowCount: rows.length };
@@ -684,8 +708,10 @@ function createMockPool() {
       return { rows, rowCount: rows.length };
     }
     if (low.startsWith('select game_name,coalesce(sum(total_bets),0)')) {
+      const cutoff = params[0] ? new Date(params[0]).getTime() : 0;
       const map = new Map();
       for (const r of db.game_12h_reports) {
+        if (new Date(r.period_end || r.created_at).getTime() < cutoff) continue;
         const cur = map.get(r.game_name) || { game_name: r.game_name, bets: 0, wagered: 0, paid: 0 };
         cur.bets += Number(r.total_bets || 0);
         cur.wagered += Number(r.total_wagered || 0);
@@ -759,8 +785,14 @@ function createMockPool() {
       }
       return { rows: [acc], rowCount: 1 };
     }
+    if (low.startsWith('select * from sports_bets where created_at>=$1')) {
+      const cutoff = params[0] ? new Date(params[0]).getTime() : 0;
+      const rows = db.sports_bets.filter(s => new Date(s.created_at).getTime() >= cutoff).slice(0, 80);
+      return { rows, rowCount: rows.length };
+    }
     if (low.startsWith("select count(*) bets,coalesce(sum(stake),0) wagered,coalesce(sum(payout),0) paid from sports_bets")) {
-      const list = db.sports_bets.filter(s => ['WON', 'LOST', 'CASHED_OUT'].includes(s.status));
+      const cutoff = params[0] ? new Date(params[0]).getTime() : 0;
+      const list = db.sports_bets.filter(s => ['WON', 'LOST', 'CASHED_OUT'].includes(s.status) && new Date(s.created_at).getTime() >= cutoff);
       return { rows: [{ bets: list.length, wagered: list.reduce((a, b) => a + b.stake, 0), paid: list.reduce((a, b) => a + b.payout, 0) }], rowCount: 1 };
     }
     if (low.startsWith('select * from sports_bets where (ticket_id=$1 or bet_id=$1) and user_id=$2') ||
@@ -929,8 +961,14 @@ function createMockPool() {
           status: 'VERIFYING', remarks: 'Checking payment', processed_by: 'AUTO', created_at: new Date(), updated_at: new Date()
         };
       } else if (low.includes("'withdrawal'")) {
-        const [txn_id, user_id, username, method, amount, sender_account, remarks] = params;
-        t = { txn_id, user_id: String(user_id), username, type: 'WITHDRAWAL', method, amount: Number(amount), net_amount: Number(amount), sender_account, payout_ref: '', payout_verified: false, status: 'PENDING', remarks, created_at: new Date(), updated_at: new Date() };
+        let txn_id, user_id, username, method, amount, sender_account, recipient_name, remarks;
+        if (params.length >= 8) {
+          [txn_id, user_id, username, method, amount, sender_account, recipient_name, remarks] = params;
+        } else {
+          [txn_id, user_id, username, method, amount, sender_account, remarks] = params;
+          recipient_name = '';
+        }
+        t = { txn_id, user_id: String(user_id), username, type: 'WITHDRAWAL', method, amount: Number(amount), net_amount: Number(amount), sender_account, recipient_name: recipient_name || '', payout_ref: '', payout_verified: false, status: 'PENDING', remarks, created_at: new Date(), updated_at: new Date() };
       } else if (low.includes("'manual_1click'")) {
         const [txn_id, user_id, username, amount, bank_txn_id, processed_by] = params;
         if (bank_txn_id && db.transactions.some(x => x.bank_txn_id === bank_txn_id)) throw dupErr();
@@ -1007,16 +1045,31 @@ function createMockPool() {
       const rows = db.transactions.filter(t => t.type === 'WITHDRAWAL' && ['PENDING', 'APPROVED'].includes(t.status)).slice(0, 200);
       return { rows, rowCount: rows.length };
     }
+    if (low.startsWith("select user_id,type,coalesce(sum(amount),0) total,count(*) cnt from transactions")) {
+      const cutoff = params[0] ? new Date(params[0]).getTime() : 0;
+      const map = new Map();
+      for (const t of db.transactions) {
+        if (t.status !== 'APPROVED') continue;
+        if (new Date(t.created_at).getTime() < cutoff) continue;
+        const k = `${t.user_id}::${t.type}`;
+        const cur = map.get(k) || { user_id: t.user_id, type: t.type, total: 0, cnt: 0 };
+        cur.total += Number(t.amount || 0);
+        cur.cnt++;
+        map.set(k, cur);
+      }
+      const rows = [...map.values()];
+      return { rows, rowCount: rows.length };
+    }
     if (low.startsWith("select * from transactions where type='deposit' order by")) {
-      const rows = db.transactions.filter(t => t.type === 'DEPOSIT').slice(0, 100);
+      const rows = db.transactions.filter(t => t.type === 'DEPOSIT').slice(0, 150);
       return { rows, rowCount: rows.length };
     }
     if (low.startsWith("select * from transactions where type='withdrawal' order by")) {
-      const rows = db.transactions.filter(t => t.type === 'WITHDRAWAL').slice(0, 100);
+      const rows = db.transactions.filter(t => t.type === 'WITHDRAWAL').slice(0, 150);
       return { rows, rowCount: rows.length };
     }
     if (low.startsWith('select * from transactions order by')) {
-      const rows = db.transactions.slice(0, 50);
+      const rows = db.transactions.slice(0, 80);
       return { rows, rowCount: rows.length };
     }
     if (low.startsWith('update transactions set bank_txn_id=null')) {
@@ -1100,7 +1153,7 @@ function createMockPool() {
         const t = db.transactions.find(x => x.txn_id === txnId && x.type === 'WITHDRAWAL' && x.status === 'PENDING');
         if (!t) return { rows: [], rowCount: 0 };
         t.status = 'APPROVED'; t.remarks = remarks; t.processed_by = actor; t.updated_at = new Date();
-        return { rows: [{ user_id: t.user_id, amount: t.amount, method: t.method, sender_account: t.sender_account }], rowCount: 1 };
+        return { rows: [{ user_id: t.user_id, amount: t.amount, method: t.method, sender_account: t.sender_account, recipient_name: t.recipient_name || '' }], rowCount: 1 };
       }
       if (low.startsWith("update transactions set status='rejected'")) {
         const [remarks, actor, txnId] = params;

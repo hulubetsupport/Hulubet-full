@@ -1529,19 +1529,17 @@ body, html {
   from { opacity: 0; transform: translateY(28px); }
   to { opacity: 1; transform: translateY(0); }
 }
-/* Purple Amharic Invite Promo Modal (14:26 Screenshot) */
+/* Invitation Promo Modal (Join Community warm coral & charcoal palette) */
 .invite-promo-card {
-  width: min(90vw, 344px);
-  border-radius: 22px;
+  width: min(90vw, 352px);
+  border-radius: 24px;
   overflow: hidden;
   position: relative;
-  background-color: #3b0764;
-  background-image:
-    radial-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px),
-    radial-gradient(circle at 50% 30%, #6d28d9 0%, #4c1d95 45%, #2e1065 100%);
-  background-size: 22px 22px, 100% 100%;
-  border: 1px solid rgba(192, 132, 252, 0.35);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.72);
+  background:
+    radial-gradient(ellipse at 22% 0%, rgba(249, 115, 22, 0.28) 0%, rgba(249, 115, 22, 0.06) 44%, transparent 72%),
+    linear-gradient(180deg, #161419 0%, #0d1017 100%);
+  border: 1px solid rgba(249, 115, 22, 0.35);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.78);
   color: #fff;
   text-align: center;
   margin: auto;
@@ -1554,10 +1552,10 @@ body, html {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.08);
   color: #e2e8f0;
-  font-size: 16px;
+  font-size: 15px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1573,16 +1571,18 @@ body, html {
 .invite-promo-cta {
   width: 100%;
   border: none;
-  background: #fde047;
-  color: #111827;
-  font-size: 14px;
-  font-weight: 900;
+  background: linear-gradient(90deg, #f97316 0%, #ef4444 100%);
+  color: #fff;
+  font-family: 'Outfit', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
   padding: 15px 16px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+  box-shadow: 0 12px 28px rgba(249, 115, 22, 0.34);
 }
 .invite-promo-cta:active { filter: brightness(0.95); }
 /* Bottom-sheet Official Telegram Channel Join & Welcome Modal (no promo code box) */
@@ -1875,6 +1875,7 @@ body.is-tg-app .browser-back-pill { display: none !important; }
         <div class="best-wins-title">
           <i class="fa-solid fa-trophy"></i>
           <span>Best Win Games</span>
+          <span id="bwTotalWon" class="tabular" style="font-size:10.5px;font-weight:800;color:var(--emerald-primary);background:rgba(0,240,118,0.12);border:1px solid rgba(0,240,118,0.28);padding:2px 7px;border-radius:8px;white-space:nowrap;">43.5k ETB</span>
         </div>
         <div class="period-segment" id="bestWinsPeriodTabs" role="tablist">
           <div class="period-thumb" id="bestWinsThumb"></div>
@@ -2208,21 +2209,21 @@ body.is-tg-app .browser-back-pill { display: none !important; }
   ======================================================== -->
   <div class="screen-view" id="tab-invite">
     <div style="padding:12px;display:flex;flex-direction:column;gap:12px;">
-      <div style="background:var(--bg-card);border:1px solid var(--border-active);border-radius:var(--radius-lg);padding:18px;display:flex;flex-direction:column;gap:10px;">
+      <div style="background:radial-gradient(ellipse at 22% 0%, rgba(249, 115, 22, 0.28) 0%, rgba(249, 115, 22, 0.06) 44%, transparent 72%), linear-gradient(180deg, #161419 0%, #0d1017 100%);border:1px solid rgba(249, 115, 22, 0.35);border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:10px;box-shadow:0 16px 38px rgba(0,0,0,0.45);">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-          <span style="color:var(--emerald-primary);font-size:10px;font-weight:800;letter-spacing:0.06em;">REFERRAL PROGRAM</span>
-          <button type="button" onclick="openInvitePromoModal()" style="background:rgba(109,40,217,0.28);border:1px solid rgba(192,132,252,0.5);color:#fde047;font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:999px;cursor:pointer;" id="invitePromoChipBtn">10 ብር Promo</button>
+          <span style="color:#f97316;font-size:10px;font-weight:800;letter-spacing:0.08em;">REFERRAL PROGRAM</span>
+          <button type="button" onclick="openInvitePromoModal()" style="background:rgba(249,115,22,0.16);border:1px solid rgba(249,115,22,0.42);color:#fb923c;font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:999px;cursor:pointer;" id="invitePromoChipBtn">10 ብር Promo</button>
         </div>
-        <div style="font-family:'Outfit';font-size:22px;font-weight:900;" id="inviteHeadlineTxt">Invite friends. Earn Br 10.</div>
-        <p style="font-size:11.5px;color:var(--text-muted);" id="inviteSubTxt">Invite 1 friend and gain 10 Birr whenever they complete their first deposit. Paid automatically!</p>
-        <div style="background:var(--bg-deep);border:1px solid var(--border-subtle);border-radius:10px;padding:9px 12px;font-size:11px;color:var(--cyan-accent);word-break:break-all;font-family:'JetBrains Mono',monospace;" id="inviteDirectUrlTxt">https://t.me/Hulubetethbot/hulubet?startapp=vip</div>
-        <div style="background:var(--bg-deep);border:1px solid var(--border-subtle);border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;font-size:11.5px;">
-          <span style="color:var(--text-muted);">Friends Invited</span>
-          <b class="tabular" style="color:var(--emerald-primary);" id="inviteCountTxt">0</b>
+        <div style="font-family:'Outfit';font-size:22px;font-weight:900;color:#fff;" id="inviteHeadlineTxt">Invite friends. Earn Br 10.</div>
+        <p style="font-size:11.5px;color:#cbd5e1;" id="inviteSubTxt">Invite 1 friend and gain 10 Birr whenever they complete their first deposit. Paid automatically!</p>
+        <div style="background:rgba(8,10,15,0.72);border:1px solid rgba(249,115,22,0.25);border-radius:10px;padding:9px 12px;font-size:11px;color:#fb923c;word-break:break-all;font-family:'JetBrains Mono',monospace;" id="inviteDirectUrlTxt">https://t.me/Hulubetethbot/hulubet?startapp=vip</div>
+        <div style="background:rgba(8,10,15,0.72);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;font-size:11.5px;">
+          <span style="color:#cbd5e1;">Friends Invited</span>
+          <b class="tabular" style="color:#fb923c;" id="inviteCountTxt">0</b>
         </div>
         <div style="display:flex;gap:8px;">
-          <button type="button" class="btn-emerald-huge" style="flex:1;" onclick="shareInviteLink()"><i class="fa-solid fa-share-nodes"></i> Invite friends</button>
-          <button type="button" class="btn-dark-huge" style="width:48px;padding:0;display:flex;align-items:center;justify-content:center;" aria-label="Copy referral link" onclick="copyReferralLink()"><i class="fa-regular fa-copy"></i></button>
+          <button type="button" class="ch-join-cta" style="flex:1;min-height:46px;font-size:14.5px;" onclick="shareInviteLink()"><i class="fa-solid fa-share-nodes"></i> Invite friends</button>
+          <button type="button" class="btn-dark-huge" style="width:48px;padding:0;display:flex;align-items:center;justify-content:center;border-color:rgba(249,115,22,0.35);background:rgba(255,255,255,0.06);" aria-label="Copy referral link" onclick="copyReferralLink()"><i class="fa-regular fa-copy"></i></button>
         </div>
       </div>
     </div>
@@ -2271,22 +2272,22 @@ body.is-tg-app .browser-back-pill { display: none !important; }
       </div>
 
       <!-- Profile Bottom Invitation Link Card -->
-      <div style="background:linear-gradient(135deg,#0f1f18 0%,#0b1322 100%);border:1px solid rgba(0,240,118,0.32);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:9px;">
+      <div style="background:radial-gradient(ellipse at 22% 0%, rgba(249, 115, 22, 0.24) 0%, rgba(249, 115, 22, 0.05) 44%, transparent 72%), linear-gradient(180deg, #161419 0%, #0d1017 100%);border:1px solid rgba(249, 115, 22, 0.35);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:9px;">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
           <div style="font-family:'Outfit';font-size:14.5px;font-weight:900;color:#fff;">
-            <i class="fa-solid fa-gift" style="color:var(--gold-primary);margin-right:6px;"></i>Invite Link · Gain 10 Birr
+            <i class="fa-solid fa-gift" style="color:#f97316;margin-right:6px;"></i>Invite Link · Gain 10 Birr
           </div>
-          <span style="font-size:10.5px;font-weight:800;color:var(--emerald-primary);" id="profInviteCount">0 Invited</span>
+          <span style="font-size:10.5px;font-weight:800;color:#fb923c;" id="profInviteCount">0 Invited</span>
         </div>
-        <div style="font-size:11px;color:var(--text-muted);">Invite 1 friend with your direct Mini App link and earn <b style="color:var(--gold-primary);">10 ብር</b> automatically on their first deposit.</div>
-        <div style="background:var(--bg-deep);border:1px solid var(--border-subtle);border-radius:10px;padding:9px 11px;font-size:11px;color:var(--cyan-accent);word-break:break-all;font-family:'JetBrains Mono',monospace;" id="profInviteLink">https://t.me/Hulubetethbot/hulubet?startapp=vip</div>
+        <div style="font-size:11px;color:#cbd5e1;">Invite 1 friend with your direct Mini App link and earn <b style="color:#fb923c;">10 ብር</b> automatically on their first deposit.</div>
+        <div style="background:rgba(8,10,15,0.72);border:1px solid rgba(249,115,22,0.24);border-radius:10px;padding:9px 11px;font-size:11px;color:#fb923c;word-break:break-all;font-family:'JetBrains Mono',monospace;" id="profInviteLink">https://t.me/Hulubetethbot/hulubet?startapp=vip</div>
         <div style="display:flex;gap:8px;">
-          <button type="button" class="btn-emerald-huge" style="flex:1;min-height:42px;padding:10px;font-size:13px;" onclick="shareInviteLink()"><i class="fa-solid fa-share-nodes"></i> Invite &amp; Earn 10 Br</button>
-          <button type="button" class="btn-dark-huge" style="min-height:42px;padding:0 14px;font-size:12.5px;" onclick="copyReferralLink()" aria-label="Copy direct invite link"><i class="fa-regular fa-copy"></i> Copy</button>
+          <button type="button" class="ch-join-cta" style="flex:1;min-height:42px;padding:10px;font-size:13px;" onclick="shareInviteLink()"><i class="fa-solid fa-share-nodes"></i> Invite &amp; Earn 10 Br</button>
+          <button type="button" class="btn-dark-huge" style="min-height:42px;padding:0 14px;font-size:12.5px;border-color:rgba(249,115,22,0.35);background:rgba(255,255,255,0.06);" onclick="copyReferralLink()" aria-label="Copy direct invite link"><i class="fa-regular fa-copy"></i> Copy</button>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.06);font-size:10.5px;color:var(--text-muted);">
           <a href="mailto:hulubetsupport@gmail.com" style="color:var(--text-muted);text-decoration:none;"><i class="fa-regular fa-envelope" style="color:var(--cyan-accent);margin-right:4px;"></i>hulubetsupport@gmail.com</a>
-          <a href="https://t.me/HuluBetOfficial" target="_blank" rel="noopener" style="color:var(--emerald-primary);font-weight:800;text-decoration:none;"><i class="fa-brands fa-telegram" style="margin-right:4px;"></i>@HuluBetOfficial</a>
+          <a href="https://t.me/HuluBetOfficial" target="_blank" rel="noopener" style="color:#fb923c;font-weight:800;text-decoration:none;"><i class="fa-brands fa-telegram" style="margin-right:4px;"></i>@HuluBetOfficial</a>
         </div>
       </div>
     </div>
@@ -2419,7 +2420,7 @@ body.is-tg-app .browser-back-pill { display: none !important; }
       <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px;text-align:center;" id="wdInfo">Checking...</p>
 
       <div style="width:100%;margin-bottom:8px;">
-        <label style="font-size:10.5px;color:var(--text-muted);display:block;margin-bottom:4px;">Withdrawal Method:</label>
+        <label for="wdMethod" style="font-size:10.5px;color:var(--text-muted);display:block;margin-bottom:4px;">Withdrawal Method:</label>
         <select id="wdMethod" style="width:100%;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:10px;padding:12px;color:#fff;font-weight:800;">
           <option value="Telebirr">Telebirr (ቴሌብር)</option>
           <option value="CBE">CBE (የኢትዮጵያ ንግድ ባንክ)</option>
@@ -2427,7 +2428,12 @@ body.is-tg-app .browser-back-pill { display: none !important; }
       </div>
 
       <div style="width:100%;margin-bottom:8px;">
-        <label style="font-size:10.5px;color:var(--text-muted);display:block;margin-bottom:4px;">Amount (min 100 ETB):</label>
+        <label for="withdrawFirstName" style="font-size:10.5px;color:var(--text-muted);display:block;margin-bottom:4px;">First Name (Account Holder):</label>
+        <input type="text" id="withdrawFirstName" style="width:100%;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:10px;padding:12px;color:#fff;font-weight:800;" placeholder="Write your first name (e.g. Abebe)" maxlength="60" autocomplete="given-name">
+      </div>
+
+      <div style="width:100%;margin-bottom:8px;">
+        <label for="withdrawAmountInput" style="font-size:10.5px;color:var(--text-muted);display:block;margin-bottom:4px;">Amount (min 100 ETB):</label>
         <input type="number" id="withdrawAmountInput" style="width:100%;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:10px;padding:12px;color:#fff;font-weight:800;" placeholder="Amount (min 100 ETB)" min="100">
       </div>
 
@@ -2439,7 +2445,7 @@ body.is-tg-app .browser-back-pill { display: none !important; }
       </div>
 
       <div style="width:100%;margin-bottom:14px;">
-        <label style="font-size:10.5px;color:var(--text-muted);display:block;margin-bottom:4px;">Account / Phone Number:</label>
+        <label for="withdrawAccountInput" style="font-size:10.5px;color:var(--text-muted);display:block;margin-bottom:4px;">Account / Phone Number:</label>
         <input type="tel" id="withdrawAccountInput" style="width:100%;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:10px;padding:12px;color:#fff;font-weight:800;" placeholder="09... / 1000...">
       </div>
 
@@ -2463,30 +2469,31 @@ body.is-tg-app .browser-back-pill { display: none !important; }
       <p style="font-size:11px;color:var(--text-muted);margin-bottom:8px;text-align:center;">Have a promo code? Enter it below to claim bonus ETB.</p>
       <input type="text" id="promoCodeInput" class="verify-input-field" placeholder="Enter Promo Code" style="text-transform:uppercase;margin-bottom:12px;" maxlength="24">
       <button type="button" class="btn-emerald-huge" id="btnRedeemPromo" style="width:100%;margin-bottom:8px;" onclick="redeemPromoCode()">Redeem Code</button>
-      <button type="button" class="btn-dark-huge" style="width:100%;font-size:12px;padding:10px;min-height:40px;color:#fde047;" id="promoInviteBonusBtn" onclick="closeModal('modalPromo'); openInvitePromoModal();">10 ብር Invite Friend Bonus ↗</button>
+      <button type="button" class="btn-dark-huge" style="width:100%;font-size:12px;padding:10px;min-height:40px;color:#fb923c;border-color:rgba(249,115,22,0.35);" id="promoInviteBonusBtn" onclick="closeModal('modalPromo'); openInvitePromoModal();">10 ብር Invite Friend Bonus ↗</button>
     </div>
   </div>
 
-  <!-- PURPLE AMHARIC INVITE PROMO MODAL (14:26 Screenshot) -->
+  <!-- INVITATION PROMO MODAL (Join Community warm coral & charcoal palette) -->
   <div class="modal-overlay" id="modalInvitePromo" style="align-items:center;z-index:340;" onclick="closeModal('modalInvitePromo')">
     <div class="invite-promo-card" onclick="event.stopPropagation()">
       <button type="button" class="invite-promo-close" aria-label="Close invite promo" onclick="closeModal('modalInvitePromo')">✕</button>
       <div class="invite-promo-body">
+        <div style="font-size:10.5px;font-weight:800;letter-spacing:0.08em;color:#f97316;text-transform:uppercase;">HuluBet Referral Bonus</div>
         <div style="font-size:20px;font-weight:800;color:#f8fafc;">ይጋብዙና ያግኙ</div>
-        <div style="font-size:38px;font-weight:900;color:#fde047;line-height:1.05;" id="invitePromoAmtTxt">10 ብር</div>
+        <div style="font-size:38px;font-weight:900;color:#fb923c;line-height:1.05;" id="invitePromoAmtTxt">10 ብር</div>
         <div style="font-size:11px;color:#cbd5e1;font-weight:600;margin-bottom:6px;">ለእያንዳንዱ ጓደኛ</div>
         <div style="font-size:17px;font-weight:800;line-height:1.35;color:#ffffff;">ጓደኛዎን ይጋብዙ፣<br><span id="invitePromoSubAmtTxt">10</span> ብር ጉርሻ ያግኙ!</div>
         <div style="margin:10px 0 6px;position:relative;width:150px;height:118px;display:flex;align-items:center;justify-content:center;">
           <svg viewBox="0 0 160 130" width="144" height="114" aria-hidden="true">
-            <ellipse cx="80" cy="70" rx="68" ry="42" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1"/>
-            <path d="M22 86 L25 92 L31 95 L25 98 L22 104 L19 98 L13 95 L19 92 Z" fill="none" stroke="#fde047" stroke-width="1.5"/>
-            <path d="M136 52 L139 58 L145 61 L139 64 L136 70 L133 64 L127 61 L133 58 Z" fill="none" stroke="#fde047" stroke-width="1.5"/>
-            <rect x="38" y="54" width="84" height="58" rx="12" fill="#eab308" stroke="#ca8a04" stroke-width="2"/>
-            <rect x="34" y="42" width="92" height="22" rx="8" fill="#facc15" stroke="#ca8a04" stroke-width="2"/>
-            <rect x="70" y="42" width="20" height="70" rx="3" fill="#3b82f6" stroke="#1d4ed8" stroke-width="1.5"/>
-            <path d="M80 42 C66 20 44 26 52 42 Z" fill="#60a5fa" stroke="#1d4ed8" stroke-width="1.5"/>
-            <path d="M80 42 C94 20 116 26 108 42 Z" fill="#3b82f6" stroke="#1d4ed8" stroke-width="1.5"/>
-            <circle cx="80" cy="42" r="7" fill="#93c5fd" stroke="#1d4ed8" stroke-width="1.5"/>
+            <ellipse cx="80" cy="70" rx="68" ry="42" fill="none" stroke="rgba(249,115,22,0.28)" stroke-width="1.2"/>
+            <path d="M22 86 L25 92 L31 95 L25 98 L22 104 L19 98 L13 95 L19 92 Z" fill="none" stroke="#fb923c" stroke-width="1.5"/>
+            <path d="M136 52 L139 58 L145 61 L139 64 L136 70 L133 64 L127 61 L133 58 Z" fill="none" stroke="#fb923c" stroke-width="1.5"/>
+            <rect x="38" y="54" width="84" height="58" rx="12" fill="#f97316" stroke="#c2410c" stroke-width="2"/>
+            <rect x="34" y="42" width="92" height="22" rx="8" fill="#fb923c" stroke="#c2410c" stroke-width="2"/>
+            <rect x="70" y="42" width="20" height="70" rx="3" fill="#fde047" stroke="#ca8a04" stroke-width="1.5"/>
+            <path d="M80 42 C66 20 44 26 52 42 Z" fill="#fef08a" stroke="#ca8a04" stroke-width="1.5"/>
+            <path d="M80 42 C94 20 116 26 108 42 Z" fill="#fde047" stroke="#ca8a04" stroke-width="1.5"/>
+            <circle cx="80" cy="42" r="7" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.5"/>
           </svg>
         </div>
         <div style="font-size:10.5px;color:#cbd5e1;font-weight:600;">የመጀመሪያ የውጭ ገንዘብ ገቢ ሲያደርግ</div>
@@ -2538,12 +2545,12 @@ body.is-tg-app .browser-back-pill { display: none !important; }
       <span class="sheet-close-x" onclick="closeModal('modalSupport')">✕</span>
       <h3 style="margin-bottom:2px;font-size:16px;font-family:'Outfit';font-weight:900;text-align:center;">HuluBet Official Support</h3>
       <p style="font-size:11px;color:var(--text-muted);margin-bottom:2px;text-align:center;">24/7 Ethiopian Birr cashier, support email &amp; official community:</p>
-      <div style="background:#0e1524;padding:12px;border-radius:12px;width:100%;display:flex;justify-content:space-between;align-items:center;cursor:pointer;border:1px solid var(--border-subtle);" onclick="window.open('https://t.me/Agent1hulubet','_blank')">
+      <div style="background:#0e1524;padding:12px;border-radius:12px;width:100%;display:flex;justify-content:space-between;align-items:center;cursor:pointer;border:1px solid var(--border-subtle);" onclick="window.open('https://t.me/Hulubetsupportbot','_blank')">
         <div style="display:flex;align-items:center;gap:10px;">
           <i class="fa-brands fa-telegram" style="font-size:24px;color:#0284c7;"></i>
-          <div><b>Official Agent</b><div style="font-size:10px;color:var(--emerald-primary);">Online 24/7</div></div>
+          <div><b>Official Support Bot</b><div style="font-size:10px;color:var(--emerald-primary);">Online 24/7</div></div>
         </div>
-        <span style="color:var(--gold-primary);font-weight:800;">@Agent1hulubet</span>
+        <span style="color:var(--gold-primary);font-weight:800;">@Hulubetsupportbot</span>
       </div>
       <div style="background:#0e1524;padding:12px;border-radius:12px;width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;border:1px solid var(--border-subtle);">
         <a href="mailto:hulubetsupport@gmail.com" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:#fff;flex:1;min-width:0;">
@@ -3396,6 +3403,12 @@ function switchBestWinsPeriod(period) {
   else renderBestWins(period);
 }
 
+function fmtCompactEtb(val) {
+  const n = Number(val || 0);
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k ETB';
+  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ETB';
+}
+
 function renderBestWins(period) {
   const data = bestWinsData?.[period] || { topGames: [], bestWins: [], summary: {} };
   const s = data.summary || {};
@@ -3404,8 +3417,8 @@ function renderBestWins(period) {
   const bigWinEl = document.getElementById('bwBiggestWin');
   const totWonEl = document.getElementById('bwTotalWon');
   if (topGameEl) topGameEl.textContent = s.topGame || 'No rounds yet';
-  if (bigWinEl) bigWinEl.textContent = Number(s.biggestWin || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ETB';
-  if (totWonEl) totWonEl.textContent = Number(s.totalWon || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ETB';
+  if (bigWinEl) bigWinEl.textContent = fmtCompactEtb(s.biggestWin || 0);
+  if (totWonEl) totWonEl.textContent = fmtCompactEtb(s.totalWon || 0);
 
   const carousel = document.getElementById('bestGamesCarousel');
   if (carousel) {
@@ -3432,7 +3445,7 @@ function renderBestWins(period) {
             </div>
             <div class="best-game-body">
               <div class="best-game-name">${escHtml(g.displayName)}</div>
-              <div class="best-game-payout tabular">${Number(g.totalWon || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB</div>
+              <div class="best-game-payout tabular">${fmtCompactEtb(g.totalWon || 0)}</div>
               <div class="best-game-meta">
                 <span>${Number(g.bets || 0)} bets</span>
                 <span>${g.bestMult ? 'Best ' + Number(g.bestMult).toFixed(2) + 'x' : Number(g.rtp || 0).toFixed(1) + '% RTP'}</span>
@@ -3884,10 +3897,12 @@ function setWdMax() {
 }
 
 async function submitWithdrawOrder() {
+  const firstName = document.getElementById('withdrawFirstName')?.value?.trim() || '';
   const amount = Number(document.getElementById('withdrawAmountInput').value);
   const account = document.getElementById('withdrawAccountInput').value.trim();
   const prov = document.getElementById('wdMethod').value;
 
+  if (firstName.length < 2) return toast("Please write your First Name (min 2 letters)", 'warning');
   if (!amount || amount < 100) return toast("Minimum cashout is 100 ETB", 'warning');
   if (!account) return toast("Account or Phone number required", 'warning');
   if (wagerLeft > 0) {
@@ -3903,7 +3918,7 @@ async function submitWithdrawOrder() {
 
   const d = await api('/api/cashier/withdraw', {
     method: 'POST',
-    body: JSON.stringify({ amount, accountNumber: account, method: prov })
+    body: JSON.stringify({ amount, accountNumber: account, method: prov, firstName, customerName: firstName })
   });
 
   btn.disabled = false;

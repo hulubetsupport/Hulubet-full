@@ -113,6 +113,13 @@
     .bar i{display:block;height:8px;border-radius:999px;background:var(--ac)}
     code{font-family:ui-monospace,monospace;background:var(--bg2);padding:2px 6px;border-radius:6px;word-break:break-all;font-size:12px}
     .quick-strip{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+    .range-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:10px 12px;margin-bottom:12px}
+    .range-pills{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+    .range-chip{border:1px solid var(--bd2);background:var(--bg2);color:var(--mu);border-radius:9px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer;transition:.15s}
+    .range-chip:hover{color:var(--tx);border-color:var(--ac)}
+    .range-chip.on{background:var(--ac);color:#04130b;border-color:var(--ac);font-weight:800}
+    .scroll-box{max-height:360px;overflow:auto;border:1px solid var(--bd);border-radius:10px}
+    .scroll-box table th{position:sticky;top:0;background:var(--card);z-index:2}
 
     /* Modals & Toasts */
     #md{position:fixed;inset:0;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:40;padding:16px}
@@ -220,6 +227,7 @@ let LOGIN_MODE = (pathLow.includes('/agent') || urlMode === 'agent') ? 'agent' :
 let PIN = '', ACTOR = 'Admin', ROLE = 'admin';
 let D = null, AG = null, U = null, SQ = '', AL = [], BOT = null, SM = null, FR = null;
 let page = 'Overview', prev = { d: 0, w: 0 };
+let adminRange = 'all', userListQ = '', selectedBetUser = 'ALL', betListQ = '';
 let wdFilterQ = '', wdFilterMethod = 'ALL', depFilterQ = '', depFilterMethod = 'ALL', userStatusFilter = 'ALL', betGameFilter = 'ALL', auditFilterQ = '', smsFilterQ = '';
 
 const $ = s => document.querySelector(s);
@@ -345,7 +353,7 @@ async function load(silent) {
     if (!modalOpen()) R();
     return d;
   }
-  const d = await call('/api/admin/master-dashboard');
+  const d = await call('/api/admin/master-dashboard?range=' + encodeURIComponent(adminRange || 'all'));
   if (!d.success) { if (!silent) toast(d.message || 'Load failed', true); return d; }
   if (D && (d.pendingDeposits.length > prev.d || d.pendingWithdrawals.length > prev.w)) { beep(); toast('New request received'); }
   prev = { d: d.pendingDeposits.length, w: d.pendingWithdrawals.length };
@@ -481,6 +489,13 @@ const ACT = {
   refresh: () => load(),
   logout,
   navGo: d => go(d.page),
+  setRange: d => { adminRange = d.r || 'all'; load(); },
+  focusUserBets: d => {
+    selectedBetUser = d.uid || 'ALL';
+    R();
+    setTimeout(() => document.getElementById('overviewBetsCard')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 40);
+  },
+  clearBetUser: () => { selectedBetUser = 'ALL'; R(); },
   copy: d => { try { navigator.clipboard.writeText(d.v); toast('Copied ' + d.v); } catch (_) { toast(d.v); } },
   depOk: d => ask('Approve deposit ' + d.id, [{ k: 'ref', label: 'Telebirr / CBE reference (reused ref is blocked)', value: d.ref }], v => act('/api/admin/approve-deposit', { txnId: d.id, bankRef: v.ref }), 'Approve & credit'),
   depNo: d => ask('Reject deposit ' + d.id, [{ k: 'reason', label: 'Reason (sent to the player)', value: 'Payment not received' }], v => act('/api/admin/reject-deposit', { txnId: d.id, reason: v.reason }), 'Reject'),
@@ -703,32 +718,112 @@ async function search(q, keep) {
 window.onSearch = v => { clearTimeout(st); st = setTimeout(() => search(v.trim()), 350); };
 
 // ---------- Filters & Render Helpers ----------
-function filterPlayers(list) {
+function filterPlayers(list, qText = '') {
+  const q = String(qText || '').toLowerCase().trim();
   return (list || []).filter(u => {
-    if (userStatusFilter === 'BONUS') return Number(u.bonus_balance || 0) > 0 || Number(u.wager_requirement_left || 0) > 0;
-    if (userStatusFilter !== 'ALL' && u.st !== userStatusFilter) return false;
+    if (userStatusFilter === 'BONUS' && !(Number(u.bonus_balance || 0) > 0 || Number(u.wager_requirement_left || 0) > 0)) return false;
+    if (userStatusFilter !== 'ALL' && userStatusFilter !== 'BONUS' && u.st !== userStatusFilter) return false;
+    if (q && ![u.id, u.name, u.telegram_username, u.st].some(v => String(v || '').toLowerCase().includes(q))) return false;
     return true;
   });
 }
-const playersTable = rawList => {
-  const list = filterPlayers(rawList);
-  return list.length ? tbl(['ID', 'Player', 'Total Bal', 'Bonus (50x)', 'Wager Left', '1st Dep', 'Status', 'Wagered', 'Won', 'Actions'], list.map(u => [
-    `<span class="mono">${esc(u.id)}</span>`,
-    esc(u.name) + (u.telegram_username ? ` <span class="k">@${esc(u.telegram_username)}</span>` : ''),
-    `<b>${etb(u.bal)}</b>`,
-    `<span style="color:var(--am)">${etb(u.bonus_balance || 0)}</span>`,
-    `<span class="k">${etb(u.wager_requirement_left || 0)}</span>`,
-    badge(u.first_deposit_completed === 'YES' ? 'YES' : 'NO'),
-    badge(u.st),
-    etb(u.total_wagered),
-    etb(u.total_won),
-    btn('Top-up', 'topup', { id: u.id, name: u.name }, 'g2') +
-    btn('Adjust', 'adj', { id: u.id, name: u.name }, 'm') +
-    (u.st === 'active'
-      ? btn('Suspend', 'stat', { id: u.id, name: u.name, st: 'suspended' }, 'am') + btn('Ban', 'stat', { id: u.id, name: u.name, st: 'banned' }, 'r')
-      : btn('Activate', 'stat', { id: u.id, name: u.name, st: 'active' }, 'g2'))
-  ])) : empty('No matching players found');
+const playersTable = (rawList, qText = '', opts = {}) => {
+  const list = filterPlayers(rawList, qText);
+  if (!list.length) return empty('No matching players found');
+  const rangeMode = Boolean(opts.rangeMode);
+  const cols = rangeMode
+    ? ['ID', 'Player', 'Total Bal', 'Bonus (50x)', 'Bets', 'Wagered', 'Won', 'Net', 'Dep / Wd', 'Status', 'Actions']
+    : ['ID', 'Player', 'Total Bal', 'Bonus (50x)', 'Wager Left', '1st Dep', 'Status', 'Wagered', 'Won', 'Actions'];
+  const html = tbl(cols, list.map(u => {
+    const uDisp = esc(u.name) + (u.telegram_username ? ` <span class="k">@${esc(u.telegram_username)}</span>` : '');
+    const acts =
+      btn('Bets', 'focusUserBets', { uid: u.id }, selectedBetUser === String(u.id) ? 'g2' : 'm') +
+      btn('Top-up', 'topup', { id: u.id, name: u.name }, 'g2') +
+      btn('Adjust', 'adj', { id: u.id, name: u.name }, 'm') +
+      (!rangeMode ? (u.st === 'active'
+        ? btn('Suspend', 'stat', { id: u.id, name: u.name, st: 'suspended' }, 'am') + btn('Ban', 'stat', { id: u.id, name: u.name, st: 'banned' }, 'r')
+        : btn('Activate', 'stat', { id: u.id, name: u.name, st: 'active' }, 'g2')) : '');
+    if (rangeMode) {
+      const rNet = Number(u.rangeNet ?? (Number(u.rangeWon || 0) - Number(u.rangeWagered || 0)));
+      return [
+        `<span class="mono">${esc(u.id)}</span>`,
+        uDisp,
+        `<b>${etb(u.bal)}</b>`,
+        `<span style="color:var(--am)">${etb(u.bonus_balance || 0)}</span>`,
+        `<b>${Number(u.rangeBets ?? u.bets ?? 0)}</b>`,
+        etb(u.rangeWagered ?? u.total_wagered),
+        `<span style="color:var(--ac)">${etb(u.rangeWon ?? u.total_won)}</span>`,
+        `<b style="color:${rNet >= 0 ? 'var(--ac)' : 'var(--rd)'}">${rNet >= 0 ? '+' : ''}${etb(rNet)}</b>`,
+        `<span class="k">${etb(u.rangeDep ?? u.total_deposited)} / ${etb(u.rangeWd ?? 0)}</span>`,
+        badge(u.st),
+        acts
+      ];
+    }
+    return [
+      `<span class="mono">${esc(u.id)}</span>`,
+      uDisp,
+      `<b>${etb(u.bal)}</b>`,
+      `<span style="color:var(--am)">${etb(u.bonus_balance || 0)}</span>`,
+      `<span class="k">${etb(u.wager_requirement_left || 0)}</span>`,
+      badge(u.first_deposit_completed === 'YES' ? 'YES' : 'NO'),
+      badge(u.st),
+      etb(u.total_wagered),
+      etb(u.total_won),
+      acts
+    ];
+  }));
+  return opts.scroll ? `<div class="scroll-box">${html}</div>` : html;
 };
+
+const ADMIN_TIMEFRAMES = [
+  ['1h', '1h'], ['12h', '12h'], ['24h', '24h'], ['1d', '1d'],
+  ['7d', '7d'], ['1m', '1m'], ['3m', '3m'], ['6m', '6m'], ['1y', '1y'], ['all', 'All']
+];
+
+function renderBetsListBlock(opts = {}) {
+  const allBets = D?.bets || [];
+  const games = ['ALL', ...new Set(allBets.map(b => b.m).filter(Boolean))];
+  const q = betListQ.toLowerCase().trim();
+  const filtered = allBets.filter(b => {
+    if (selectedBetUser !== 'ALL' && String(b.uid || '') !== String(selectedBetUser)) return false;
+    if (betGameFilter !== 'ALL' && b.m !== betGameFilter) return false;
+    if (q && ![b.id, b.uid, b.u, b.playerName, b.m, b.st].some(v => String(v || '').toLowerCase().includes(q))) return false;
+    return true;
+  });
+  const selUserObj = selectedBetUser !== 'ALL' ? (D?.users || []).find(u => String(u.id) === String(selectedBetUser)) : null;
+  const userOpts = (D?.users || []).slice(0, 150);
+  const tableHtml = filtered.length ? tbl(['ID', 'Player', 'Game', 'Mult', 'Stake', 'Payout', 'Net', 'Result', 'Age'], filtered.map(b => {
+    const netVal = Number(b.net != null ? b.net : (Number(b.win || 0) - Number(b.s || 0)));
+    const pLabel = esc(b.playerName || b.u) + (b.u && b.playerName && b.u !== b.playerName ? ` <span class="k">@${esc(b.u)}</span>` : '');
+    return [
+      `<span class="mono">${esc(b.id)}</span>`,
+      pLabel,
+      badge(b.m, b.source === 'sports' ? 'in' : 'pu'),
+      esc(b.p || (Number(b.mult || 0) + 'x')),
+      etb(b.s),
+      `<b style="color:${Number(b.win || 0) > 0 ? 'var(--ac)' : 'var(--mu)'}">${etb(b.win || 0)}</b>`,
+      `<b style="color:${netVal >= 0 ? 'var(--ac)' : 'var(--rd)'}">${netVal >= 0 ? '+' : ''}${etb(netVal)}</b>`,
+      badge(b.st),
+      b.at ? ago(b.at) : '—'
+    ];
+  })) : empty('No bets match the selected user / game / timeframe filter');
+
+  return `<div class="toolbar">
+      <div>
+        <h2 style="margin:0">Users' Bets List (${filtered.length})</h2>
+        ${selUserObj ? `<span class="k">Filtered to <b>${esc(selUserObj.name)}</b> (${esc(selUserObj.id)}) ${btn('Clear User', 'clearBetUser', {}, 'm')}</span>` : `<span class="k">Live casino &amp; sports bets for selected timeframe</span>`}
+      </div>
+      <div class="row">
+        <input placeholder="Filter bet ID, player, game…" value="${esc(betListQ)}" oninput="betListQ=this.value;R()">
+        <select onchange="selectedBetUser=this.value;R()">
+          <option value="ALL" ${selectedBetUser==='ALL'?'selected':''}>All Users</option>
+          ${userOpts.map(u => `<option value="${esc(u.id)}" ${String(selectedBetUser)===String(u.id)?'selected':''}>${esc(u.name)} (${esc(u.id)})</option>`).join('')}
+        </select>
+        <select onchange="betGameFilter=this.value;R()">${games.map(g => `<option value="${esc(g)}" ${betGameFilter===g?'selected':''}>${esc(g === 'ALL' ? 'All Games' : g)}</option>`).join('')}</select>
+      </div>
+    </div>
+    ${opts.scroll ? `<div class="scroll-box">${tableHtml}</div>` : tableHtml}`;
+}
 
 function renderRtpSvgChart(gs, defaultTarget) {
   if (!gs || !gs.length) return empty('No settled game volume yet');
@@ -784,13 +879,13 @@ function renderPendingWithdrawalsBlock(list) {
       </div>
     </div>
     <p class="k" style="margin-top:0">Send the payout to the player's account first, check outgoing SMS if needed, then press <b>Paid</b>. Rejecting refunds their balance atomically.</p>
-    ${filtered.length ? tbl(['ID', 'Player', 'Method', 'Amount', 'Send To', 'Review', 'Age', 'Action'], filtered.map(t => {
+    ${filtered.length ? tbl(['ID', 'First Name / Player', 'Method', 'Amount', 'Send To', 'Review', 'Age', 'Action'], filtered.map(t => {
       const rv = (t.remarks || '').split('REVIEW:')[1];
-      const pname = t.playerName || t.username || t.user_id || '';
-      const pDisp = pname + (t.username && t.playerName && t.username !== t.playerName ? ` (@${t.username})` : '');
+      const pname = t.recipient_name || t.recipientName || t.playerName || t.username || t.user_id || '';
+      const pDisp = pname + (t.username && pname !== t.username ? ` (@${t.username})` : '');
       return [
         `<span class="mono">${esc(t.txn_id)}</span>`,
-        esc(pDisp),
+        `<b>${esc(pDisp)}</b>`,
         badge(t.method, t.method === 'CBE' ? 'in' : 'pu'),
         '<b>' + etb(t.amount) + '</b>',
         `<code>${esc(t.sender_account)}</code> ` + btn('Copy', 'copy', { v: t.sender_account }, 'm'),
@@ -836,10 +931,30 @@ const V = {
     </div>`;
   },
   Overview() {
-    const v = D.vault, gs = D.gameStats, W = gs.reduce((a, g) => a + g.wagered, 0), P = gs.reduce((a, g) => a + g.paid, 0), rtp = W ? (P / W) * 100 : 0;
+    const v = D.vault, gs = D.gameStats || [];
+    const rs = D.rangeSummary || {
+      key: adminRange, label: adminRange === 'all' ? 'All Time' : adminRange,
+      bets: gs.reduce((a, g) => a + g.bets, 0),
+      wagered: gs.reduce((a, g) => a + g.wagered, 0),
+      paid: gs.reduce((a, g) => a + g.paid, 0),
+      ggr: v.ggrToday, ngr: v.ngrMonth, rtp: 0,
+      deposits: 0, withdrawals: 0, bonuses: 0,
+      activePlayers: (D.users || []).length, newUsers: 0, totalUsers: D.totalUsers
+    };
+    const rtp = rs.wagered ? (rs.paid / rs.wagered) * 100 : (rs.rtp || 0);
     const pw = D.pendingWithdrawals.reduce((a, t) => a + Number(t.amount), 0);
-    const fdbPct = D.settings.firstDepBonusPct ?? 20, fdbMin = D.settings.firstDepBonusMin ?? 300, wrx = D.settings.wagerReqMult ?? 50;
-    return `<div class="quick-strip">
+    const filteredUsers = filterPlayers(D.users || [], userListQ);
+    return `<div class="range-bar">
+      <div class="range-pills" role="group" aria-label="Timeframe filter">
+        ${ADMIN_TIMEFRAMES.map(([k, lbl]) => `<button type="button" class="range-chip ${adminRange === k ? 'on' : ''}" data-act="setRange" data-r="${k}">${lbl}</button>`).join('')}
+      </div>
+      <div class="row">
+        ${badge('Window: ' + (rs.label || adminRange), 'in')}
+        ${badge((rs.bets || 0) + ' bets', 'pu')}
+        ${badge((rs.activePlayers || 0) + ' active / ' + D.totalUsers + ' users', 'ok')}
+      </div>
+    </div>
+    <div class="quick-strip">
       ${btn('+ Manual Top-up', 'quickTopup', {}, 'g2')}
       ${btn('📥 Deposits (' + D.pendingDeposits.length + ')', 'navGo', { page: 'Deposits' }, D.pendingDeposits.length ? 'am' : 'm')}
       ${btn('💸 Withdrawals (' + D.pendingWithdrawals.length + ')', 'navGo', { page: 'Withdrawals' }, D.pendingWithdrawals.length ? 'am' : 'm')}
@@ -847,25 +962,47 @@ const V = {
       ${btn('📊 Export Players CSV', 'exportUsers', {}, 'm')}
     </div>
     <div class="g">
-      <div class="c kpi"><div class="k">GGR Today</div><div class="v" style="color:var(--ac)">${etb(v.ggrToday)}</div><div class="sub">Gross gaming revenue</div></div>
-      <div class="c kpi"><div class="k">NGR This Month</div><div class="v">${etb(v.ngrMonth)}</div><div class="sub">After awarded bonuses</div></div>
-      <div class="c kpi"><div class="k">Casino Vault</div><div class="v">${etb(v.vault_balance)}</div><div class="sub">House bankroll</div></div>
-      <div class="c kpi"><div class="k">Total Wagered</div><div class="v">${etb(v.total_wagered)}</div><div class="sub">${D.totalUsers} players</div></div>
-      <div class="c kpi"><div class="k">Pending Deposits</div><div class="v" style="color:var(--am)">${D.pendingDeposits.length}</div><div class="sub">Awaiting verification</div></div>
-      <div class="c kpi"><div class="k">Pending Withdrawals</div><div class="v" style="color:var(--am)">${D.pendingWithdrawals.length}</div><div class="sub">${etb(pw)}</div></div>
-      <div class="c kpi"><div class="k">Actual RTP / Target</div><div class="v">${rtp.toFixed(1)}%</div><div class="sub">Target ${D.settings.targetRtp}% (Keno ${D.settings.kenoRtp}% · Buffalo ${D.settings.buffaloRtp ?? 70}%)</div></div>
-      <div class="c kpi"><div class="k">Bonus Rule</div><div class="v" style="color:var(--cy)">${fdbPct}% / ${wrx}x</div><div class="sub">1st deposit ${fdbMin}+ ETB</div></div>
+      <div class="c kpi"><div class="k">GGR (${esc(rs.label)})</div><div class="v" style="color:${rs.ggr >= 0 ? 'var(--ac)' : 'var(--rd)'}">${etb(rs.ggr)}</div><div class="sub">${rs.bets} settled bets</div></div>
+      <div class="c kpi"><div class="k">NGR (${esc(rs.label)})</div><div class="v">${etb(rs.ngr)}</div><div class="sub">Bonuses: ${etb(rs.bonuses)}</div></div>
+      <div class="c kpi"><div class="k">Wagered (${esc(rs.label)})</div><div class="v">${etb(rs.wagered)}</div><div class="sub">Paid Out: ${etb(rs.paid)}</div></div>
+      <div class="c kpi"><div class="k">Deposits / Withdrawals</div><div class="v" style="font-size:17px;color:var(--cy)">${etb(rs.deposits)}</div><div class="sub">Paid WD: ${etb(rs.withdrawals)}</div></div>
+      <div class="c kpi"><div class="k">Active / Total Users</div><div class="v">${rs.activePlayers} / ${D.totalUsers}</div><div class="sub">${rs.newUsers || 0} new in ${esc(rs.label)}</div></div>
+      <div class="c kpi"><div class="k">Actual RTP / Target</div><div class="v">${rtp.toFixed(1)}%</div><div class="sub">Target ${D.settings.targetRtp}% · Keno ${D.settings.kenoRtp}% · Buffalo ${D.settings.buffaloRtp ?? 70}%</div></div>
+      <div class="c kpi"><div class="k">Pending Queue</div><div class="v" style="color:var(--am)">${D.pendingDeposits.length} Dep / ${D.pendingWithdrawals.length} WD</div><div class="sub">Pending WD: ${etb(pw)}</div></div>
+      <div class="c kpi"><div class="k">Casino Vault</div><div class="v">${etb(v.vault_balance)}</div><div class="sub">All-time Wagered: ${etb(v.total_wagered)}</div></div>
     </div>
     <div class="g2cols">
-      <div class="c"><h2>RTP &amp; Volume by Game</h2>${renderRtpSvgChart(gs, D.settings.targetRtp)}</div>
+      <div class="c"><h2>RTP &amp; Volume by Game (${esc(rs.label)})</h2>${renderRtpSvgChart(gs, D.settings.targetRtp)}</div>
       <div class="c">
-        <h2>Cashflow Snapshot</h2>
-        ${renderCashflowSvg(v.ggrToday, v.ngrMonth, pw)}
+        <h2>Cashflow Snapshot (${esc(rs.label)})</h2>
+        ${renderCashflowSvg(rs.ggr, rs.ngr, pw)}
         <div class="li"><span>Verify Gateway</span>${badge(D.system?.verifyMode || 'Built-in', 'in')}</div>
         <div class="li"><span>Withdrawal Agent PIN</span>${badge(D.system?.agentPinConfigured ? 'Configured' : 'Not Set', D.system?.agentPinConfigured ? 'ok' : 'wa')}</div>
       </div>
     </div>
-    <div class="c"><h2>Latest Transactions</h2>${tbl(['Type', 'Player', 'Amount', 'Status', 'Age'], D.recentTransactions.slice(0, 12).map(t => [badge(t.type, t.type === 'BONUS' ? 'pu' : ''), esc(t.username || t.user_id), etb(t.amount), badge(t.status), ago(t.created_at)]))}</div>`;
+    <div class="c" id="overviewUsersCard">
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0">Many Users Directory (${filteredUsers.length} of ${D.totalUsers})</h2>
+          <span class="k">Per-timeframe stats (${esc(rs.label)}). Click <b>Bets</b> on any player to filter their bets below.</span>
+        </div>
+        <div class="row">
+          <input placeholder="Filter ID, name, @user…" value="${esc(userListQ)}" oninput="userListQ=this.value;R()">
+          <select onchange="userStatusFilter=this.value;R()">
+            <option value="ALL" ${userStatusFilter==='ALL'?'selected':''}>All Statuses</option>
+            <option value="active" ${userStatusFilter==='active'?'selected':''}>Active</option>
+            <option value="BONUS" ${userStatusFilter==='BONUS'?'selected':''}>Has Bonus (50x)</option>
+            <option value="suspended" ${userStatusFilter==='suspended'?'selected':''}>Suspended</option>
+            <option value="banned" ${userStatusFilter==='banned'?'selected':''}>Banned</option>
+          </select>
+        </div>
+      </div>
+      ${playersTable(D.users || [], userListQ, { rangeMode: true, scroll: true })}
+    </div>
+    <div class="c" id="overviewBetsCard">
+      ${renderBetsListBlock({ scroll: true })}
+    </div>
+    <div class="c"><h2>Latest Transactions</h2>${tbl(['Type', 'Player', 'Amount', 'Status', 'Age'], D.recentTransactions.slice(0, 12).map(t => [badge(t.type, t.type === 'BONUS' ? 'pu' : ''), esc(t.recipient_name || t.username || t.user_id), etb(t.amount), badge(t.status), ago(t.created_at)]))}</div>`;
   },
   Deposits() {
     const q = depFilterQ.toLowerCase();
@@ -913,12 +1050,12 @@ const V = {
     const rec = D.wd.filter(t => {
       const q = wdFilterQ.toLowerCase();
       if (wdFilterMethod !== 'ALL' && t.m !== wdFilterMethod) return false;
-      if (q && ![t.id, t.u, t.uid, t.acc, t.payoutRef, t.agent].some(v => String(v || '').toLowerCase().includes(q))) return false;
+      if (q && ![t.id, t.u, t.recipientName, t.playerName, t.uid, t.acc, t.payoutRef, t.agent].some(v => String(v || '').toLowerCase().includes(q))) return false;
       return true;
     });
     return `<div class="c">${renderPendingWithdrawalsBlock(D.pendingWithdrawals)}</div>
-    <div class="c"><h2>Recent Withdrawals</h2>${tbl(['ID', 'Player', 'Method', 'Amount', 'Account', 'Payout Verification', 'Status', 'Age'], rec.slice(0, 40).map(t => [
-      `<span class="mono">${esc(t.id)}</span>`, esc(t.playerName || t.u), esc(t.m), etb(t.amt), `<code>${esc(t.acc || '—')}</code>`,
+    <div class="c"><h2>Recent Withdrawals</h2>${tbl(['ID', 'First Name / Player', 'Method', 'Amount', 'Account', 'Payout Verification', 'Status', 'Age'], rec.slice(0, 40).map(t => [
+      `<span class="mono">${esc(t.id)}</span>`, esc(t.recipientName || t.playerName || t.u), esc(t.m), etb(t.amt), `<code>${esc(t.acc || '—')}</code>`,
       t.payoutVerified ? badge('SMS ✓ ' + (t.payoutRef || ''), 'ok') + ` <span class="k">${esc(t.agent || t.processedBy || '')}</span>` : (t.payoutRef ? badge(t.payoutRef, 'in') : badge(t.processedBy || 'Manual', 'wa')),
       badge(t.st), ago(t.at)
     ]))}</div>`;
@@ -1024,8 +1161,8 @@ const V = {
 
     ${unv.length ? `<div class="c">
       <h2>🔍 Unverified Withdrawals (${unv.length}) — Match with Outgoing Transfer SMS</h2>
-      ${tbl(['Txn ID', 'Player', 'Method', 'Amount', 'Send To', 'Status', 'Action'], unv.slice(0, 20).map(w => {
-        const pname = w.playerName || w.username || w.user_id || '';
+      ${tbl(['Txn ID', 'First Name / Player', 'Method', 'Amount', 'Send To', 'Status', 'Action'], unv.slice(0, 20).map(w => {
+        const pname = w.recipient_name || w.recipientName || w.playerName || w.username || w.user_id || '';
         return [
           `<span class="mono">${esc(w.txn_id)}</span>`,
           esc(pname),
@@ -1079,19 +1216,12 @@ const V = {
     </div>`;
   },
   Bets() {
-    const games = ['ALL', ...new Set((D.bets || []).map(b => b.m))];
-    const bets = D.bets.filter(b => betGameFilter === 'ALL' || b.m === betGameFilter);
-    return `<div class="c"><h2>Cumulative Game Performance</h2>${tbl(['Game', 'Bets', 'Wagered', 'Paid Out', 'House Profit', 'Actual / Target RTP'], D.gameStats.map(g => {
+    const lbl = D.rangeSummary?.label || 'Selected Range';
+    return `<div class="c"><h2>Game Performance (${esc(lbl)})</h2>${tbl(['Game', 'Bets', 'Wagered', 'Paid Out', 'House Profit', 'Actual / Target RTP'], D.gameStats.map(g => {
       const tRtp = g.targetRtp || D.settings.targetRtp;
       return [esc(g.game), g.bets, etb(g.wagered), etb(g.paid), etb(g.wagered - g.paid), badge(g.rtp + '% / ' + tRtp + '%', Math.abs(g.rtp - tRtp) <= 8 || g.wagered < 5000 ? 'ok' : 'wa')];
     }))}<p class="k">Default RTP ${D.settings.targetRtp}% | Keno RTP ${D.settings.kenoRtp}% | Buffalo RTP ${D.settings.buffaloRtp ?? 70}% (includes active + 12h archived rollups).</p></div>
-    <div class="c">
-      <div class="toolbar">
-        <h2 style="margin:0">Latest Settled Bets</h2>
-        <select onchange="betGameFilter=this.value;R()">${games.map(g => `<option value="${esc(g)}" ${betGameFilter===g?'selected':''}>${esc(g === 'ALL' ? 'All Games' : g)}</option>`).join('')}</select>
-      </div>
-      ${tbl(['ID', 'Player', 'Game', 'Mult', 'Stake', 'Result'], bets.map(b => [`<span class="mono">${esc(b.id)}</span>`, esc(b.u), esc(b.m), esc(b.p), etb(b.s), badge(b.st)]))}
-    </div>`;
+    <div class="c">${renderBetsListBlock({ scroll: false })}</div>`;
   },
   Sports() {
     const list = SM || [];
