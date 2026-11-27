@@ -29,6 +29,8 @@ function createMockPool() {
       updated_at: new Date()
     },
     sms_agents: [],
+    payment_accounts: [],
+    owner_agent_ledger: [],
     cbe_transactions: [],
     telebirr_transactions: [],
     seq: 1
@@ -60,6 +62,7 @@ function createMockPool() {
       db.promo_redemptions = [];
       db.cbe_transactions = [];
       db.telebirr_transactions = [];
+      db.owner_agent_ledger = [];
       db.seq = 1;
       for (const p of db.promo_codes.values()) p.times_used = 0;
       return { rows: [], rowCount: 1 };
@@ -789,20 +792,140 @@ function createMockPool() {
       return { rows: [], rowCount: before - db.sports_bets.length };
     }
 
+    // ---- payment_accounts ----
+    if (low.startsWith('select count(*) n from payment_accounts')) {
+      return { rows: [{ n: String(db.payment_accounts.length) }], rowCount: 1 };
+    }
+    if (low.startsWith('insert into payment_accounts (method,account_name,account_number,owner_label,is_active,is_primary,notes)')) {
+      if (db.payment_accounts.length === 0) {
+        db.payment_accounts.push(
+          { id: db.seq++, method: 'Telebirr', account_name: 'Aymen', account_number: '0996910607', owner_label: 'Owner', sms_agent_id: null, is_active: true, is_primary: true, notes: 'Default Telebirr', created_at: new Date() },
+          { id: db.seq++, method: 'CBE', account_name: 'Aymen', account_number: '1000562339427', owner_label: 'Owner', sms_agent_id: null, is_active: true, is_primary: true, notes: 'Default CBE', created_at: new Date() }
+        );
+      }
+      return { rows: [], rowCount: 2 };
+    }
+    if (low.startsWith('insert into payment_accounts')) {
+      const [method, account_name, account_number, owner_label, sms_agent_id, is_active, is_primary, notes] = params;
+      const row = {
+        id: db.seq++,
+        method, account_name, account_number,
+        owner_label: owner_label || 'Owner',
+        sms_agent_id: sms_agent_id ? Number(sms_agent_id) : null,
+        is_active: Boolean(is_active),
+        is_primary: Boolean(is_primary),
+        notes: notes || '',
+        created_at: new Date()
+      };
+      db.payment_accounts.push(row);
+      return { rows: [{ ...row }], rowCount: 1 };
+    }
+    if (low.includes('from payment_accounts where id=$1')) {
+      const a = db.payment_accounts.find(x => x.id === Number(params[0]));
+      return a ? { rows: [{ ...a }], rowCount: 1 } : { rows: [], rowCount: 0 };
+    }
+    if (low.includes('from payment_accounts')) {
+      let rows = [...db.payment_accounts];
+      if (low.includes('where is_active=true')) rows = rows.filter(a => a.is_active);
+      rows.sort((a, b) => {
+        if (low.includes('order by method asc') && a.method !== b.method) return a.method.localeCompare(b.method);
+        if (Boolean(b.is_primary) !== Boolean(a.is_primary)) return Number(b.is_primary) - Number(a.is_primary);
+        return a.id - b.id;
+      });
+      return { rows: rows.map(r => ({ ...r })), rowCount: rows.length };
+    }
+    if (low.startsWith('update payment_accounts set is_primary=false where method=$1')) {
+      db.payment_accounts.forEach(a => { if (a.method === params[0]) a.is_primary = false; });
+      return { rows: [], rowCount: 1 };
+    }
+    if (low.startsWith('update payment_accounts set is_primary=true,is_active=true where id=$1')) {
+      const a = db.payment_accounts.find(x => x.id === Number(params[0]));
+      if (!a) return { rows: [], rowCount: 0 };
+      a.is_primary = true; a.is_active = true;
+      return { rows: [{ ...a }], rowCount: 1 };
+    }
+    if (low.startsWith('update payment_accounts set is_active=not is_active where id=$1')) {
+      const a = db.payment_accounts.find(x => x.id === Number(params[0]));
+      if (!a) return { rows: [], rowCount: 0 };
+      a.is_active = !a.is_active;
+      return { rows: [{ ...a }], rowCount: 1 };
+    }
+    if (low.startsWith('update payment_accounts set method=$1')) {
+      const [method, account_name, account_number, owner_label, sms_agent_id, is_active, is_primary, notes, id] = params;
+      const a = db.payment_accounts.find(x => x.id === Number(id));
+      if (!a) return { rows: [], rowCount: 0 };
+      Object.assign(a, {
+        method, account_name, account_number,
+        owner_label: owner_label || 'Owner',
+        sms_agent_id: sms_agent_id ? Number(sms_agent_id) : null,
+        is_active: Boolean(is_active),
+        is_primary: Boolean(is_primary),
+        notes: notes || ''
+      });
+      return { rows: [{ ...a }], rowCount: 1 };
+    }
+    if (low.startsWith('delete from payment_accounts where id=$1')) {
+      const idx = db.payment_accounts.findIndex(x => x.id === Number(params[0]));
+      if (idx < 0) return { rows: [], rowCount: 0 };
+      const [rem] = db.payment_accounts.splice(idx, 1);
+      return { rows: [{ method: rem.method, account_name: rem.account_name }], rowCount: 1 };
+    }
+
+    // ---- owner_agent_ledger ----
+    if (low.startsWith('insert into owner_agent_ledger')) {
+      if (low.includes("'owner_manual_adj'")) {
+        const [amount, owner_balance_before, owner_balance_after, notes, actor] = params;
+        const row = {
+          id: db.seq++, entry_type: 'OWNER_MANUAL_ADJ', method: 'Wallet', agent_name: 'Owner',
+          account_id: null, amount: Number(amount), bank_ref: null,
+          owner_balance_before: Number(owner_balance_before), owner_balance_after: Number(owner_balance_after),
+          raw_sms: '', notes: notes || '', actor: actor || 'Admin', created_at: new Date()
+        };
+        db.owner_agent_ledger.unshift(row);
+        return { rows: [{ ...row }], rowCount: 1 };
+      }
+      const [entry_type, method, agent_name, account_id, amount, bank_ref, owner_balance_before, owner_balance_after, raw_sms, notes, actor] = params;
+      if (bank_ref && db.owner_agent_ledger.some(x => x.bank_ref === bank_ref)) throw dupErr();
+      const row = {
+        id: db.seq++, entry_type, method, agent_name,
+        account_id: account_id ? Number(account_id) : null,
+        amount: Number(amount), bank_ref: bank_ref || null,
+        owner_balance_before: Number(owner_balance_before), owner_balance_after: Number(owner_balance_after),
+        raw_sms: raw_sms || '', notes: notes || '', actor: actor || 'Admin', created_at: new Date()
+      };
+      db.owner_agent_ledger.unshift(row);
+      return { rows: [{ ...row }], rowCount: 1 };
+    }
+    if (low.startsWith('select * from owner_agent_ledger')) {
+      return { rows: db.owner_agent_ledger.slice(0, 60), rowCount: Math.min(60, db.owner_agent_ledger.length) };
+    }
+
     // ---- transactions ----
     if (low.startsWith('insert into transactions')) {
       let t;
       if (low.includes("'deposit'") && low.includes("'pending'")) {
-        const [txn_id, user_id, username, method, amount, agent_assigned, bank_txn_id] = params;
+        const [txn_id, user_id, username, method, amount, agent_assigned, bank_txn_id, target_account_id, target_account_name, target_account_number] = params;
         if (bank_txn_id && db.transactions.some(x => x.bank_txn_id === bank_txn_id)) throw dupErr();
-        t = { txn_id, user_id: String(user_id), username, type: 'DEPOSIT', method, amount: Number(amount), net_amount: Number(amount), agent_assigned, bank_txn_id: bank_txn_id || null, status: 'PENDING', remarks: 'Pending cashier verification', created_at: new Date(), updated_at: new Date() };
+        t = {
+          txn_id, user_id: String(user_id), username, type: 'DEPOSIT', method, amount: Number(amount), net_amount: Number(amount),
+          agent_assigned, bank_txn_id: bank_txn_id || null,
+          target_account_id: target_account_id || null, target_account_name: target_account_name || '', target_account_number: target_account_number || '',
+          payout_ref: '', payout_verified: false,
+          status: 'PENDING', remarks: 'Pending cashier verification', created_at: new Date(), updated_at: new Date()
+        };
       } else if (low.includes("'verifying'")) {
-        const [txn_id, user_id, username, method, amount, bank_txn_id] = params;
+        const [txn_id, user_id, username, method, amount, agent_assigned, bank_txn_id, target_account_id, target_account_name, target_account_number] = params;
         if (bank_txn_id && db.transactions.some(x => x.bank_txn_id === bank_txn_id)) throw dupErr();
-        t = { txn_id, user_id: String(user_id), username, type: 'DEPOSIT', method, amount: Number(amount), net_amount: Number(amount), bank_txn_id: bank_txn_id || null, status: 'VERIFYING', remarks: 'Checking payment', processed_by: 'AUTO', created_at: new Date(), updated_at: new Date() };
+        t = {
+          txn_id, user_id: String(user_id), username, type: 'DEPOSIT', method, amount: Number(amount), net_amount: Number(amount),
+          agent_assigned: agent_assigned || 'Owner', bank_txn_id: bank_txn_id || null,
+          target_account_id: target_account_id || null, target_account_name: target_account_name || '', target_account_number: target_account_number || '',
+          payout_ref: '', payout_verified: false,
+          status: 'VERIFYING', remarks: 'Checking payment', processed_by: 'AUTO', created_at: new Date(), updated_at: new Date()
+        };
       } else if (low.includes("'withdrawal'")) {
         const [txn_id, user_id, username, method, amount, sender_account, remarks] = params;
-        t = { txn_id, user_id: String(user_id), username, type: 'WITHDRAWAL', method, amount: Number(amount), net_amount: Number(amount), sender_account, status: 'PENDING', remarks, created_at: new Date(), updated_at: new Date() };
+        t = { txn_id, user_id: String(user_id), username, type: 'WITHDRAWAL', method, amount: Number(amount), net_amount: Number(amount), sender_account, payout_ref: '', payout_verified: false, status: 'PENDING', remarks, created_at: new Date(), updated_at: new Date() };
       } else if (low.includes("'manual_1click'")) {
         const [txn_id, user_id, username, amount, bank_txn_id, processed_by] = params;
         if (bank_txn_id && db.transactions.some(x => x.bank_txn_id === bank_txn_id)) throw dupErr();
@@ -871,6 +994,14 @@ function createMockPool() {
       const rows = db.transactions.filter(t => t.type === 'WITHDRAWAL' && t.status === 'PENDING').slice(0, 200);
       return { rows, rowCount: rows.length };
     }
+    if (low.startsWith("select txn_id,user_id,username,method,amount,agent_assigned,target_account_name,target_account_number,bank_txn_id,created_at from transactions where type='deposit' and status='approved'")) {
+      const rows = db.transactions.filter(t => t.type === 'DEPOSIT' && t.status === 'APPROVED').slice(0, 300);
+      return { rows, rowCount: rows.length };
+    }
+    if (low.startsWith("select txn_id,user_id,username,method,amount,sender_account,agent_assigned,processed_by,payout_ref,payout_verified,status,created_at,updated_at from transactions where type='withdrawal' and status in ('pending','approved')")) {
+      const rows = db.transactions.filter(t => t.type === 'WITHDRAWAL' && ['PENDING', 'APPROVED'].includes(t.status)).slice(0, 200);
+      return { rows, rowCount: rows.length };
+    }
     if (low.startsWith("select * from transactions where type='deposit' order by")) {
       const rows = db.transactions.filter(t => t.type === 'DEPOSIT').slice(0, 100);
       return { rows, rowCount: rows.length };
@@ -888,10 +1019,12 @@ function createMockPool() {
       return { rows: [], rowCount: 0 };
     }
     if (low.startsWith('update transactions set')) {
-      if (low.startsWith("update transactions set status='verifying'") && params.length === 3) {
+      if (low.startsWith("update transactions set status='verifying'")) {
         const t = db.transactions.find(x => x.txn_id === params[2] && x.status === 'PENDING');
         if (!t) return { rows: [], rowCount: 0 };
         t.status = 'VERIFYING'; t.amount = Number(params[0]); t.net_amount = Number(params[0]); t.method = params[1];
+        if (params[3] !== undefined) t.agent_assigned = params[3];
+        t.updated_at = new Date();
         return { rows: [], rowCount: 1 };
       }
       if (low.startsWith("update transactions set status='failed'")) {
@@ -902,12 +1035,40 @@ function createMockPool() {
       }
       if (low.startsWith("update transactions set status='pending'")) {
         const t = db.transactions.find(x => x.txn_id === params[0] && x.status === 'VERIFYING');
-        if (t) { t.status = 'PENDING'; t.remarks = 'Verified by gateway, waiting for cashier (large amount)'; t.updated_at = new Date(); }
+        if (t) {
+          t.status = 'PENDING';
+          if (params[1]) t.agent_assigned = params[1];
+          t.remarks = 'Verified by gateway, waiting for cashier (large amount)';
+          t.updated_at = new Date();
+        }
         return { rows: [], rowCount: t ? 1 : 0 };
       }
       if (low.startsWith("update transactions set status='approved'") && low.includes("processed_by='auto'")) {
         const t = db.transactions.find(x => x.txn_id === params[0]);
-        if (t) { t.status = 'APPROVED'; t.remarks = 'Auto-verified by gateway'; t.processed_by = 'AUTO'; t.updated_at = new Date(); }
+        if (t) {
+          t.status = 'APPROVED';
+          if (params[1]) t.agent_assigned = params[1];
+          t.remarks = 'Auto-verified by gateway';
+          t.processed_by = 'AUTO';
+          t.updated_at = new Date();
+        }
+        return { rows: [], rowCount: t ? 1 : 0 };
+      }
+      if (low.startsWith("update transactions set payout_ref=$1,payout_verified=true")) {
+        const [payout_ref, agName, txnId] = params;
+        const t = db.transactions.find(x => x.txn_id === txnId);
+        if (t) {
+          t.payout_ref = payout_ref;
+          t.payout_verified = true;
+          if (agName) t.agent_assigned = agName;
+          t.updated_at = new Date();
+        }
+        return { rows: [], rowCount: t ? 1 : 0 };
+      }
+      if (low.startsWith("update transactions set payout_ref=$1 where txn_id=$2")) {
+        const [payout_ref, txnId] = params;
+        const t = db.transactions.find(x => x.txn_id === txnId);
+        if (t) { t.payout_ref = payout_ref; t.updated_at = new Date(); }
         return { rows: [], rowCount: t ? 1 : 0 };
       }
       if (low.startsWith("update transactions set status='cancelled'")) {
@@ -934,7 +1095,7 @@ function createMockPool() {
         const t = db.transactions.find(x => x.txn_id === txnId && x.type === 'WITHDRAWAL' && x.status === 'PENDING');
         if (!t) return { rows: [], rowCount: 0 };
         t.status = 'APPROVED'; t.remarks = remarks; t.processed_by = actor; t.updated_at = new Date();
-        return { rows: [{ user_id: t.user_id, amount: t.amount, method: t.method }], rowCount: 1 };
+        return { rows: [{ user_id: t.user_id, amount: t.amount, method: t.method, sender_account: t.sender_account }], rowCount: 1 };
       }
       if (low.startsWith("update transactions set status='rejected'")) {
         const [remarks, actor, txnId] = params;
@@ -1025,11 +1186,20 @@ function createMockPool() {
       const a = db.sms_agents.find(x => x.token === params[0] && x.active);
       return a ? { rows: [{ id: a.id, name: a.name }], rowCount: 1 } : { rows: [], rowCount: 0 };
     }
+    if (low.startsWith('select name from sms_agents where id=$1')) {
+      const a = db.sms_agents.find(x => x.id === Number(params[0]));
+      return a ? { rows: [{ name: a.name }], rowCount: 1 } : { rows: [], rowCount: 0 };
+    }
     if (low.startsWith('select id, name, match_text from sms_agents')) {
       const rows = db.sms_agents.filter(x => x.active && x.match_text).map(x => ({ id: x.id, name: x.name, match_text: x.match_text }));
       return { rows, rowCount: rows.length };
     }
-    if (low.startsWith('select id, name, token, match_text, active, created_at from sms_agents')) {
+    if (low.startsWith('select id,name,match_text,active from sms_agents')) {
+      const rows = [...db.sms_agents].sort((a, b) => a.id - b.id).map(x => ({ id: x.id, name: x.name, match_text: x.match_text, active: x.active }));
+      return { rows, rowCount: rows.length };
+    }
+    if (low.startsWith('select id, name, token, match_text, active, created_at from sms_agents') ||
+        low.startsWith('select id,name,token,match_text,active,created_at from sms_agents')) {
       const rows = [...db.sms_agents].sort((a, b) => a.id - b.id);
       return { rows, rowCount: rows.length };
     }
@@ -1039,6 +1209,12 @@ function createMockPool() {
       const row = { id: db.seq++, name, token, match_text: match_text || '', active: true, created_at: new Date() };
       db.sms_agents.push(row);
       return { rows: [{ ...row }], rowCount: 1 };
+    }
+    if (low.startsWith('update sms_agents set active = not active where id=$1')) {
+      const a = db.sms_agents.find(x => x.id === Number(params[0]));
+      if (!a) return { rows: [], rowCount: 0 };
+      a.active = !a.active;
+      return { rows: [{ id: a.id, name: a.name, active: a.active }], rowCount: 1 };
     }
     if (low.includes('from sms_agents a left join agent_deposits d')) {
       const todayKey = new Date().toISOString().slice(0, 10);
@@ -1057,8 +1233,16 @@ function createMockPool() {
     if (low.includes('from agent_deposits where agent_id = $1')) {
       const [agentId, from, to, limitN] = params;
       const all = [
-        ...db.cbe_transactions.filter(x => x.tx_type === 'Received' && x.agent_id === Number(agentId)).map(x => ({ bank: 'CBE', tx_id: x.id, amount: x.amount, ref_no: x.ref_no, sender_name: x.sender_name, balance: x.balance, status: x.status, created_at: x.created_at })),
-        ...db.telebirr_transactions.filter(x => x.tx_type === 'Received' && x.agent_id === Number(agentId)).map(x => ({ bank: 'Telebirr', tx_id: x.id, amount: x.amount, ref_no: x.ref_no, sender_name: x.sender_name, balance: x.balance, status: x.status, created_at: x.created_at }))
+        ...db.cbe_transactions.filter(x => x.tx_type === 'Received' && x.agent_id === Number(agentId)).map(x => ({
+          bank: 'CBE', tx_id: x.id, amount: x.amount, ref_no: x.ref_no, sender_name: x.sender_name, recipient_account: x.recipient_account || '',
+          balance: x.balance, status: x.status, claimed_by_user_id: x.claimed_by_user_id || '', claimed_by_username: x.claimed_by_username || '',
+          claimed_txn_id: x.claimed_txn_id || '', created_at: x.created_at
+        })),
+        ...db.telebirr_transactions.filter(x => x.tx_type === 'Received' && x.agent_id === Number(agentId)).map(x => ({
+          bank: 'Telebirr', tx_id: x.id, amount: x.amount, ref_no: x.ref_no, sender_name: x.sender_name, recipient_account: x.recipient_account || '',
+          balance: x.balance, status: x.status, claimed_by_user_id: x.claimed_by_user_id || '', claimed_by_username: x.claimed_by_username || '',
+          claimed_txn_id: x.claimed_txn_id || '', created_at: x.created_at
+        }))
       ]
         .filter(x => {
           const d = new Date(x.created_at).toISOString().slice(0, 10);
@@ -1070,27 +1254,29 @@ function createMockPool() {
     }
 
     if (low.startsWith('insert into cbe_transactions')) {
-      const [tx_type, sender_name, amount, ref_no, raw_sms, status, category, balance, v2_code, agent_id] = params;
+      const [tx_type, sender_name, amount, ref_no, raw_sms, status, category, balance, v2_code, agent_id, recipient_account] = params;
       if ((ref_no && db.cbe_transactions.some(x => x.ref_no === ref_no)) || (v2_code && db.cbe_transactions.some(x => x.v2_code === v2_code))) {
         return { rows: [], rowCount: 0 };
       }
       const row = {
         id: db.seq++, tx_type, sender_name, amount: Number(amount), ref_no: ref_no || null, raw_sms, status,
         category: category || null, balance: balance != null ? Number(balance) : null, v2_code: v2_code || null,
-        resolve_attempts: 0, agent_id: agent_id || null, created_at: new Date()
+        resolve_attempts: 0, agent_id: agent_id || null, recipient_account: recipient_account || '',
+        claimed_by_user_id: '', claimed_by_username: '', claimed_txn_id: '', created_at: new Date()
       };
       db.cbe_transactions.push(row);
       return { rows: [{ id: row.id }], rowCount: 1 };
     }
     if (low.startsWith('insert into telebirr_transactions')) {
-      const [tx_type, sender_name, amount, ref_no, raw_sms, status, category, balance, agent_id] = params;
+      const [tx_type, sender_name, amount, ref_no, raw_sms, status, category, balance, agent_id, recipient_account] = params;
       if (ref_no && db.telebirr_transactions.some(x => x.ref_no === ref_no)) {
         return { rows: [], rowCount: 0 };
       }
       const row = {
         id: db.seq++, tx_type, sender_name, amount: Number(amount), ref_no, raw_sms, status,
         category: category || null, balance: balance != null ? Number(balance) : null,
-        agent_id: agent_id || null, created_at: new Date()
+        agent_id: agent_id || null, recipient_account: recipient_account || '',
+        claimed_by_user_id: '', claimed_by_username: '', claimed_txn_id: '', created_at: new Date()
       };
       db.telebirr_transactions.push(row);
       return { rows: [{ id: row.id }], rowCount: 1 };
@@ -1135,6 +1321,28 @@ function createMockPool() {
         .map(x => ({ id: x.id, v2_code: x.v2_code, amount: x.amount, sender_name: x.sender_name, attempts: x.resolve_attempts || 0 }));
       return { rows, rowCount: rows.length };
     }
+    if (low.startsWith("select * from cbe_transactions where (ref_no=$1 or v2_code=$1) and tx_type='transferred'")) {
+      const r = db.cbe_transactions.find(x => (x.ref_no === params[0] || x.v2_code === params[0]) && x.tx_type === 'Transferred');
+      return r ? { rows: [{ ...r }], rowCount: 1 } : { rows: [], rowCount: 0 };
+    }
+    if (low.startsWith("select * from telebirr_transactions where (ref_no=$1) and tx_type='transferred'")) {
+      const r = db.telebirr_transactions.find(x => x.ref_no === params[0] && x.tx_type === 'Transferred');
+      return r ? { rows: [{ ...r }], rowCount: 1 } : { rows: [], rowCount: 0 };
+    }
+    if (low.startsWith("select * from cbe_transactions where tx_type='transferred'")) {
+      const rows = db.cbe_transactions
+        .filter(x => x.tx_type === 'Transferred' && !x.claimed_txn_id)
+        .sort((a, b) => b.id - a.id)
+        .slice(0, 100);
+      return { rows, rowCount: rows.length };
+    }
+    if (low.startsWith("select * from telebirr_transactions where tx_type='transferred'")) {
+      const rows = db.telebirr_transactions
+        .filter(x => x.tx_type === 'Transferred' && !x.claimed_txn_id)
+        .sort((a, b) => b.id - a.id)
+        .slice(0, 100);
+      return { rows, rowCount: rows.length };
+    }
     if (low.startsWith('select * from cbe_transactions where ref_no = $1')) {
       const r = db.cbe_transactions.find(x => x.ref_no === params[0]);
       return r ? { rows: [{ ...r }], rowCount: 1 } : { rows: [], rowCount: 0 };
@@ -1147,23 +1355,49 @@ function createMockPool() {
       const r = db.telebirr_transactions.find(x => x.ref_no === params[0]);
       return r ? { rows: [{ ...r }], rowCount: 1 } : { rows: [], rowCount: 0 };
     }
-    if (low.startsWith("update cbe_transactions set status = 'used' where id = $1")) {
+    if (low.startsWith("update cbe_transactions set status = 'used'")) {
       const r = db.cbe_transactions.find(x => x.id === Number(params[0]));
-      if (r) r.status = 'Used';
+      if (r) {
+        r.status = 'Used';
+        if (params.length >= 4) {
+          r.claimed_by_user_id = params[1] || '';
+          r.claimed_by_username = params[2] || '';
+          r.claimed_txn_id = params[3] || '';
+        }
+      }
       return { rows: [], rowCount: r ? 1 : 0 };
     }
-    if (low.startsWith("update telebirr_transactions set status = 'used' where id = $1")) {
+    if (low.startsWith("update telebirr_transactions set status = 'used'")) {
       const r = db.telebirr_transactions.find(x => x.id === Number(params[0]));
-      if (r) r.status = 'Used';
+      if (r) {
+        r.status = 'Used';
+        if (params.length >= 4) {
+          r.claimed_by_user_id = params[1] || '';
+          r.claimed_by_username = params[2] || '';
+          r.claimed_txn_id = params[3] || '';
+        }
+      }
       return { rows: [], rowCount: r ? 1 : 0 };
     }
-    if (low.includes('from cbe_transactions order by id desc limit $1')) {
-      const lim = Number(params[0] || 20);
+    if (low.startsWith("update cbe_transactions set status='payout_verified'")) {
+      const r = db.cbe_transactions.find(x => x.id === Number(params[0]));
+      if (r) { r.status = 'Payout_Verified'; r.claimed_txn_id = params[1] || ''; r.claimed_by_username = params[2] || ''; }
+      return { rows: [], rowCount: r ? 1 : 0 };
+    }
+    if (low.startsWith("update telebirr_transactions set status='payout_verified'")) {
+      const r = db.telebirr_transactions.find(x => x.id === Number(params[0]));
+      if (r) { r.status = 'Payout_Verified'; r.claimed_txn_id = params[1] || ''; r.claimed_by_username = params[2] || ''; }
+      return { rows: [], rowCount: r ? 1 : 0 };
+    }
+    if (low.includes('from cbe_transactions order by id desc limit')) {
+      const m = low.match(/limit (\d+)/);
+      const lim = Number(params[0] || (m ? m[1] : 20));
       const rows = [...db.cbe_transactions].sort((a, b) => b.id - a.id).slice(0, lim);
       return { rows, rowCount: rows.length };
     }
-    if (low.includes('from telebirr_transactions order by id desc limit $1')) {
-      const lim = Number(params[0] || 20);
+    if (low.includes('from telebirr_transactions order by id desc limit')) {
+      const m = low.match(/limit (\d+)/);
+      const lim = Number(params[0] || (m ? m[1] : 20));
       const rows = [...db.telebirr_transactions].sort((a, b) => b.id - a.id).slice(0, lim);
       return { rows, rowCount: rows.length };
     }

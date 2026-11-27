@@ -55,11 +55,14 @@ header.brand-bar{display:flex;justify-content:space-between;align-items:center;m
 @keyframes radarSpinRev{from{transform:rotate(360deg)}to{transform:rotate(0deg)}}
 
 .radar-top-row{width:100%;display:flex;justify-content:space-between;align-items:center;position:absolute;top:8px;padding:0 10px;z-index:6;color:#a8b8b1}
+.radar-arena.drawing{padding:14px 10px 10px}
+.radar-arena.drawing .radar-top-row{justify-content:flex-end;top:6px}
+.radar-arena.drawing .radar-top-row .rule-q-btn{display:none}
 .radar-timer{
   font-family:'TimerFont',monospace!important;
-  font-size:clamp(18px,3.7vw,25px)!important;
-  font-weight:400!important;
-  letter-spacing:.045em!important;
+  font-size:clamp(16px,3.5vw,23px)!important;
+  font-weight:700!important;
+  letter-spacing:.04em!important;
   color:#fff!important;
   font-variant-numeric:tabular-nums;
   text-shadow:none!important;
@@ -109,7 +112,7 @@ header.brand-bar{display:flex;justify-content:space-between;align-items:center;m
 .rack-slot.filled{background:#1e2a2a;color:#fff}
 
 /* DRAW VIEW — EXACTLY 2 ROWS (NO DUPLICATE) */
-.draw-view{display:none;width:100%;flex-direction:column;align-items:center;z-index:2;padding:12px 0 6px}
+.draw-view{display:none;width:100%;flex-direction:column;align-items:center;z-index:2;padding:4px 0 6px}
 .big-3d-ball{
   position:relative;
   width:clamp(78px,17vw,112px);
@@ -247,8 +250,15 @@ header.brand-bar{display:flex;justify-content:space-between;align-items:center;m
 .ticket-row.user-ticket{border-color:#3d8d63;background:#203b2d}
 .ticket-user-line{font-size:clamp(14px,2.6vw,20px);color:#65c994;font-weight:800;display:flex;justify-content:space-between}
 .ticket-numbers-grid{display:flex;gap:4px}
-.ticket-slot{flex:1;min-width:0;height:clamp(34px,6.2vw,50px);border-radius:4px;background:#1e282a;color:#e5e9e9;font-size:clamp(13px,2.8vw,20px);font-weight:700;display:flex;align-items:center;justify-content:center}
-.ticket-slot.hit{background:#50b783!important;color:#fff!important;font-weight:900}
+.ticket-slot{flex:1;min-width:0;height:clamp(34px,6.2vw,50px);border-radius:4px;background:#344248;color:#edf2f2;font-size:clamp(13px,2.8vw,20px);font-weight:800;display:flex;align-items:center;justify-content:center}
+.ticket-slot.empty{background:#1d2628}
+.ticket-slot.hit{background:#4eb883!important;color:#fff!important;font-weight:900}
+.ticket-bottom-bar{display:grid;grid-template-columns:1fr 1fr;background:#1d2628;border-radius:5px;overflow:hidden;font-size:clamp(13px,2.5vw,18px);font-weight:800}
+.ticket-bet-cell{padding:7px 10px;color:#edf2f2;border-right:1px solid #2b383b;text-align:left}
+.ticket-status-cell{padding:7px 10px;text-align:right;font-weight:800}
+.status-waiting{color:#f2df4b}
+.status-won{color:#69c99a;font-weight:900}
+.status-lost{color:#7f8e8c}
 .ticket-bottom-line{display:flex;justify-content:space-between;align-items:center;font-size:clamp(13px,2.6vw,19px);color:#c7cecc}
 .ticket-win-val{color:#69c99a!important;font-size:clamp(15px,3vw,22px)!important;font-weight:900!important}
 
@@ -629,13 +639,13 @@ let currentRoundDrawnBalls = [];
 let isSettledThisRound = false;
 let resultHoldUntilMs = 0;
 
-let dynamicAllCount = 121;
+let dynamicAllCount = 2480;
 let dynamicLiveTickets = [], simTicketSeq = 100;
-const PLAYER_NAMES = ["c***3", "5***a", "7***7", "b***h", "d***k", "j***v", "y***o"];
-const STAKE_AMOUNTS = [2, 4, 10, 20, 50, 100];
+const PLAYER_NAMES = ["y***o", "r***p", "c***3", "5***a", "7***7", "b***h", "d***k", "j***v", "a***m"];
+const STAKE_AMOUNTS = [500, 500, 400, 316, 250, 200, 150, 100, 50, 20, 10];
 
 function computeBaseRoundBets(rId) {
-  return 120 + ((rId * 37) % 1500);
+  return 2100 + ((rId * 37) % 1500);
 }
 
 function createPlayerTicket() {
@@ -652,28 +662,43 @@ function createPlayerTicket() {
   };
 }
 
+function sortLiveTicketsDesc() {
+  dynamicLiveTickets.sort((a, b) => Number(b.amount) - Number(a.amount));
+  if (dynamicLiveTickets.length > 8) dynamicLiveTickets = dynamicLiveTickets.slice(0, 8);
+}
+
 function initPlayerFeed() {
   dynamicLiveTickets = [
-    { id: 'sim_1', user: 'c***3', picks: [7, 8, 9], amount: 100, status: 'Waiting' },
-    { id: 'sim_2', user: '5***a', picks: [44, 17, 58], amount: 100, status: 'Waiting' },
-    { id: 'sim_3', user: 'c***3', picks: [6, 15, 5], amount: 100, status: 'Waiting' }
+    { id: 'sim_1', user: 'y***o', picks: [29, 39, 69], amount: 500, status: 'Waiting' },
+    { id: 'sim_2', user: 'y***o', picks: [39, 69, 9], amount: 500, status: 'Waiting' },
+    { id: 'sim_3', user: 'y***o', picks: [12, 22, 2], amount: 400, status: 'Waiting' },
+    { id: 'sim_4', user: 'r***p', picks: [10, 19, 12], amount: 316, status: 'Waiting' },
+    { id: 'sim_5', user: 'c***3', picks: [8, 9, 10], amount: 150, status: 'Waiting' },
+    { id: 'sim_6', user: '5***a', picks: [44, 17, 58], amount: 50, status: 'Waiting' }
   ];
+  sortLiveTicketsDesc();
   renderPlayerFeed();
 }
 
 function renderPlayerFeed() {
   const c = $('live-dynamic-tickets-container');
   if (!c) return;
+  sortLiveTicketsDesc();
   c.innerHTML = dynamicLiveTickets.map(t => {
     const slots = Array.from({ length: 10 }, (_, i) => {
       const p = t.picks[i];
-      return p !== undefined ? `<div class="ticket-slot" id="dslot_${t.id}_${p}">${p}</div>` : '<div class="ticket-slot empty"></div>';
+      const hit = p !== undefined && isDrawingPhase && currentRoundDrawnBalls.slice(0, $('drawn-tray')?.children?.length || 0).includes(p);
+      return p !== undefined ? `<div class="ticket-slot ${hit ? 'hit' : ''}" id="dslot_${t.id}_${p}">${p}</div>` : '<div class="ticket-slot empty"></div>';
     }).join('');
+    const stClass = String(t.status).startsWith('WON') ? 'status-won' : (t.status === 'Settled' ? 'status-lost' : 'status-waiting');
     return `
       <div class="ticket-row" id="prow_${t.id}">
-        <div class="ticket-user-line"><span>${t.user}</span></div>
+        <div class="ticket-user-line"><span>${esc(t.user)}</span></div>
         <div class="ticket-numbers-grid">${slots}</div>
-        <div class="ticket-bottom-line"><span>Bet ${t.amount}</span><span class="status-waiting" id="dstatus_${t.id}">${t.status}</span></div>
+        <div class="ticket-bottom-bar">
+          <div class="ticket-bet-cell">Bet ${t.amount}</div>
+          <div class="ticket-status-cell ${stClass}" id="dstatus_${t.id}">${esc(t.status)}</div>
+        </div>
       </div>
     `;
   }).join('');
@@ -899,17 +924,20 @@ function renderActiveUserTickets() {
     card.className = 'ticket-row user-ticket';
     card.id = 'trow_' + t.id;
 
-    let rightText = `<span class="status-waiting" id="uwin_${t.id}">Waiting</span>`;
+    let rightHtml = `<div class="ticket-status-cell status-waiting" id="uwin_${t.id}">Waiting</div>`;
     if (t.status === 'WON' && t.payout > 0) {
-      rightText = `<span class="ticket-win-val" id="uwin_${t.id}">${Number(t.payout).toFixed(2).replace(/\.00$/, '')}</span>`;
+      rightHtml = `<div class="ticket-status-cell status-won" id="uwin_${t.id}">WON +${Number(t.payout).toFixed(2).replace(/\.00$/, '')} ETB</div>`;
     } else if (t.status === 'LOST') {
-      rightText = `<span></span>`;
+      rightHtml = `<div class="ticket-status-cell status-lost" id="uwin_${t.id}">Settled</div>`;
     }
 
     card.innerHTML = `
       <div class="ticket-user-line"><span>${t.num} My Ticket</span></div>
       <div class="ticket-numbers-grid">${slots}</div>
-      <div class="ticket-bottom-line"><span>Bet ${t.amount.toFixed(0)}</span>${rightText}</div>
+      <div class="ticket-bottom-bar">
+        <div class="ticket-bet-cell">Bet ${t.amount.toFixed(0)}</div>
+        ${rightHtml}
+      </div>
     `;
     container.appendChild(card);
   });
@@ -1024,8 +1052,9 @@ setInterval(async () => {
     if (remSec % 2 === 0) {
       dynamicAllCount += Math.floor(Math.random() * 25) + 6;
       if ($('lbl-all-count')) $('lbl-all-count').textContent = dynamicAllCount.toLocaleString();
-      if (dynamicLiveTickets.length < 8 && Math.random() < 0.55) {
-        dynamicLiveTickets.unshift(createPlayerTicket());
+      if (dynamicLiveTickets.length < 8 && Math.random() < 0.6) {
+        dynamicLiveTickets.push(createPlayerTicket());
+        sortLiveTicketsDesc();
         renderPlayerFeed();
       }
     }
@@ -1195,11 +1224,13 @@ async function settleRoundLive(roundId, drawn) {
     const win = t.amount * (tableP[hits] || 0);
     const dst = $('dstatus_' + t.id);
     if (win > 0 && dst) {
-      dst.textContent = `WON +${win.toFixed(0)} ETB`;
-      dst.className = 'status-won';
+      t.status = `WON +${win.toFixed(0)} ETB`;
+      dst.textContent = t.status;
+      dst.className = 'ticket-status-cell status-won';
     } else if (dst) {
-      dst.textContent = 'Settled';
-      dst.className = 'status-lost';
+      t.status = 'Settled';
+      dst.textContent = t.status;
+      dst.className = 'ticket-status-cell status-lost';
     }
   });
 

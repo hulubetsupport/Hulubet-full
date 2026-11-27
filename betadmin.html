@@ -218,9 +218,9 @@ const urlMode = new URLSearchParams(location.search).get('mode');
 let LOGIN_MODE = (pathLow.includes('/agent') || urlMode === 'agent') ? 'agent' : 'admin';
 
 let PIN = '', ACTOR = 'Admin', ROLE = 'admin';
-let D = null, AG = null, U = null, SQ = '', AL = [], BOT = null, SM = null;
+let D = null, AG = null, U = null, SQ = '', AL = [], BOT = null, SM = null, FR = null;
 let page = 'Overview', prev = { d: 0, w: 0 };
-let wdFilterQ = '', wdFilterMethod = 'ALL', depFilterQ = '', depFilterMethod = 'ALL', userStatusFilter = 'ALL', betGameFilter = 'ALL', auditFilterQ = '';
+let wdFilterQ = '', wdFilterMethod = 'ALL', depFilterQ = '', depFilterMethod = 'ALL', userStatusFilter = 'ALL', betGameFilter = 'ALL', auditFilterQ = '', smsFilterQ = '';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -356,10 +356,27 @@ async function load(silent) {
   return d;
 }
 
+async function loadFinance(silent) {
+  if (ROLE !== 'admin') return null;
+  const d = await call('/api/admin/finance-report');
+  if (d && d.success) {
+    FR = d;
+    if (!modalOpen() && page === 'Accounts & SMS') R();
+  } else if (!silent && d?.message) {
+    toast(d.message, true);
+  }
+  return d;
+}
+
 async function act(path, body) {
   const d = await call(path, 'POST', body);
   toast(d.message || (d.success ? 'Done' : 'Failed'), !d.success);
-  if (d.success) await load(true);
+  if (d.success) {
+    await load(true);
+    if (ROLE === 'admin' && (page === 'Accounts & SMS' || path.includes('payment-accounts') || path.includes('owner-') || path.includes('sms-agents') || path.includes('match-withdrawal'))) {
+      await loadFinance(true);
+    }
+  }
   return d;
 }
 
@@ -469,7 +486,9 @@ const ACT = {
   depNo: d => ask('Reject deposit ' + d.id, [{ k: 'reason', label: 'Reason (sent to the player)', value: 'Payment not received' }], v => act('/api/admin/reject-deposit', { txnId: d.id, reason: v.reason }), 'Reject'),
   wdOk: d => {
     const ep = ROLE === 'agent' ? '/api/agent/approve-withdrawal' : '/api/admin/approve-withdrawal';
-    sure('Mark ' + d.id + ' as PAID?', `Only confirm AFTER sending ${d.amt} to ${d.acc} (${d.m}).`, () => act(ep, { txnId: d.id }));
+    ask('Mark ' + d.id + ' as PAID?', [
+      { k: 'payoutRef', label: `Payout Ref for ${d.amt} -> ${d.acc} (${d.m}) — optional, leave blank to auto-match SMS`, ph: 'e.g. DKO3L700HN or FT... (optional)' }
+    ], v => act(ep, { txnId: d.id, payoutRef: v.payoutRef || '' }), 'Confirm Paid');
   },
   wdNo: d => {
     const ep = ROLE === 'agent' ? '/api/agent/reject-withdrawal' : '/api/admin/reject-withdrawal';
@@ -559,7 +578,76 @@ const ACT = {
     downloadCsv('hulubet-audit.csv', ['Time', 'Actor', 'Action', 'Detail', 'IP'],
       AL.map(a => [a.created_at, a.actor, a.action, a.detail, a.ip]));
     toast('Audit log CSV exported');
-  }
+  },
+  accNew: () => {
+    const smsOpts = ['None', ...((FR?.smsAgents || []).map(a => `${a.id}:${a.name}`))];
+    ask('Add Deposit Account (Telebirr / CBE)', [
+      { k: 'method', label: 'Provider', type: 'select', options: ['Telebirr', 'CBE'] },
+      { k: 'accountName', label: 'Account Holder Name', ph: 'e.g. Aymen / Agent 1' },
+      { k: 'accountNumber', label: 'Phone or Bank Account Number', ph: 'e.g. 09... or 1000...' },
+      { k: 'ownerLabel', label: 'Owner / Agent Label', value: 'Agent1', ph: 'Owner or Agent1' },
+      { k: 'smsAgentId', label: 'Link SMS Forwarder Agent (optional)', type: 'select', options: smsOpts },
+      { k: 'isPrimary', label: 'Make Active Primary for Players?', type: 'select', options: ['YES', 'NO'] },
+      { k: 'notes', label: 'Notes (optional)', ph: 'e.g. Secondary agent phone' }
+    ], v => {
+      const agId = v.smsAgentId && v.smsAgentId !== 'None' ? parseInt(v.smsAgentId.split(':')[0], 10) : null;
+      act('/api/admin/payment-accounts', {
+        method: v.method, accountName: v.accountName, accountNumber: v.accountNumber,
+        ownerLabel: v.ownerLabel || 'Owner', smsAgentId: agId,
+        isPrimary: v.isPrimary === 'YES', isActive: true, notes: v.notes
+      });
+    }, 'Save Account');
+  },
+  accEdit: d => {
+    const acc = (FR?.accounts || []).find(a => String(a.id) === String(d.id));
+    if (!acc) return;
+    const smsOpts = ['None', ...((FR?.smsAgents || []).map(a => `${a.id}:${a.name}`))];
+    ask('Edit Deposit Account', [
+      { k: 'method', label: 'Provider', type: 'select', options: acc.method === 'CBE' ? ['CBE', 'Telebirr'] : ['Telebirr', 'CBE'] },
+      { k: 'accountName', label: 'Account Holder Name', value: acc.account_name },
+      { k: 'accountNumber', label: 'Account / Phone Number', value: acc.account_number },
+      { k: 'ownerLabel', label: 'Owner / Agent Label', value: acc.owner_label || 'Owner' },
+      { k: 'smsAgentId', label: 'Link SMS Forwarder Agent', type: 'select', options: smsOpts },
+      { k: 'isPrimary', label: 'Active Primary for Players?', type: 'select', options: acc.is_primary ? ['YES', 'NO'] : ['NO', 'YES'] },
+      { k: 'notes', label: 'Notes', value: acc.notes || '' }
+    ], v => {
+      const agId = v.smsAgentId && v.smsAgentId !== 'None' ? parseInt(v.smsAgentId.split(':')[0], 10) : null;
+      act('/api/admin/payment-accounts', {
+        id: acc.id, method: v.method, accountName: v.accountName, accountNumber: v.accountNumber,
+        ownerLabel: v.ownerLabel || 'Owner', smsAgentId: agId,
+        isPrimary: v.isPrimary === 'YES', isActive: acc.is_active, notes: v.notes
+      });
+    }, 'Update Account');
+  },
+  accPrimary: d => act('/api/admin/payment-accounts/toggle', { id: Number(d.id), setPrimary: true }),
+  accToggle: d => act('/api/admin/payment-accounts/toggle', { id: Number(d.id), setPrimary: false }),
+  accDelete: d => sure('Delete account ' + d.name + '?', 'Removes this account from deposit options.', () => act('/api/admin/payment-accounts/delete', { id: Number(d.id) })),
+  ownerBalModal: () => ask('Owner Wallet Balance', [
+    { k: 'action', label: 'Action', type: 'select', options: ['SET', 'ADD', 'DEDUCT'] },
+    { k: 'amount', label: 'Amount (ETB)', type: 'number', value: String(FR?.ownerWalletBalance ?? 0) },
+    { k: 'notes', label: 'Notes', value: 'Owner wallet balance update' }
+  ], v => act('/api/admin/owner-balance', { action: v.action, amount: Number(v.amount), notes: v.notes }), 'Update Balance'),
+  ownerSendSmsModal: () => {
+    const accOpts = ['Auto-Match from SMS', ...((FR?.accounts || []).map(a => `${a.id}:${a.owner_label} (${a.method} ${a.account_number})`))];
+    ask('Record Owner <-> Agent Transfer via SMS', [
+      { k: 'entryType', label: 'Direction', type: 'select', options: ['OWNER_TO_AGENT (Deduct Owner & Credit Agent)', 'AGENT_TO_OWNER (Returned to Owner & Add Balance)'] },
+      { k: 'accountId', label: 'Target Agent Account', type: 'select', options: accOpts },
+      { k: 'agentName', label: 'Agent Name override (optional)', ph: 'Auto from account or SMS if blank' },
+      { k: 'rawSms', label: 'Paste Telebirr or CBE Sent SMS', long: 1, ph: 'Paste full "You have transferred ETB ... ref ... balance ..." SMS here' }
+    ], v => {
+      const entryType = String(v.entryType || '').startsWith('AGENT_TO_OWNER') ? 'AGENT_TO_OWNER' : 'OWNER_TO_AGENT';
+      const accId = v.accountId && !v.accountId.startsWith('Auto-Match') ? parseInt(v.accountId.split(':')[0], 10) : null;
+      act('/api/admin/owner-send-sms', { entryType, accountId: accId, agentName: v.agentName, rawSms: v.rawSms });
+    }, 'Process SMS');
+  },
+  smsAgentNew: () => ask('Add Agent Phone for AK Finance Webhook', [
+    { k: 'name', label: 'Agent Name', ph: 'e.g. Agent1' },
+    { k: 'matchText', label: 'SMS Match Text (optional)', ph: 'e.g. 0911223344 or Agent1' }
+  ], v => act('/api/admin/sms-agents', { name: v.name, matchText: v.matchText }), 'Create Webhook Token'),
+  smsAgentToggle: d => act('/api/admin/sms-agents/toggle', { id: Number(d.id) }),
+  matchWdSms: d => ask('Verify Withdrawal via Outgoing SMS: ' + d.id, [
+    { k: 'smsRef', label: `SMS Ref (optional — leave blank to auto-match ${d.amt} to ${d.acc})`, ph: 'e.g. DKO3L700HN or FT... (optional)' }
+  ], v => act('/api/admin/match-withdrawal-sms', { txnId: d.id, smsRef: v.smsRef || '' }), 'Match SMS')
 };
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-act]');
@@ -758,13 +846,17 @@ const V = {
           ${btn('Export CSV', 'exportDeposits', {}, 'm')}
         </div>
       </div>
-      ${p.length ? tbl(['ID', 'Player', 'Method', 'Amount', '1st Dep Bonus', 'Reference', 'Age', 'Action'], p.map(t => {
+      ${p.length ? tbl(['ID', 'Player', 'Method', 'Target Acc / Agent', 'Amount', '1st Dep Bonus', 'Reference', 'Age', 'Action'], p.map(t => {
         const amt = Number(t.amount || 0);
         const bonusEst = amt >= fdbMin ? `+${fdbPct}% (${etb(amt * fdbPct / 100)})` : '—';
+        const targetDisp = t.target_account_name
+          ? `${esc(t.target_account_name)} (${esc(t.agent_assigned || 'Owner')})`
+          : esc(t.agent_assigned || 'Owner');
         return [
           `<span class="mono">${esc(t.txn_id)}</span>`,
           esc(t.username || t.user_id),
           esc(t.method),
+          badge(targetDisp, 'in'),
           '<b>' + etb(amt) + '</b>',
           amt >= fdbMin ? badge(bonusEst, 'pu') : `<span class="k">&lt; ${fdbMin} ETB</span>`,
           esc(t.bank_txn_id || '—'),
@@ -773,17 +865,151 @@ const V = {
         ];
       })) : empty('No pending deposits 🎉')}
     </div>
-    <div class="c"><h2>Recent Deposits</h2>${tbl(['ID', 'Player', 'Method', 'Amount', 'Status', 'Age'], D.dep.slice(0, 40).map(t => [`<span class="mono">${esc(t.id)}</span>`, esc(t.u), esc(t.m), etb(t.amt), badge(t.st), ago(t.at)]))}</div>`;
+    <div class="c"><h2>Recent Deposits</h2>${tbl(['ID', 'Player', 'Method', 'Agent / Acc', 'Amount', 'Status', 'Age'], D.dep.slice(0, 40).map(t => [`<span class="mono">${esc(t.id)}</span>`, esc(t.u), esc(t.m), esc(t.agent || 'Owner') + (t.targetAcc ? ` · ${esc(t.targetAcc)}` : ''), etb(t.amt), badge(t.st), ago(t.at)]))}</div>`;
   },
   Withdrawals() {
     const rec = D.wd.filter(t => {
       const q = wdFilterQ.toLowerCase();
       if (wdFilterMethod !== 'ALL' && t.m !== wdFilterMethod) return false;
-      if (q && ![t.id, t.u, t.uid, t.acc].some(v => String(v || '').toLowerCase().includes(q))) return false;
+      if (q && ![t.id, t.u, t.uid, t.acc, t.payoutRef, t.agent].some(v => String(v || '').toLowerCase().includes(q))) return false;
       return true;
     });
     return `<div class="c">${renderPendingWithdrawalsBlock(D.pendingWithdrawals)}</div>
-    <div class="c"><h2>Recent Withdrawals</h2>${tbl(['ID', 'Player', 'Method', 'Amount', 'Account', 'Status', 'Age'], rec.slice(0, 40).map(t => [`<span class="mono">${esc(t.id)}</span>`, esc(t.u), esc(t.m), etb(t.amt), `<code>${esc(t.acc || '—')}</code>`, badge(t.st), ago(t.at)]))}</div>`;
+    <div class="c"><h2>Recent Withdrawals</h2>${tbl(['ID', 'Player', 'Method', 'Amount', 'Account', 'Payout Verification', 'Status', 'Age'], rec.slice(0, 40).map(t => [
+      `<span class="mono">${esc(t.id)}</span>`, esc(t.u), esc(t.m), etb(t.amt), `<code>${esc(t.acc || '—')}</code>`,
+      t.payoutVerified ? badge('SMS ✓ ' + (t.payoutRef || ''), 'ok') + ` <span class="k">${esc(t.agent || t.processedBy || '')}</span>` : (t.payoutRef ? badge(t.payoutRef, 'in') : badge(t.processedBy || 'Manual', 'wa')),
+      badge(t.st), ago(t.at)
+    ]))}</div>`;
+  },
+  'Accounts & SMS'() {
+    const fr = FR;
+    if (!fr) return `<div class="c"><h2>Loading Accounts, Owner Wallet &amp; SMS Desk…</h2><p class="k">Fetching active Telebirr/CBE accounts, reconciliation report, and AK Finance ledger…</p></div>`;
+    const accs = fr.accounts || [];
+    const pT = accs.find(a => a.method === 'Telebirr' && a.is_primary && a.is_active) || accs.find(a => a.method === 'Telebirr' && a.is_active);
+    const pC = accs.find(a => a.method === 'CBE' && a.is_primary && a.is_active) || accs.find(a => a.method === 'CBE' && a.is_active);
+    const totDep = (fr.agentSummary || []).reduce((s, x) => s + Number(x.depositsAmount || 0), 0);
+    const totFloat = (fr.agentSummary || []).reduce((s, x) => s + Number(x.floatFromOwner || 0), 0);
+    const totWd = (fr.agentSummary || []).reduce((s, x) => s + Number(x.withdrawalsAmount || 0), 0);
+    const totWdVer = (fr.agentSummary || []).reduce((s, x) => s + Number(x.withdrawalsVerifiedCount || 0), 0);
+    const qSms = smsFilterQ.toLowerCase();
+    const smsRows = (fr.smsFeed || []).filter(s => !qSms || [s.bank, s.txType, s.ref, s.party, s.recipientAccount, s.agentName, s.claimedUsername, s.claimedTxnId].some(v => String(v || '').toLowerCase().includes(qSms)));
+    const unv = fr.unverifiedWithdrawals || [];
+
+    return `<div class="g">
+      <div class="c kpi"><div class="k">Owner Wallet Balance</div><div class="v" style="color:var(--ac)">${etb(fr.ownerWalletBalance)}</div><div class="sub">Float Sent: ${etb(totFloat)}</div></div>
+      <div class="c kpi"><div class="k">Active Telebirr</div><div class="v" style="font-size:16px;color:var(--cy)">${pT ? esc(pT.account_number) : 'None'}</div><div class="sub">${pT ? `${esc(pT.account_name)} · ${esc(pT.owner_label)}` : 'Set a primary Telebirr'}</div></div>
+      <div class="c kpi"><div class="k">Active CBE</div><div class="v" style="font-size:16px;color:var(--am)">${pC ? esc(pC.account_number) : 'None'}</div><div class="sub">${pC ? `${esc(pC.account_name)} · ${esc(pC.owner_label)}` : 'Set a primary CBE'}</div></div>
+      <div class="c kpi"><div class="k">Deposits / Payouts</div><div class="v" style="font-size:16px">${etb(totDep)}</div><div class="sub">Paid: ${etb(totWd)} (${totWdVer} SMS ✓)</div></div>
+    </div>
+
+    <div class="c">
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0">🏦 Telebirr &amp; CBE Deposit Accounts Switcher</h2>
+          <p class="k" style="margin:3px 0 0">Switch active deposit account holder &amp; number instantly for players in Homepage Deposit.</p>
+        </div>
+        ${btn('+ Add Telebirr / CBE Account', 'accNew', {}, 'g2')}
+      </div>
+      ${accs.length ? tbl(['Provider', 'Account Name', 'Number / Phone', 'Owner / Agent', 'State', 'Actions'], accs.map(a => [
+        badge(a.method, a.method === 'CBE' ? 'in' : 'pu'),
+        `<b>${esc(a.account_name)}</b>${a.notes ? `<br><span class="k">${esc(a.notes)}</span>` : ''}`,
+        `<code>${esc(a.account_number)}</code> ${btn('Copy', 'copy', { v: a.account_number }, 'm')}`,
+        badge(a.owner_label || 'Owner', a.owner_label === 'Owner' ? 'in' : 'wa'),
+        (a.is_primary ? badge('PRIMARY', 'ok') : '') + ' ' + badge(a.is_active ? 'Active' : 'Disabled', a.is_active ? 'ok' : 'no'),
+        (a.is_primary ? '' : btn('Set Primary', 'accPrimary', { id: a.id }, 'g2')) +
+        btn(a.is_active ? 'Disable' : 'Enable', 'accToggle', { id: a.id }, 'm') +
+        btn('Edit', 'accEdit', { id: a.id }, 'm') +
+        btn('Del', 'accDelete', { id: a.id, name: a.account_name }, 'r')
+      ])) : empty('No deposit accounts configured')}
+    </div>
+
+    <div class="g2cols">
+      <div class="c">
+        <div class="toolbar">
+          <div>
+            <h2 style="margin:0">💸 Owner Wallet &amp; Sent-SMS Deduction</h2>
+            <p class="k" style="margin:3px 0 0">Paste the Telebirr or CBE SMS sent to Agent 1 to deduct Owner balance and log Agent float.</p>
+          </div>
+          <div class="row">
+            ${btn('Set Balance', 'ownerBalModal', {}, 'm')}
+            ${btn('+ Send Float SMS', 'ownerSendSmsModal', {}, 'g2')}
+          </div>
+        </div>
+        ${(fr.ledger || []).length ? tbl(['Type', 'Bank', 'Agent', 'Amount', 'Owner Bal', 'Bank Ref', 'Age'], fr.ledger.slice(0, 25).map(l => [
+          badge(l.entry_type === 'OWNER_TO_AGENT' ? 'Sent -> Agent' : l.entry_type === 'AGENT_TO_OWNER' ? 'Returned' : 'Manual Adj', l.entry_type === 'OWNER_TO_AGENT' ? 'wa' : 'ok'),
+          esc(l.method),
+          esc(l.agent_name),
+          `<b>${etb(l.amount)}</b>`,
+          `<span class="k">${etb(l.owner_balance_before)} →</span> <b>${etb(l.owner_balance_after)}</b>`,
+          l.bank_ref ? `<code>${esc(l.bank_ref)}</code>` : '—',
+          ago(l.created_at)
+        ])) : empty('No Owner <-> Agent transfers logged yet.')}
+      </div>
+
+      <div class="c">
+        <h2>📊 Agent &amp; Owner Reconciliation</h2>
+        <p class="k" style="margin-top:0">Net Cash Held = Verified Deposits + Float from Owner − Withdrawals Paid − Returned</p>
+        ${(fr.agentSummary || []).length ? tbl(['Agent / Owner', 'Deposits (+)', 'Float (+)', 'Paid (-)', 'Net Held'], fr.agentSummary.map(s => [
+          `<b>${esc(s.agent)}</b>`,
+          `${etb(s.depositsAmount)}<br><span class="k">${s.depositsCount} deps</span>`,
+          etb(s.floatFromOwner),
+          `${etb(s.withdrawalsAmount)}<br><span class="k">${s.withdrawalsVerifiedCount}/${s.withdrawalsCount} SMS ✓</span>`,
+          `<b style="color:${s.netCashHeld >= 0 ? 'var(--ac)' : 'var(--rd)'}">${etb(s.netCashHeld)}</b>`
+        ])) : empty('No reconciliation rows yet.')}
+      </div>
+    </div>
+
+    <div class="c">
+      <div class="toolbar">
+        <div>
+          <h2 style="margin:0">📱 AK Finance Webhook &amp; Multi-Agent Devices</h2>
+          <p class="k" style="margin:3px 0 0">Paste these URLs into AK Finance → Settings → Server Sync (HTTP GET or POST).</p>
+        </div>
+        ${btn('+ Add SMS Agent (Agent 1)', 'smsAgentNew', {}, 'g2')}
+      </div>
+      <div class="li">
+        <span><b>Owner Master Webhook URL</b><br><code id="ownerWhCode">${esc(fr.ownerWebhookUrl)}</code></span>
+        <span class="row">${btn('Copy URL', 'copy', { v: fr.ownerWebhookUrl }, 'g2')}${btn('Copy Token', 'copy', { v: fr.secretToken }, 'm')}</span>
+      </div>
+      ${(fr.smsAgents || []).length ? tbl(['Agent Name', 'Match Text', 'Status', 'Webhook Link for AK Finance', 'Action'], fr.smsAgents.map(a => [
+        `<b>${esc(a.name)}</b>`,
+        `<code>${esc(a.match_text || 'token-auth')}</code>`,
+        badge(a.active ? 'Active' : 'Paused', a.active ? 'ok' : 'no'),
+        `<code>${esc(a.webhookUrl)}</code>`,
+        btn('Copy URL', 'copy', { v: a.webhookUrl }, 'g2') + btn(a.active ? 'Pause' : 'Resume', 'smsAgentToggle', { id: a.id }, 'm')
+      ])) : empty('No extra agent phones registered yet — click "+ Add SMS Agent (Agent 1)" to connect another cashier phone.')}
+    </div>
+
+    ${unv.length ? `<div class="c">
+      <h2>🔍 Unverified Withdrawals (${unv.length}) — Match with Outgoing Transfer SMS</h2>
+      ${tbl(['Txn ID', 'Player', 'Method', 'Amount', 'Send To', 'Status', 'Action'], unv.slice(0, 20).map(w => [
+        `<span class="mono">${esc(w.txn_id)}</span>`,
+        esc(w.username || w.user_id),
+        badge(w.method, w.method === 'CBE' ? 'in' : 'pu'),
+        `<b>${etb(w.amount)}</b>`,
+        `<code>${esc(w.sender_account)}</code>`,
+        badge(w.status),
+        btn('Verify via SMS', 'matchWdSms', { id: w.txn_id, amt: etb(w.amount), acc: w.sender_account }, 'g2')
+      ]))}
+    </div>` : ''}
+
+    <div class="c">
+      <div class="toolbar">
+        <h2 style="margin:0">🧾 Live SMS Ledger (Deposits + Payouts · ${smsRows.length})</h2>
+        <input placeholder="Filter ref, party, phone, player, agent…" value="${esc(smsFilterQ)}" oninput="smsFilterQ=this.value;R()">
+      </div>
+      ${smsRows.length ? tbl(['Bank', 'Type', 'Agent', 'Amount', 'Party / Recipient Acc', 'Player / Payout Link', 'Ref', 'Status', 'Age'], smsRows.map(s => [
+        badge(s.bank, s.bank === 'CBE' ? 'in' : 'pu'),
+        badge(s.txType, s.txType === 'Received' ? 'ok' : 'wa'),
+        esc(s.agentName || 'Owner'),
+        `<b>${etb(s.amount)}</b>${s.balance != null ? `<br><span class="k">Bal ${etb(s.balance)}</span>` : ''}`,
+        `${esc(s.party || '—')}${s.recipientAccount ? `<br><code>${esc(s.recipientAccount)}</code>` : ''}`,
+        s.claimedTxnId ? `<code>${esc(s.claimedTxnId)}</code>${s.claimedUsername ? `<br><span class="k">${esc(s.claimedUsername)}</span>` : ''}` : '<span class="k">Unclaimed</span>',
+        `<code>${esc(s.ref || '—')}</code>`,
+        badge(s.status, s.status === 'Used' || s.status === 'Payout_Verified' ? 'ok' : s.status === 'Unused' ? 'in' : 'wa'),
+        ago(s.createdAt)
+      ])) : empty('No SMS messages synced from AK Finance yet.')}
+    </div>`;
   },
   Players() {
     return `<div class="c">
@@ -923,7 +1149,7 @@ const V = {
 };
 
 const ADMIN_NAV = [
-  ['Overview', '📊'], ['Deposits', '📥'], ['Withdrawals', '💸'], ['Players', '👥'],
+  ['Overview', '📊'], ['Deposits', '📥'], ['Withdrawals', '💸'], ['Accounts & SMS', '🏦'], ['Players', '👥'],
   ['Bets', '🎲'], ['Sports', '⚽'], ['12h Audit', '🗄️'], ['Promo', '🎁'], ['Settings', '⚙️'], ['Audit', '🧾']
 ];
 const AGENT_NAV = [
@@ -956,6 +1182,7 @@ async function go(p) {
   if (ROLE !== 'admin') return;
   if (p === 'Audit') { const d = await call('/api/admin/audit'); AL = d.success ? d.log : []; R(); }
   if (p === 'Sports') { const d = await call('/api/admin/sports'); SM = d.success ? d.matches : []; R(); }
+  if (p === 'Accounts & SMS') { await loadFinance(); }
   if (p === '12h Audit') {
     const [r12, botRes] = await Promise.all([
       call('/api/admin/reports-12h'),
@@ -971,6 +1198,7 @@ setInterval(() => {
   if ((!D && !AG) || document.hidden || modalOpen()) return;
   if (ROLE === 'agent') { load(true); return; }
   if (['Overview', 'Deposits', 'Withdrawals', 'Bets'].includes(page)) load(true);
+  if (page === 'Accounts & SMS') loadFinance(true);
   if (page === 'Sports') call('/api/admin/sports').then(d => { if (d.success) { SM = d.matches; R(); } });
 }, 15000);
 </script>

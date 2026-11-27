@@ -313,13 +313,17 @@ async function ensureSchema() {
     `ALTER TABLE sports_bets ADD COLUMN IF NOT EXISTS ticket_id VARCHAR(64), ADD COLUMN IF NOT EXISTS bet_id VARCHAR(64), ADD COLUMN IF NOT EXISTS user_id VARCHAR(64), ADD COLUMN IF NOT EXISTS username VARCHAR(128), ADD COLUMN IF NOT EXISTS match_id VARCHAR(64), ADD COLUMN IF NOT EXISTS match_title TEXT, ADD COLUMN IF NOT EXISTS market TEXT, ADD COLUMN IF NOT EXISTS odds NUMERIC(8,2), ADD COLUMN IF NOT EXISTS stake NUMERIC(14,2), ADD COLUMN IF NOT EXISTS potential_win NUMERIC(14,2), ADD COLUMN IF NOT EXISTS cashout_value NUMERIC(14,2), ADD COLUMN IF NOT EXISTS payout NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS status VARCHAR(24) DEFAULT 'IN_PLAY', ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS settled_at TIMESTAMPTZ`,
     `CREATE UNIQUE INDEX IF NOT EXISTS uq_sports_ticket ON sports_bets (ticket_id) WHERE ticket_id IS NOT NULL`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS bonus_balance NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS wager_requirement_left NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS total_won NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS total_wagered NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS total_deposited NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS referrer_id VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS referral_paid BOOLEAN DEFAULT FALSE, ADD COLUMN IF NOT EXISTS last_cashback_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS last_spin_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS cashback_settled_loss NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ`,
-    `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS net_amount NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS bank_txn_id VARCHAR(64), ADD COLUMN IF NOT EXISTS processed_by VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS agent_assigned VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS sender_account VARCHAR(128) DEFAULT '', ADD COLUMN IF NOT EXISTS remarks TEXT DEFAULT ''`,
+    `CREATE TABLE IF NOT EXISTS payment_accounts (id SERIAL PRIMARY KEY,method VARCHAR(32) NOT NULL,account_name VARCHAR(120) NOT NULL,account_number VARCHAR(64) NOT NULL,owner_label VARCHAR(80) DEFAULT 'Owner',sms_agent_id INTEGER,is_active BOOLEAN DEFAULT TRUE,is_primary BOOLEAN DEFAULT FALSE,notes TEXT DEFAULT '',created_at TIMESTAMPTZ DEFAULT NOW())`,
+    `CREATE TABLE IF NOT EXISTS owner_agent_ledger (id SERIAL PRIMARY KEY,entry_type VARCHAR(32) NOT NULL,method VARCHAR(32) DEFAULT 'Telebirr',agent_name VARCHAR(80) NOT NULL,account_id INTEGER,amount NUMERIC(14,2) NOT NULL,bank_ref VARCHAR(64),owner_balance_before NUMERIC(14,2) DEFAULT 0,owner_balance_after NUMERIC(14,2) DEFAULT 0,raw_sms TEXT DEFAULT '',notes TEXT DEFAULT '',actor VARCHAR(80) DEFAULT 'Admin',created_at TIMESTAMPTZ DEFAULT NOW())`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS uq_owner_ledger_ref ON owner_agent_ledger (bank_ref) WHERE bank_ref IS NOT NULL AND bank_ref <> ''`,
+    `ALTER TABLE transactions ADD COLUMN IF NOT EXISTS net_amount NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS bank_txn_id VARCHAR(64), ADD COLUMN IF NOT EXISTS processed_by VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS agent_assigned VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS sender_account VARCHAR(128) DEFAULT '', ADD COLUMN IF NOT EXISTS remarks TEXT DEFAULT '', ADD COLUMN IF NOT EXISTS target_account_id INTEGER, ADD COLUMN IF NOT EXISTS target_account_name VARCHAR(120) DEFAULT '', ADD COLUMN IF NOT EXISTS target_account_number VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS payout_ref VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS payout_verified BOOLEAN DEFAULT FALSE`,
     `ALTER TABLE transactions ALTER COLUMN method SET DEFAULT '', ALTER COLUMN method DROP NOT NULL`,
     `ALTER TABLE transactions ALTER COLUMN net_amount SET DEFAULT 0, ALTER COLUMN net_amount DROP NOT NULL`,
     `ALTER TABLE transactions ALTER COLUMN username SET DEFAULT '', ALTER COLUMN username DROP NOT NULL`,
     `ALTER TABLE universal_bets ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS flight_start TIMESTAMPTZ`,
     `ALTER TABLE casino_vault ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`,
     `INSERT INTO casino_vault (id,vault_balance) VALUES (1,200000.00) ON CONFLICT DO NOTHING`,
+    `INSERT INTO system_settings (key,value) VALUES ('owner_wallet_balance','0') ON CONFLICT (key) DO NOTHING`,
     `UPDATE transactions SET bank_txn_id=NULL WHERE bank_txn_id=''`,
     `CREATE UNIQUE INDEX IF NOT EXISTS uq_txn_bank_ref ON transactions (bank_txn_id) WHERE bank_txn_id IS NOT NULL`,
     `CREATE UNIQUE INDEX IF NOT EXISTS uq_promo_user_code ON promo_redemptions (user_id, code)`,
@@ -338,6 +342,16 @@ async function ensureSchema() {
     `CREATE INDEX IF NOT EXISTS idx_tx_user_created ON transactions (user_id, created_at DESC)`
   ];
   for (const s of S) { try { await pool.query(s); } catch (e) { console.warn('schema step skipped:', e.message.slice(0, 120), '|', s.slice(0, 60)); } }
+  try {
+    const cntAcc = await pool.query('SELECT COUNT(*) n FROM payment_accounts');
+    if (Number(cntAcc.rows[0]?.n || 0) === 0) {
+      await pool.query(
+        `INSERT INTO payment_accounts (method,account_name,account_number,owner_label,is_active,is_primary,notes)
+         VALUES ('Telebirr','Aymen','0996910607','Owner',TRUE,TRUE,'Default Telebirr'),
+                ('CBE','Aymen','1000562339427','Owner',TRUE,TRUE,'Default CBE')`
+      );
+    }
+  } catch (e) { console.warn('seed payment_accounts:', e.message); }
   if (HAS_DB) {
     try {
       const keepByTable = {
@@ -405,7 +419,7 @@ const DEFAULT_VERIFI_URL = 'https://verifi-server-milr.onrender.com/api/verify';
 const VERIFI_URL = String(ENV.VERIFI_URL || DEFAULT_VERIFI_URL).trim();
 const USE_EXTERNAL_VERIFI = ENV.USE_EXTERNAL_VERIFI === '1' || (ENV.USE_EXTERNAL_VERIFI !== '0' && Boolean(ENV.VERIFI_TOKEN));
 const smsVerifier = createSmsVerifyService({ pool, env: ENV, admin, h });
-async function verifyWithGateway(ref, amount) {
+async function verifyWithGateway(ref, amount, claimMeta = null) {
   if (USE_EXTERNAL_VERIFI) {
     if (!ENV.VERIFI_TOKEN) throw new Biz('Automatic verification is not available right now. Use "Send Deposit Request".', 503);
     const u = new URL(VERIFI_URL);
@@ -420,11 +434,29 @@ async function verifyWithGateway(ref, amount) {
       return { ok: r.ok, body, raw: text.slice(0, 200) };
     } finally { clearTimeout(timer); }
   }
-  const body = await smsVerifier.verifyPaymentDirect(ref, amount);
+  const body = await smsVerifier.verifyPaymentDirect(ref, amount, '', claimMeta);
   return { ok: true, body, raw: '' };
 }
 const gatewayVerified = b => !!b && (String(b.status || '').toLowerCase() === 'verified' || b.verified === true);
 const gatewayAmount = b => { const n = Number(b && (b.amount ?? (b.data && b.data.amount))); return Number.isFinite(n) && n > 0 ? n : null; };
+
+async function loadActivePaymentAccounts() {
+  return cache.getOrLoad('public:accounts', 10000, async () => {
+    const r = await pool.query(`SELECT id,method,account_name,account_number,owner_label,sms_agent_id,is_active,is_primary FROM payment_accounts WHERE is_active=TRUE ORDER BY is_primary DESC, id ASC`).catch(() => ({ rows: [] }));
+    const list = r.rows.map(a => ({
+      id: a.id,
+      method: a.method,
+      accountName: a.account_name,
+      accountNumber: a.account_number,
+      ownerLabel: a.owner_label || 'Owner',
+      smsAgentId: a.sms_agent_id || null,
+      isPrimary: Boolean(a.is_primary)
+    }));
+    const primaryTelebirr = list.find(a => a.method === 'Telebirr') || { id: null, method: 'Telebirr', accountName: 'Aymen', accountNumber: '0996910607', ownerLabel: 'Owner', isPrimary: true };
+    const primaryCBE = list.find(a => a.method === 'CBE') || { id: null, method: 'CBE', accountName: 'Aymen', accountNumber: '1000562339427', ownerLabel: 'Owner', isPrimary: true };
+    return { list, primaryTelebirr, primaryCBE };
+  });
+}
 
 // ---------------------------------------------------------------- static frontend + modular games + sportsbook + telegram bot
 app.get('/', (_q, res) => res.sendFile(path.join(__dirname, 'homepage.html'), { maxAge: 60 * 1000 }));
@@ -436,20 +468,32 @@ app.use('/assets', express.static(path.join(__dirname, 'public', 'assets'), { ma
 // ---------------------------------------------------------------- public
 app.get('/api/ping', (_q, res) => res.json({ status: 'OK', timestamp: Date.now() }));
 app.get('/api/heartbeat', (_q, res) => res.json({ status: 'ALIVE' }));
-app.get('/api/public/config', (_q, res) => res.json({
-  success: true,
-  welcomeBonus: CONFIG.WELCOME_BONUS,
-  referralBonus: CONFIG.REFERRAL_BONUS,
-  wagerReqMult: CONFIG.WAGER_REQ_MULT,
-  firstDepBonusMin: CONFIG.FIRST_DEP_BONUS_MIN,
-  firstDepBonusPct: CONFIG.FIRST_DEP_BONUS_PCT,
-  cashbackPercent: CASHBACK.percent,
-  cashbackMinLoss: CASHBACK.minLoss,
-  minBet: CONFIG.MIN_BET,
-  maxBet: CONFIG.MAX_BET,
-  minDep: CONFIG.MIN_DEP,
-  minWth: CONFIG.MIN_WTH,
-  botUsername: ENV.BOT_USERNAME || 'Hulubetethbot'
+app.get('/api/public/config', h(async (_q, res) => {
+  const accs = await loadActivePaymentAccounts();
+  res.json({
+    success: true,
+    welcomeBonus: CONFIG.WELCOME_BONUS,
+    referralBonus: CONFIG.REFERRAL_BONUS,
+    wagerReqMult: CONFIG.WAGER_REQ_MULT,
+    firstDepBonusMin: CONFIG.FIRST_DEP_BONUS_MIN,
+    firstDepBonusPct: CONFIG.FIRST_DEP_BONUS_PCT,
+    cashbackPercent: CASHBACK.percent,
+    cashbackMinLoss: CASHBACK.minLoss,
+    minBet: CONFIG.MIN_BET,
+    maxBet: CONFIG.MAX_BET,
+    minDep: CONFIG.MIN_DEP,
+    minWth: CONFIG.MIN_WTH,
+    botUsername: ENV.BOT_USERNAME || 'Hulubetethbot',
+    paymentAccounts: accs.list,
+    primaryAccounts: {
+      Telebirr: accs.primaryTelebirr,
+      CBE: accs.primaryCBE
+    }
+  });
+}));
+app.get('/api/cashier/payment-accounts', h(async (_q, res) => {
+  const accs = await loadActivePaymentAccounts();
+  res.json({ success: true, accounts: accs.list, primaryAccounts: { Telebirr: accs.primaryTelebirr, CBE: accs.primaryCBE } });
 }));
 smsVerifier.mountRoutes(app);
 
@@ -886,9 +930,21 @@ setInterval(() => {
 }, 30 * 60e3).unref();
 
 // ---------------------------------------------------------------- 3. cashier
+async function resolveTargetAccount(method, accountId) {
+  const accs = await loadActivePaymentAccounts();
+  const idNum = parseInt(accountId, 10);
+  if (Number.isInteger(idNum)) {
+    const exact = accs.list.find(a => a.id === idNum && a.method === method);
+    if (exact) return exact;
+  }
+  return method === 'CBE' ? accs.primaryCBE : accs.primaryTelebirr;
+}
+
 app.post('/api/cashier/deposit', userAuth, limit('dep', 20, 60e3), h(async (req, res) => {
   const amt = r2(req.body.amount), method = PAY_METHODS.includes(req.body.method) ? req.body.method : 'Telebirr';
-  const agent = AGENTS.includes(req.body.agentAssigned) ? req.body.agentAssigned : AGENTS[0];
+  const targetAcc = await resolveTargetAccount(method, req.body.accountId);
+  const agentRaw = String(req.body.agentAssigned || targetAcc?.ownerLabel || AGENTS[0]).trim().slice(0, 64);
+  const agent = agentRaw || AGENTS[0];
   const ref = String(req.body.bankRef || '').trim().toUpperCase() || null;
   if (!(amt >= CONFIG.MIN_DEP && amt <= CONFIG.MAX_DEP)) throw new Biz(`Deposit must be between ${CONFIG.MIN_DEP} and ${CONFIG.MAX_DEP} ETB`);
   if (ref && !/^[A-Za-z0-9]{6,30}$/.test(ref)) throw new Biz('Payment reference must be 6-30 letters/numbers');
@@ -898,15 +954,19 @@ app.post('/api/cashier/deposit', userAuth, limit('dep', 20, 60e3), h(async (req,
   const p = await pool.query(`SELECT COUNT(*) n FROM transactions WHERE user_id=$1 AND type='DEPOSIT' AND status='PENDING'`, [req.tg.id]);
   if (Number(p.rows[0].n) >= 5) throw new Biz('You have too many pending deposits. Wait for the cashier or cancel one.');
   const id = newId('DEP');
-  await pool.query(`INSERT INTO transactions (txn_id,user_id,username,type,method,amount,net_amount,agent_assigned,bank_txn_id,status,remarks)
-    VALUES ($1,$2,$3,'DEPOSIT',$4,$5,$5,$6,$7,'PENDING','Pending cashier verification')`, [id, req.tg.id, req.tg.username || 'player', method, amt, agent, ref]); // reused reference -> 409
+  await pool.query(
+    `INSERT INTO transactions (txn_id,user_id,username,type,method,amount,net_amount,agent_assigned,bank_txn_id,target_account_id,target_account_name,target_account_number,status,remarks)
+     VALUES ($1,$2,$3,'DEPOSIT',$4,$5,$5,$6,$7,$8,$9,$10,'PENDING','Pending cashier verification')`,
+    [id, req.tg.id, req.tg.username || 'player', method, amt, agent, ref, targetAcc?.id || null, targetAcc?.accountName || '', targetAcc?.accountNumber || '']
+  ); // reused reference -> 409
   cacheInvalidate('admin:dashboard');
-  notifyAdmins(`NEW DEPOSIT ${id}\n${fmt(amt)} ETB via ${method}\nPlayer: @${req.tg.username || '-'} (${req.tg.id})${ref ? '\nRef: ' + ref : ''}`);
-  res.json({ success: true, txnId: id, agent });
+  notifyAdmins(`NEW DEPOSIT ${id}\n${fmt(amt)} ETB via ${method} (${targetAcc?.accountName || ''} · ${agent})\nPlayer: @${req.tg.username || '-'} (${req.tg.id})${ref ? '\nRef: ' + ref : ''}`);
+  res.json({ success: true, txnId: id, agent, targetAccount: targetAcc });
 }));
 
 app.post('/api/cashier/verify-deposit', userAuth, limit('verify', 12, 600e3), h(async (req, res) => {
   const method = PAY_METHODS.includes(req.body.method) ? req.body.method : 'Telebirr';
+  const targetAcc = await resolveTargetAccount(method, req.body.accountId);
   const rawInput = String(req.body.ref || '').trim();
   const parsedInput = smsParsers.parseVerifyInput(rawInput, rawInput);
   const raw = parsedInput ? parsedInput.value : rawInput;
@@ -922,21 +982,25 @@ app.post('/api/cashier/verify-deposit', userAuth, limit('verify', 12, 600e3), h(
 
   // Reserve the reference BEFORE asking the gateway: the unique index guarantees one claim per payment, even with parallel requests.
   let id = newId('DEP');
+  const initialAgent = targetAcc?.ownerLabel || 'Owner';
   try {
-    await pool.query(`INSERT INTO transactions (txn_id,user_id,username,type,method,amount,net_amount,bank_txn_id,status,remarks,processed_by)
-      VALUES ($1,$2,$3,'DEPOSIT',$4,$5,$5,$6,'VERIFYING','Checking payment','AUTO')`, [id, uid, req.tg.username || 'player', method, amt, ref]);
+    await pool.query(
+      `INSERT INTO transactions (txn_id,user_id,username,type,method,amount,net_amount,agent_assigned,bank_txn_id,target_account_id,target_account_name,target_account_number,status,remarks,processed_by)
+       VALUES ($1,$2,$3,'DEPOSIT',$4,$5,$5,$6,$7,$8,$9,$10,'VERIFYING','Checking payment','AUTO')`,
+      [id, uid, req.tg.username || 'player', method, amt, initialAgent, ref, targetAcc?.id || null, targetAcc?.accountName || '', targetAcc?.accountNumber || '']
+    );
   } catch (e) {
     if (e.code !== '23505') throw e;
     const ex = (await pool.query(`SELECT txn_id,user_id,status FROM transactions WHERE bank_txn_id=$1`, [ref])).rows[0];   // his own pending request with this reference: use it
     if (!ex || ex.user_id !== uid || ex.status !== 'PENDING') throw new Biz('This payment reference was already used.', 409);
-    const up = await pool.query(`UPDATE transactions SET status='VERIFYING',amount=$1,net_amount=$1,method=$2,remarks='Checking payment',processed_by='AUTO' WHERE txn_id=$3 AND status='PENDING'`, [amt, method, ex.txn_id]);
+    const up = await pool.query(`UPDATE transactions SET status='VERIFYING',amount=$1,net_amount=$1,method=$2,agent_assigned=$4,remarks='Checking payment',processed_by='AUTO' WHERE txn_id=$3 AND status='PENDING'`, [amt, method, ex.txn_id, initialAgent]);
     if (!up.rowCount) throw new Biz('This payment reference was already used.', 409);
     id = ex.txn_id;
   }
   const release = (why) => pool.query(`UPDATE transactions SET status='FAILED',bank_txn_id=NULL,remarks=$1,updated_at=NOW() WHERE txn_id=$2 AND status='VERIFYING'`, [why, id]).catch(() => {});
 
   let g;
-  try { g = await verifyWithGateway(raw, amt); }
+  try { g = await verifyWithGateway(raw, amt, { userId: uid, username: req.tg.username || req.tg.name || uid, txnId: id }); }
   catch (e) { await release('Gateway unreachable'); if (e instanceof Biz) throw e; throw new Biz('Could not reach the payment checker. Please try again in a minute.', 503); }
   if (!gatewayVerified(g.body)) {
     const st = String(g.body?.status || '');
@@ -959,16 +1023,18 @@ app.post('/api/cashier/verify-deposit', userAuth, limit('verify', 12, 600e3), h(
   const gAmt = gatewayAmount(g.body);
   if (gAmt !== null && Math.abs(gAmt - amt) > 0.01) { await release(`Amount differs (${gAmt})`); throw new Biz(`The payment amount (${gAmt} ETB) does not match the amount you entered.`, 400); }
 
+  const verifiedAgent = String(g.body?.agent_name || initialAgent || 'Owner').slice(0, 64);
+
   if (amt > AUTO_DEP_MAX) {
-    await pool.query(`UPDATE transactions SET status='PENDING',remarks='Verified by gateway, waiting for cashier (large amount)',updated_at=NOW() WHERE txn_id=$1 AND status='VERIFYING'`, [id]);
-    notifyAdmins(`VERIFIED DEPOSIT NEEDS APPROVAL ${id}\n${fmt(amt)} ETB via ${method}, ref ${ref}\nPlayer: @${req.tg.username || '-'} (${uid})`);
-    return res.json({ success: true, pending: true, txnId: id, message: 'Payment verified. Large deposits are approved by the cashier shortly.' });
+    await pool.query(`UPDATE transactions SET status='PENDING',agent_assigned=$2,remarks='Verified by gateway, waiting for cashier (large amount)',updated_at=NOW() WHERE txn_id=$1 AND status='VERIFYING'`, [id, verifiedAgent]);
+    notifyAdmins(`VERIFIED DEPOSIT NEEDS APPROVAL ${id}\n${fmt(amt)} ETB via ${method} (${verifiedAgent}), ref ${ref}\nPlayer: @${req.tg.username || '-'} (${uid})`);
+    return res.json({ success: true, pending: true, txnId: id, agent: verifiedAgent, message: 'Payment verified. Large deposits are approved by the cashier shortly.' });
   }
   const out = await tx(async c => {
     const t = (await c.query(`SELECT * FROM transactions WHERE txn_id=$1 AND status='VERIFYING' FOR UPDATE`, [id])).rows[0];
     if (!t) throw new Biz('This deposit was already processed');
     const dep = await applyDepositCredit(c, uid, amt, id, 'DEPOSIT_AUTO', 'AUTO');
-    await c.query(`UPDATE transactions SET status='APPROVED',remarks='Auto-verified by gateway',processed_by='AUTO',updated_at=NOW() WHERE txn_id=$1`, [id]);
+    await c.query(`UPDATE transactions SET status='APPROVED',agent_assigned=$2,remarks='Auto-verified by gateway',processed_by='AUTO',updated_at=NOW() WHERE txn_id=$1`, [id, verifiedAgent]);
     return dep;
   });
   if (out.bonusAmt > 0) vaultAdd({ bonus: out.bonusAmt });
@@ -977,6 +1043,7 @@ app.post('/api/cashier/verify-deposit', userAuth, limit('verify', 12, 600e3), h(
     success: true,
     txnId: id,
     credited: amt,
+    agent: verifiedAgent,
     bonusAwarded: out.bonusAmt,
     bonusWagerReq: out.bonusWr,
     newBalance: out.after,
@@ -1115,7 +1182,13 @@ async function creditReferral(c, uid) {
 const payAgent = (c, agent, amt) => opt(c,
   `UPDATE agents SET total_deposits_processed=total_deposits_processed+$1,total_commission_earned=total_commission_earned+$2 WHERE telegram_username ILIKE $3 OR agent_id=$3`,
   [amt, r2(amt * CONFIG.AGENT_COMMISSION), agent]);
-const fmtTx = t => ({ id: t.txn_id, u: t.username || t.user_id, uid: t.user_id, m: t.method || 'Telebirr', amt: num(t.amount), st: String(t.status).toLowerCase(), acc: t.sender_account, at: t.created_at });
+const fmtTx = t => ({
+  id: t.txn_id, u: t.username || t.user_id, uid: t.user_id, m: t.method || 'Telebirr',
+  amt: num(t.amount), st: String(t.status).toLowerCase(), acc: t.sender_account,
+  agent: t.agent_assigned || '', targetAcc: t.target_account_name || '',
+  payoutRef: t.payout_ref || '', payoutVerified: Boolean(t.payout_verified),
+  processedBy: t.processed_by || '', at: t.created_at
+});
 
 const dashboard = h(async (_req, res) => {
   const payload = await cache.getOrLoad('admin:dashboard', 3000, async () => {
@@ -1326,16 +1399,29 @@ app.get('/api/agent/withdrawals', agentAccess, h(async (req, res) => {
 
 app.post('/api/agent/approve-withdrawal', agentAccess, h(async (req, res) => {
   const txnId = String(req.body.txnId || '');
+  const payoutRef = String(req.body.payoutRef || '').trim().toUpperCase().slice(0, 64);
   if (!txnId) throw new Biz('Transaction ID required');
   const r = await pool.query(
-    `UPDATE transactions SET status='APPROVED',remarks=$1,processed_by=$2,updated_at=NOW() WHERE txn_id=$3 AND type='WITHDRAWAL' AND status='PENDING' RETURNING user_id,amount,method`,
+    `UPDATE transactions SET status='APPROVED',remarks=$1,processed_by=$2,updated_at=NOW() WHERE txn_id=$3 AND type='WITHDRAWAL' AND status='PENDING' RETURNING user_id,amount,method,sender_account`,
     [`Payout completed by ${req.actor}`, req.actor, txnId]
   );
   if (!r.rowCount) throw new Biz('Withdrawal already processed or not found');
+  const row = r.rows[0];
+  let matched = null;
+  try {
+    matched = await smsVerifier.matchWithdrawalSms({
+      txnId, method: row.method, amount: row.amount, recipientAccount: row.sender_account, ref: payoutRef, actor: req.actor
+    });
+    if (matched?.matched) {
+      await pool.query(`UPDATE transactions SET payout_ref=$1,payout_verified=TRUE,agent_assigned=COALESCE(NULLIF($2,''),agent_assigned) WHERE txn_id=$3`, [matched.ref, matched.agentName || '', txnId]);
+    } else if (payoutRef) {
+      await pool.query(`UPDATE transactions SET payout_ref=$1 WHERE txn_id=$2`, [payoutRef, txnId]);
+    }
+  } catch (_) {}
   cacheInvalidate('admin:dashboard');
-  alog(req, 'agent-approve-withdrawal', txnId);
-  notify(r.rows[0].user_id, `Your withdrawal of ${fmt(r.rows[0].amount)} ETB was paid out via ${r.rows[0].method}.`);
-  res.json({ success: true, message: `Withdrawal ${txnId} marked completed` });
+  alog(req, 'agent-approve-withdrawal', `${txnId}${matched?.matched ? ' smsVerified=' + matched.ref : ''}`);
+  notify(row.user_id, `Your withdrawal of ${fmt(row.amount)} ETB was paid out via ${row.method}.`);
+  res.json({ success: true, payoutVerified: Boolean(matched?.matched), payoutRef: matched?.ref || payoutRef || '', message: `Withdrawal ${txnId} marked completed${matched?.matched ? ' (SMS verified)' : ''}` });
 }));
 
 app.post('/api/agent/reject-withdrawal', agentAccess, h(async (req, res) => {
@@ -1430,8 +1516,9 @@ app.post('/api/admin/reset-launch-db', admin, h(async (req, res) => {
   }
   const vaultStart = Math.max(50000, Math.min(10000000, r2(req.body?.vaultBalance || 200000)));
   await tx(async c => {
-    await c.query(`TRUNCATE TABLE promo_redemptions, balance_audit_logs, universal_bets, sports_bets, transactions, game_12h_reports, chat_messages, admin_actions, cbe_transactions, telebirr_transactions, users RESTART IDENTITY CASCADE`);
+    await c.query(`TRUNCATE TABLE promo_redemptions, balance_audit_logs, universal_bets, sports_bets, transactions, game_12h_reports, chat_messages, admin_actions, cbe_transactions, telebirr_transactions, owner_agent_ledger, users RESTART IDENTITY CASCADE`);
     await c.query(`UPDATE casino_vault SET vault_balance=$1,total_wagered=0,total_payouts=0,gross_profit=0,total_bonus_awarded=0,updated_at=NOW() WHERE id=1`, [vaultStart]);
+    await c.query(`UPDATE system_settings SET value='0' WHERE key='owner_wallet_balance'`);
     await c.query(`UPDATE promo_codes SET times_used=0`);
   });
   for (const k in vaultPending) vaultPending[k] = 0;
@@ -1440,6 +1527,276 @@ app.post('/api/admin/reset-launch-db', admin, h(async (req, res) => {
   cache.invalidate('');
   alog(req, 'reset-launch-db', `restored 0 users, vault=${vaultStart}`);
   res.json({ success: true, vaultBalance: vaultStart, message: `Database restored for launch! All test accounts cleared and Casino Vault set to ${vaultStart.toLocaleString('en-US')} ETB.` });
+}));
+
+// ---- Dynamic Deposit Accounts Switcher + Multi-Agent Finance + Owner Sent SMS Deduction ----
+app.get('/api/admin/payment-accounts', admin, h(async (_req, res) => {
+  const [accs, ags] = await Promise.all([
+    pool.query(`SELECT id,method,account_name,account_number,owner_label,sms_agent_id,is_active,is_primary,notes,created_at FROM payment_accounts ORDER BY method ASC, is_primary DESC, id ASC`),
+    pool.query(`SELECT id,name,match_text,active FROM sms_agents ORDER BY id ASC`).catch(() => ({ rows: [] }))
+  ]);
+  res.json({ success: true, accounts: accs.rows, smsAgents: ags.rows });
+}));
+
+app.post('/api/admin/payment-accounts', admin, h(async (req, res) => {
+  const id = req.body.id ? parseInt(req.body.id, 10) : null;
+  const method = PAY_METHODS.includes(req.body.method) ? req.body.method : 'Telebirr';
+  const accountName = String(req.body.accountName || '').trim().slice(0, 120);
+  const accountNumber = String(req.body.accountNumber || '').trim().slice(0, 64);
+  const ownerLabel = String(req.body.ownerLabel || 'Owner').trim().slice(0, 80) || 'Owner';
+  const smsAgentId = req.body.smsAgentId ? parseInt(req.body.smsAgentId, 10) : null;
+  const isActive = req.body.isActive !== false && req.body.isActive !== 'false';
+  const isPrimary = Boolean(req.body.isPrimary);
+  const notes = String(req.body.notes || '').trim().slice(0, 200);
+  if (!accountName || !accountNumber) throw new Biz('Account name and number are required');
+
+  const row = await tx(async c => {
+    if (isPrimary) {
+      await c.query(`UPDATE payment_accounts SET is_primary=FALSE WHERE method=$1`, [method]);
+    }
+    if (id && Number.isInteger(id)) {
+      const r = await c.query(
+        `UPDATE payment_accounts SET method=$1,account_name=$2,account_number=$3,owner_label=$4,sms_agent_id=$5,is_active=$6,is_primary=$7,notes=$8 WHERE id=$9 RETURNING *`,
+        [method, accountName, accountNumber, ownerLabel, smsAgentId, isPrimary ? true : isActive, isPrimary, notes, id]
+      );
+      if (!r.rowCount) throw new Biz('Account not found', 404);
+      return r.rows[0];
+    }
+    const r = await c.query(
+      `INSERT INTO payment_accounts (method,account_name,account_number,owner_label,sms_agent_id,is_active,is_primary,notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [method, accountName, accountNumber, ownerLabel, smsAgentId, isPrimary ? true : isActive, isPrimary, notes]
+    );
+    return r.rows[0];
+  });
+  cacheInvalidate('public:accounts');
+  cacheInvalidate('admin:dashboard');
+  alog(req, 'save-payment-account', `${method} ${accountName} (${accountNumber}) [${ownerLabel}] primary=${isPrimary}`);
+  res.json({ success: true, account: row, message: `${method} account ${accountName} saved` });
+}));
+
+app.post('/api/admin/payment-accounts/toggle', admin, h(async (req, res) => {
+  const id = parseInt(req.body.id, 10);
+  const makePrimary = Boolean(req.body.setPrimary);
+  if (!Number.isInteger(id)) throw new Biz('Valid account id required');
+  const row = await tx(async c => {
+    const cur = (await c.query(`SELECT * FROM payment_accounts WHERE id=$1 FOR UPDATE`, [id])).rows[0];
+    if (!cur) throw new Biz('Account not found', 404);
+    if (makePrimary) {
+      await c.query(`UPDATE payment_accounts SET is_primary=FALSE WHERE method=$1`, [cur.method]);
+      const up = await c.query(`UPDATE payment_accounts SET is_primary=TRUE,is_active=TRUE WHERE id=$1 RETURNING *`, [id]);
+      return up.rows[0];
+    }
+    const up = await c.query(`UPDATE payment_accounts SET is_active=NOT is_active WHERE id=$1 RETURNING *`, [id]);
+    return up.rows[0];
+  });
+  cacheInvalidate('public:accounts');
+  cacheInvalidate('admin:dashboard');
+  alog(req, makePrimary ? 'set-primary-account' : 'toggle-account', `${row.method} ${row.account_name} (${row.account_number})`);
+  res.json({ success: true, account: row, message: makePrimary ? `${row.account_name} is now active & primary for ${row.method}` : `${row.account_name} ${row.is_active ? 'enabled' : 'disabled'}` });
+}));
+
+app.post('/api/admin/payment-accounts/delete', admin, h(async (req, res) => {
+  const id = parseInt(req.body.id, 10);
+  if (!Number.isInteger(id)) throw new Biz('Valid account id required');
+  const r = await pool.query(`DELETE FROM payment_accounts WHERE id=$1 RETURNING method,account_name`, [id]);
+  if (!r.rowCount) throw new Biz('Account not found', 404);
+  cacheInvalidate('public:accounts');
+  res.json({ success: true, message: `Deleted ${r.rows[0].method} account ${r.rows[0].account_name}` });
+}));
+
+app.get('/api/admin/finance-report', admin, h(async (req, res) => {
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+  const host = req.headers['x-forwarded-host'] || req.get('host');
+  const base = `${proto}://${host}`;
+  const tok = smsVerifier.getTokens();
+  const [accsRes, smsAgRes, ownerBalRes, ledgerRes, depsRes, wdsRes, cbeSmsRes, tbSmsRes] = await Promise.all([
+    pool.query(`SELECT id,method,account_name,account_number,owner_label,sms_agent_id,is_active,is_primary,notes,created_at FROM payment_accounts ORDER BY method ASC, is_primary DESC, id ASC`),
+    pool.query(`SELECT id,name,token,match_text,active,created_at FROM sms_agents ORDER BY id ASC`).catch(() => ({ rows: [] })),
+    pool.query(`SELECT value FROM system_settings WHERE key='owner_wallet_balance'`).catch(() => ({ rows: [] })),
+    pool.query(`SELECT * FROM owner_agent_ledger ORDER BY id DESC LIMIT 60`).catch(() => ({ rows: [] })),
+    pool.query(`SELECT txn_id,user_id,username,method,amount,agent_assigned,target_account_name,target_account_number,bank_txn_id,created_at FROM transactions WHERE type='DEPOSIT' AND status='APPROVED' ORDER BY created_at DESC LIMIT 300`),
+    pool.query(`SELECT txn_id,user_id,username,method,amount,sender_account,agent_assigned,processed_by,payout_ref,payout_verified,status,created_at,updated_at FROM transactions WHERE type='WITHDRAWAL' AND status IN ('PENDING','APPROVED') ORDER BY created_at DESC LIMIT 200`),
+    pool.query(`SELECT * FROM cbe_transactions ORDER BY id DESC LIMIT 40`).catch(() => ({ rows: [] })),
+    pool.query(`SELECT * FROM telebirr_transactions ORDER BY id DESC LIMIT 40`).catch(() => ({ rows: [] }))
+  ]);
+
+  const ownerWalletBalance = r2(num(ownerBalRes.rows[0]?.value || 0));
+  const agentNameById = new Map(smsAgRes.rows.map(a => [a.id, a.name]));
+
+  // Aggregate per-agent/owner summary
+  const summaryMap = new Map();
+  const ensureBucket = label => {
+    const k = String(label || 'Owner').trim() || 'Owner';
+    if (!summaryMap.has(k)) {
+      summaryMap.set(k, {
+        agent: k,
+        depositsCount: 0, depositsAmount: 0,
+        withdrawalsCount: 0, withdrawalsAmount: 0,
+        withdrawalsVerifiedCount: 0, withdrawalsVerifiedAmount: 0,
+        floatFromOwner: 0, returnedToOwner: 0, netCashHeld: 0
+      });
+    }
+    return summaryMap.get(k);
+  };
+  ensureBucket('Owner');
+  accsRes.rows.forEach(a => ensureBucket(a.owner_label || 'Owner'));
+  smsAgRes.rows.forEach(a => ensureBucket(a.name));
+
+  for (const d of depsRes.rows) {
+    const b = ensureBucket(d.agent_assigned || 'Owner');
+    b.depositsCount++;
+    b.depositsAmount = r2(b.depositsAmount + num(d.amount));
+  }
+  for (const w of wdsRes.rows) {
+    if (w.status !== 'APPROVED') continue;
+    const rawActor = String(w.agent_assigned || '').trim() || String(w.processed_by || '').replace(/^Agent:\s*/i, '').trim() || 'Owner';
+    const b = ensureBucket(rawActor);
+    b.withdrawalsCount++;
+    b.withdrawalsAmount = r2(b.withdrawalsAmount + num(w.amount));
+    if (w.payout_verified) {
+      b.withdrawalsVerifiedCount++;
+      b.withdrawalsVerifiedAmount = r2(b.withdrawalsVerifiedAmount + num(w.amount));
+    }
+  }
+  for (const l of ledgerRes.rows) {
+    if (l.entry_type === 'OWNER_MANUAL_ADJ') continue;
+    const b = ensureBucket(l.agent_name);
+    if (l.entry_type === 'OWNER_TO_AGENT') b.floatFromOwner = r2(b.floatFromOwner + num(l.amount));
+    if (l.entry_type === 'AGENT_TO_OWNER') b.returnedToOwner = r2(b.returnedToOwner + num(l.amount));
+  }
+  const agentSummary = [...summaryMap.values()].map(b => ({
+    ...b,
+    netCashHeld: r2(b.depositsAmount + b.floatFromOwner - b.withdrawalsAmount - b.returnedToOwner)
+  }));
+
+  const smsFeed = [
+    ...cbeSmsRes.rows.map(x => ({
+      bank: 'CBE', id: x.id, txType: x.tx_type, amount: num(x.amount), ref: x.ref_no || x.v2_code || '',
+      party: x.sender_name || '', recipientAccount: x.recipient_account || '', balance: x.balance != null ? num(x.balance) : null,
+      status: x.status, agentName: x.agent_id ? (agentNameById.get(x.agent_id) || `Agent #${x.agent_id}`) : 'Owner',
+      claimedUserId: x.claimed_by_user_id || '', claimedUsername: x.claimed_by_username || '', claimedTxnId: x.claimed_txn_id || '',
+      createdAt: x.created_at
+    })),
+    ...tbSmsRes.rows.map(x => ({
+      bank: 'Telebirr', id: x.id, txType: x.tx_type, amount: num(x.amount), ref: x.ref_no || '',
+      party: x.sender_name || '', recipientAccount: x.recipient_account || '', balance: x.balance != null ? num(x.balance) : null,
+      status: x.status, agentName: x.agent_id ? (agentNameById.get(x.agent_id) || `Agent #${x.agent_id}`) : 'Owner',
+      claimedUserId: x.claimed_by_user_id || '', claimedUsername: x.claimed_by_username || '', claimedTxnId: x.claimed_txn_id || '',
+      createdAt: x.created_at
+    }))
+  ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 60);
+
+  res.json({
+    success: true,
+    ownerWalletBalance,
+    accounts: accsRes.rows,
+    smsAgents: smsAgRes.rows.map(a => ({ ...a, webhookUrl: `${base}/webhook/sms?token=${a.token}` })),
+    ownerWebhookUrl: `${base}/webhook/sms?token=${tok.secretToken}`,
+    verifyUrl: `${base}/api/verify?token=${tok.verifyToken}`,
+    secretToken: tok.secretToken,
+    agentSummary,
+    ledger: ledgerRes.rows,
+    smsFeed,
+    unverifiedWithdrawals: wdsRes.rows.filter(w => !w.payout_verified).slice(0, 50)
+  });
+}));
+
+app.post('/api/admin/owner-balance', admin, h(async (req, res) => {
+  const action = String(req.body.action || 'SET').toUpperCase();
+  const amt = r2(req.body.amount);
+  const notes = String(req.body.notes || 'Manual owner balance update').trim().slice(0, 200);
+  if (!Number.isFinite(amt) || amt < 0 || amt > 100000000) throw new Biz('Valid non-negative amount required');
+  if (!['SET', 'ADD', 'DEDUCT'].includes(action)) throw new Biz('Action must be SET, ADD, or DEDUCT');
+
+  const out = await tx(async c => {
+    const r = await c.query(`SELECT value FROM system_settings WHERE key='owner_wallet_balance'`);
+    const before = r2(num(r.rows[0]?.value || 0));
+    const after = action === 'SET' ? amt : (action === 'ADD' ? r2(before + amt) : r2(Math.max(0, before - amt)));
+    await c.query(`INSERT INTO system_settings (key,value) VALUES ('owner_wallet_balance',$1) ON CONFLICT (key) DO UPDATE SET value=$1`, [String(after)]);
+    await c.query(
+      `INSERT INTO owner_agent_ledger (entry_type,method,agent_name,amount,owner_balance_before,owner_balance_after,notes,actor)
+       VALUES ('OWNER_MANUAL_ADJ','Wallet','Owner',$1,$2,$3,$4,$5)`,
+      [amt, before, after, `${action}: ${notes}`, req.actor]
+    );
+    return { before, after };
+  });
+  alog(req, 'owner-balance', `${action} ${amt} -> ${out.after}`);
+  res.json({ success: true, ownerWalletBalance: out.after, message: `Owner balance updated to ${fmt(out.after)} ETB` });
+}));
+
+app.post('/api/admin/owner-send-sms', admin, h(async (req, res) => {
+  const rawSms = String(req.body.rawSms || '').trim();
+  const entryType = req.body.entryType === 'AGENT_TO_OWNER' ? 'AGENT_TO_OWNER' : 'OWNER_TO_AGENT';
+  const accountId = req.body.accountId ? parseInt(req.body.accountId, 10) : null;
+  let agentName = String(req.body.agentName || '').trim().slice(0, 80);
+  if (!rawSms) throw new Biz('Paste the outgoing Telebirr or CBE SMS message');
+
+  const c = smsParsers.classify(rawSms, '');
+  if (!c.isIncoming && !c.isOutgoing) throw new Biz('Could not recognize this as a Telebirr or CBE transfer SMS');
+  const amt = r2(smsParsers.extractAmount(c.msg));
+  if (!(amt > 0)) throw new Biz('Could not extract transfer amount from SMS');
+  const postSmsBal = smsParsers.extractBalance(c.msg);
+  const party = smsParsers.extractParty(c.msg, c.isIncoming, c.bank);
+  const recipientAcc = smsParsers.extractRecipientAccount(c.msg, c.bank);
+  const ref = c.isCbe
+    ? (smsParsers.extractDirectFt(c.msg) || smsParsers.extractV2Code(c.msg))
+    : smsParsers.extractTelebirrRef(c.msg);
+  if (!ref) throw new Biz('Transaction reference / receipt code not found in SMS');
+
+  const out = await tx(async db => {
+    let targetAcc = null;
+    if (accountId && Number.isInteger(accountId)) {
+      targetAcc = (await db.query(`SELECT * FROM payment_accounts WHERE id=$1`, [accountId])).rows[0] || null;
+    } else if (recipientAcc) {
+      const allAccs = (await db.query(`SELECT * FROM payment_accounts`)).rows;
+      targetAcc = allAccs.find(a => a.method === c.bank && smsParsers.accountLastDigitsMatch(a.account_number, recipientAcc))
+        || allAccs.find(a => smsParsers.accountLastDigitsMatch(a.account_number, recipientAcc))
+        || null;
+    }
+    if (!agentName) agentName = targetAcc?.owner_label || party || 'Agent1';
+
+    const cur = await db.query(`SELECT value FROM system_settings WHERE key='owner_wallet_balance'`);
+    const before = r2(num(cur.rows[0]?.value || 0));
+    const after = entryType === 'AGENT_TO_OWNER' ? r2(before + amt) : r2(before - amt);
+
+    await db.query(
+      `INSERT INTO owner_agent_ledger (entry_type,method,agent_name,account_id,amount,bank_ref,owner_balance_before,owner_balance_after,raw_sms,notes,actor)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+      [entryType, c.bank, agentName, targetAcc?.id || null, amt, ref.toUpperCase(), before, after, rawSms.slice(0, 1000), `${c.bank} ${party} ${recipientAcc}`.trim(), req.actor]
+    );
+    await db.query(`INSERT INTO system_settings (key,value) VALUES ('owner_wallet_balance',$1) ON CONFLICT (key) DO UPDATE SET value=$1`, [String(after)]);
+    return { before, after, agentName, ref, amt, bank: c.bank, party, recipientAcc, postSmsBal };
+  });
+
+  alog(req, 'owner-send-sms', `${entryType} ${out.bank} ${out.amt} ref=${out.ref} agent=${out.agentName} bal=${out.after}`);
+  res.json({
+    success: true,
+    ...out,
+    ownerWalletBalance: out.after,
+    message: entryType === 'OWNER_TO_AGENT'
+      ? `Deducted ${fmt(out.amt)} ETB from Owner Wallet & credited ${out.agentName} float (Ref: ${out.ref})`
+      : `Added ${fmt(out.amt)} ETB returned by ${out.agentName} to Owner Wallet (Ref: ${out.ref})`
+  });
+}));
+
+app.post('/api/admin/match-withdrawal-sms', admin, h(async (req, res) => {
+  const txnId = String(req.body.txnId || '').trim();
+  const smsRef = String(req.body.smsRef || '').trim().toUpperCase();
+  if (!txnId) throw new Biz('Withdrawal transaction ID required');
+  const w = (await pool.query(`SELECT * FROM transactions WHERE txn_id=$1 AND type='WITHDRAWAL'`, [txnId])).rows[0];
+  if (!w) throw new Biz('Withdrawal not found', 404);
+  const m = await smsVerifier.matchWithdrawalSms({
+    txnId, method: w.method, amount: w.amount, recipientAccount: w.sender_account, ref: smsRef, actor: req.actor
+  });
+  if (!m.matched) throw new Biz(m.reason || 'No matching outgoing SMS found');
+  await pool.query(
+    `UPDATE transactions SET payout_ref=$1,payout_verified=TRUE,agent_assigned=COALESCE(NULLIF($2,''),agent_assigned),updated_at=NOW() WHERE txn_id=$3`,
+    [m.ref, m.agentName || '', txnId]
+  );
+  cacheInvalidate('admin:dashboard');
+  alog(req, 'match-withdrawal-sms', `${txnId} <-> ${m.ref} (${m.agentName})`);
+  res.json({ success: true, match: m, message: `Withdrawal ${txnId} verified against ${m.bank} SMS (${m.ref}, ${m.agentName})` });
 }));
 
 app.get('/api/admin/users', admin, h(async (req, res) => {
@@ -1484,13 +1841,27 @@ app.post('/api/admin/reject-deposit', admin, h(async (req, res) => {
   res.json({ success: true, message: `Deposit ${req.body.txnId} rejected` });
 }));
 app.post('/api/admin/approve-withdrawal', admin, h(async (req, res) => {
-  const r = await pool.query(`UPDATE transactions SET status='APPROVED',remarks=$1,processed_by=$2,updated_at=NOW() WHERE txn_id=$3 AND type='WITHDRAWAL' AND status='PENDING' RETURNING user_id,amount,method`,
-    [`Payout completed by ${req.actor}`, req.actor, String(req.body.txnId || '')]);
+  const txnId = String(req.body.txnId || '');
+  const payoutRef = String(req.body.payoutRef || '').trim().toUpperCase().slice(0, 64);
+  const r = await pool.query(`UPDATE transactions SET status='APPROVED',remarks=$1,processed_by=$2,updated_at=NOW() WHERE txn_id=$3 AND type='WITHDRAWAL' AND status='PENDING' RETURNING user_id,amount,method,sender_account`,
+    [`Payout completed by ${req.actor}`, req.actor, txnId]);
   if (!r.rowCount) throw new Biz('Withdrawal already processed or not found');
+  const row = r.rows[0];
+  let matched = null;
+  try {
+    matched = await smsVerifier.matchWithdrawalSms({
+      txnId, method: row.method, amount: row.amount, recipientAccount: row.sender_account, ref: payoutRef, actor: req.actor
+    });
+    if (matched?.matched) {
+      await pool.query(`UPDATE transactions SET payout_ref=$1,payout_verified=TRUE,agent_assigned=COALESCE(NULLIF($2,''),agent_assigned) WHERE txn_id=$3`, [matched.ref, matched.agentName || '', txnId]);
+    } else if (payoutRef) {
+      await pool.query(`UPDATE transactions SET payout_ref=$1 WHERE txn_id=$2`, [payoutRef, txnId]);
+    }
+  } catch (_) {}
   cacheInvalidate('admin:dashboard');
-  alog(req, 'approve-withdrawal', req.body.txnId);
-  notify(r.rows[0].user_id, `Your withdrawal of ${fmt(r.rows[0].amount)} ETB was paid out via ${r.rows[0].method}.`);
-  res.json({ success: true, message: `Withdrawal ${req.body.txnId} marked completed` });
+  alog(req, 'approve-withdrawal', `${txnId}${matched?.matched ? ' smsVerified=' + matched.ref : ''}`);
+  notify(row.user_id, `Your withdrawal of ${fmt(row.amount)} ETB was paid out via ${row.method}.`);
+  res.json({ success: true, payoutVerified: Boolean(matched?.matched), payoutRef: matched?.ref || payoutRef || '', message: `Withdrawal ${txnId} marked completed${matched?.matched ? ' (SMS verified)' : ''}` });
 }));
 app.post('/api/admin/reject-withdrawal', admin, h(async (req, res) => {
   const txnId = String(req.body.txnId || '');
