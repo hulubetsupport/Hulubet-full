@@ -2474,9 +2474,9 @@ body.is-tg-app .browser-back-pill { display: none !important; }
   </div>
 
   <!-- INVITATION PROMO MODAL (Join Community warm coral & charcoal palette) -->
-  <div class="modal-overlay" id="modalInvitePromo" style="align-items:center;z-index:340;" onclick="closeModal('modalInvitePromo')">
+  <div class="modal-overlay" id="modalInvitePromo" style="align-items:center;z-index:340;" onclick="closeInvitePromoModal(false)">
     <div class="invite-promo-card" onclick="event.stopPropagation()">
-      <button type="button" class="invite-promo-close" aria-label="Close invite promo" onclick="closeModal('modalInvitePromo')">✕</button>
+      <button type="button" class="invite-promo-close" aria-label="Close invite promo" onclick="closeInvitePromoModal(false)">✕</button>
       <div class="invite-promo-body">
         <div style="font-size:10.5px;font-weight:800;letter-spacing:0.08em;color:#f97316;text-transform:uppercase;">HuluBet Referral Bonus</div>
         <div style="font-size:20px;font-weight:800;color:#f8fafc;">ይጋብዙና ያግኙ</div>
@@ -2498,7 +2498,7 @@ body.is-tg-app .browser-back-pill { display: none !important; }
         </div>
         <div style="font-size:10.5px;color:#cbd5e1;font-weight:600;">የመጀመሪያ የውጭ ገንዘብ ገቢ ሲያደርግ</div>
       </div>
-      <button type="button" class="invite-promo-cta" onclick="closeModal('modalInvitePromo'); navigateToTab('invite');">
+      <button type="button" class="invite-promo-cta" onclick="closeInvitePromoModal(true)">
         <span>የግብዣ ጉርሻዎችን ይመልከቱ</span>
         <span aria-hidden="true">↗</span>
       </button>
@@ -3371,10 +3371,26 @@ const openPromoModal = () => {
   if (inp) inp.value = '';
   openModal('modalPromo');
 };
-const openInvitePromoModal = () => {
+let startupInviteFlowPending = false;
+const openInvitePromoModal = (isStartup = false) => {
+  startupInviteFlowPending = Boolean(isStartup);
   try { sessionStorage.setItem('hulubet_invite_promo_seen', '1'); } catch (_) {}
   openModal('modalInvitePromo');
 };
+function closeInvitePromoModal(goToInviteTab = false) {
+  closeModal('modalInvitePromo');
+  if (goToInviteTab) {
+    startupInviteFlowPending = false;
+    navigateToTab('invite');
+    return;
+  }
+  if (startupInviteFlowPending) {
+    startupInviteFlowPending = false;
+    setTimeout(() => {
+      if (!currentLoadedGame) openModal('modalFirstOpenCards');
+    }, 220);
+  }
+}
 
 /* ========================================================
    BEST WIN GAMES (DAY / WEEK / MONTH) - 1 CACHED CALL
@@ -4493,24 +4509,28 @@ function copyReferralLink() {
 
 function shareInviteLink() {
   const link = getDirectMiniAppInviteLink();
-  const rb = Number(bonusStatusCache?.referralBonus ?? 50);
+  const rb = Number(bonusStatusCache?.referralBonus ?? 10);
   const text = encodeURIComponent(`Play Aviator & Sports on HuluBet and get a welcome bonus! Invite bonus ${rb} ETB: ${link}`);
   if (tg?.openTelegramLink) tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${text}`);
   else window.open(`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${text}`, '_blank');
 }
 
 function dismissFirstOpenCards() {
-  try { localStorage.setItem('hulubet_first_open_cards_v2', '1'); } catch (_) {}
   closeModal('modalFirstOpenCards');
 }
 
 function maybeShowFirstOpenCards() {
   try {
-    if (localStorage.getItem('hulubet_first_open_cards_v2') === '1') return;
     const qs = new URLSearchParams(window.location.search);
     if (qs.get('skipOnboarding') === '1') return;
+    const key = 'hulubet_app_open_count_v1';
+    const count = Number(localStorage.getItem(key) || '0') + 1;
+    localStorage.setItem(key, String(count));
+    // Show alternating (1 on, 1 off): 1st open -> yes, 2nd -> no, 3rd -> yes, 4th -> no
+    if (count % 2 === 1) {
+      openInvitePromoModal(true);
+    }
   } catch (_) {}
-  openModal('modalFirstOpenCards');
 }
 
 /* ========================================================
