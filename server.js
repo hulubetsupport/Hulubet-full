@@ -24,7 +24,7 @@ require('dotenv').config();
 const { createMockPool } = require('./mock-db');
 const { r2, num, cashbackDue, kenoCycleState } = require('./lib/game-math');
 const { createTtlCache, createRateTracker, createChatBuffer } = require('./lib/cache');
-const { SPIN_SLICES, rollSpinPrize, getSpinAvailability, computeClaimableCashback, computeFirstDepositBonus, computeWithdrawableBalance } = require('./lib/bonus-engine');
+const { SPIN_SLICES, DEFAULT_DEPOSIT_WAGER_MULT, rollSpinPrize, getSpinAvailability, computeClaimableCashback, computeFirstDepositBonus, computeWithdrawableBalance, evaluateWithdrawalEligibility } = require('./lib/bonus-engine');
 const { runTwelveHourAuditAndPrune, getRetentionStats, getReports12h } = require('./lib/audit-rollup');
 const { registerTelegramBot } = require('./lib/telegram-bot');
 const { mountAllGames, CRASH_GAMES } = require('./games');
@@ -74,7 +74,7 @@ let chatSendCount = 0;
 
 const CONFIG = {
   TARGET_RTP: 0.70, AGENT_COMMISSION: 0.02, WELCOME_BONUS: 20, REFERRAL_BONUS: 10,
-  MIN_FIRST_DEP: 50, WAGER_REQ_MULT: 50, FIRST_DEP_BONUS_MIN: 300, FIRST_DEP_BONUS_PCT: 20,
+  MIN_FIRST_DEP: 50, WAGER_REQ_MULT: 50, DEPOSIT_WAGER_MULT: DEFAULT_DEPOSIT_WAGER_MULT, FIRST_DEP_BONUS_MIN: 300, FIRST_DEP_BONUS_PCT: 20,
   MIN_DEP: 50, MAX_DEP: 100000, MIN_WTH: 100, MAX_WTH: 50000,
   KENO_RTP: 0.70,   // Keno return-to-player
   BUFFALO_RTP: 0.70, // Young Buffalo return-to-player
@@ -276,7 +276,10 @@ const userView = (u, isNew) => {
   const wInfo = computeWithdrawableBalance({
     balance: u.balance,
     bonusBalance: u.bonus_balance,
-    wagerRequirementLeft: u.wager_requirement_left
+    wagerRequirementLeft: u.wager_requirement_left,
+    totalDeposited: u.total_deposited,
+    totalWagered: u.total_wagered,
+    depositWagerMult: CONFIG.DEPOSIT_WAGER_MULT
   });
   return {
     success: true, isNew, userId: u.user_id, username: u.telegram_username, name: u.full_name,
@@ -286,6 +289,9 @@ const userView = (u, isNew) => {
     firstDepositCompleted: u.first_deposit_completed,
     wagerRequirementLeft: num(u.wager_requirement_left),
     wagerReqMult: CONFIG.WAGER_REQ_MULT,
+    depositWagerMult: wInfo.depositWagerMult,
+    depositTurnoverReq: wInfo.depositTurnoverReq,
+    depositWagerLeft: wInfo.depositWagerLeft,
     firstDepBonusMin: CONFIG.FIRST_DEP_BONUS_MIN,
     firstDepBonusPct: CONFIG.FIRST_DEP_BONUS_PCT,
     role: u.role, status: u.status
@@ -518,6 +524,7 @@ app.get('/api/public/config', h(async (_q, res) => {
     welcomeBonus: CONFIG.WELCOME_BONUS,
     referralBonus: CONFIG.REFERRAL_BONUS,
     wagerReqMult: CONFIG.WAGER_REQ_MULT,
+    depositWagerMult: CONFIG.DEPOSIT_WAGER_MULT,
     firstDepBonusMin: CONFIG.FIRST_DEP_BONUS_MIN,
     firstDepBonusPct: CONFIG.FIRST_DEP_BONUS_PCT,
     cashbackPercent: CASHBACK.percent,
@@ -646,7 +653,10 @@ app.get('/api/bonus/status', userAuth, limit('bonusstat', 240, 60e3), h(async (r
   const wInfo = computeWithdrawableBalance({
     balance: u.balance,
     bonusBalance: u.bonus_balance,
-    wagerRequirementLeft: u.wager_requirement_left
+    wagerRequirementLeft: u.wager_requirement_left,
+    totalDeposited: u.total_deposited,
+    totalWagered: u.total_wagered,
+    depositWagerMult: CONFIG.DEPOSIT_WAGER_MULT
   });
   res.json({
     success: true,
@@ -654,8 +664,13 @@ app.get('/api/bonus/status', userAuth, limit('bonusstat', 240, 60e3), h(async (r
     bonusBalance: num(u.bonus_balance),
     lockedBonusBalance: wInfo.lockedBonus,
     withdrawableBalance: wInfo.withdrawableBalance,
+    totalDeposited: num(u.total_deposited),
+    totalWagered: num(u.total_wagered),
     wagerRequirementLeft: num(u.wager_requirement_left),
     wagerReqMult: CONFIG.WAGER_REQ_MULT,
+    depositWagerMult: wInfo.depositWagerMult,
+    depositTurnoverReq: wInfo.depositTurnoverReq,
+    depositWagerLeft: wInfo.depositWagerLeft,
     firstDepositCompleted: u.first_deposit_completed,
     firstDepBonusMin: CONFIG.FIRST_DEP_BONUS_MIN,
     firstDepBonusPct: CONFIG.FIRST_DEP_BONUS_PCT,
@@ -1135,16 +1150,18 @@ app.post('/api/cashier/withdraw', userAuth, limit('wd', 10, 60e3), h(async (req,
   if (!/^[0-9+\-\s]{8,20}$/.test(acc)) throw new Biz('Enter a valid phone / account number');
   const out = await tx(async c => {
     const u = await lockUser(c, req.tg.id), bal = num(u.balance);
-    const wInfo = computeWithdrawableBalance({
+    const check = evaluateWithdrawalEligibility({
+      amount: amt,
       balance: bal,
       bonusBalance: u.bonus_balance,
-      wagerRequirementLeft: u.wager_requirement_left
+      wagerRequirementLeft: u.wager_requirement_left,
+      totalDeposited: u.total_deposited,
+      totalWagered: u.total_wagered,
+      firstDepositCompleted: u.first_deposit_completed,
+      bonusWagerMult: CONFIG.WAGER_REQ_MULT,
+      depositWagerMult: CONFIG.DEPOSIT_WAGER_MULT
     });
-    if (bal < amt) throw new Biz('Insufficient balance');
-    if (u.first_deposit_completed !== 'YES' && num(u.total_deposited) < CONFIG.MIN_FIRST_DEP) throw new Biz(`Deposit at least ${CONFIG.MIN_FIRST_DEP} ETB first to unlock withdrawals`);
-    if (wInfo.wagerRequirementLeft > 0) throw new Biz(`Bonus credit (${wInfo.lockedBonus.toFixed(2)} ETB) requires ${CONFIG.WAGER_REQ_MULT}x wagering (${wInfo.wagerRequirementLeft.toFixed(2)} ETB left) before withdrawal`);
-    if (amt > wInfo.withdrawableBalance) throw new Biz(`Insufficient withdrawable balance (max ${wInfo.withdrawableBalance.toFixed(2)} ETB)`);
-    if (num(u.total_wagered) < num(u.total_deposited)) throw new Biz(`Turnover rule: wager ${r2(num(u.total_deposited) - num(u.total_wagered)).toFixed(2)} ETB more before withdrawing`);
+    if (!check.allowed) throw new Biz(check.reason);
     const inflight = await c.query(`SELECT 1 FROM universal_bets WHERE user_id=$1 AND status='IN_FLIGHT' AND flight_start > NOW() - INTERVAL '6 minutes' LIMIT 1`, [req.tg.id]);
     if (inflight.rows.length) throw new Biz('Finish your running game round first');
     const pend = await c.query(`SELECT COUNT(*) n FROM transactions WHERE user_id=$1 AND type='WITHDRAWAL' AND status='PENDING'`, [req.tg.id]);
