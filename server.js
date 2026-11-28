@@ -24,7 +24,7 @@ require('dotenv').config();
 const { createMockPool } = require('./mock-db');
 const { r2, num, cashbackDue, kenoCycleState } = require('./lib/game-math');
 const { createTtlCache, createRateTracker, createChatBuffer } = require('./lib/cache');
-const { SPIN_SLICES, DEFAULT_DEPOSIT_WAGER_MULT, rollSpinPrize, getSpinAvailability, computeClaimableCashback, computeFirstDepositBonus, computeWithdrawableBalance, evaluateWithdrawalEligibility } = require('./lib/bonus-engine');
+const { SPIN_SLICES, DEFAULT_DEPOSIT_ODD_REQ, DEFAULT_DEPOSIT_WAGER_MULT, rollSpinPrize, getSpinAvailability, computeClaimableCashback, computeFirstDepositBonus, computeWithdrawableBalance, evaluateWithdrawalEligibility } = require('./lib/bonus-engine');
 const { runTwelveHourAuditAndPrune, getRetentionStats, getReports12h } = require('./lib/audit-rollup');
 const { registerTelegramBot } = require('./lib/telegram-bot');
 const { mountAllGames, CRASH_GAMES } = require('./games');
@@ -74,7 +74,7 @@ let chatSendCount = 0;
 
 const CONFIG = {
   TARGET_RTP: 0.70, AGENT_COMMISSION: 0.02, WELCOME_BONUS: 20, REFERRAL_BONUS: 10,
-  MIN_FIRST_DEP: 50, WAGER_REQ_MULT: 50, DEPOSIT_WAGER_MULT: DEFAULT_DEPOSIT_WAGER_MULT, FIRST_DEP_BONUS_MIN: 300, FIRST_DEP_BONUS_PCT: 20,
+  MIN_FIRST_DEP: 50, WAGER_REQ_MULT: 50, DEPOSIT_ODD_REQ: DEFAULT_DEPOSIT_ODD_REQ, DEPOSIT_WAGER_MULT: DEFAULT_DEPOSIT_WAGER_MULT, FIRST_DEP_BONUS_MIN: 300, FIRST_DEP_BONUS_PCT: 20,
   MIN_DEP: 50, MAX_DEP: 100000, MIN_WTH: 100, MAX_WTH: 50000,
   KENO_RTP: 0.70,   // Keno return-to-player
   BUFFALO_RTP: 0.70, // Young Buffalo return-to-player
@@ -278,8 +278,9 @@ const userView = (u, isNew) => {
     bonusBalance: u.bonus_balance,
     wagerRequirementLeft: u.wager_requirement_left,
     totalDeposited: u.total_deposited,
-    totalWagered: u.total_wagered,
-    depositWagerMult: CONFIG.DEPOSIT_WAGER_MULT
+    depositOddsLeft: u.deposit_odds_left,
+    firstDepositCompleted: u.first_deposit_completed,
+    depositOddReq: CONFIG.DEPOSIT_ODD_REQ
   });
   return {
     success: true, isNew, userId: u.user_id, username: u.telegram_username, name: u.full_name,
@@ -289,9 +290,10 @@ const userView = (u, isNew) => {
     firstDepositCompleted: u.first_deposit_completed,
     wagerRequirementLeft: num(u.wager_requirement_left),
     wagerReqMult: CONFIG.WAGER_REQ_MULT,
-    depositWagerMult: wInfo.depositWagerMult,
-    depositTurnoverReq: wInfo.depositTurnoverReq,
-    depositWagerLeft: wInfo.depositWagerLeft,
+    depositOddReq: wInfo.depositOddReq,
+    depositOddsLeft: wInfo.depositOddsLeft,
+    depositWagerMult: wInfo.depositOddReq,
+    depositWagerLeft: wInfo.depositOddsLeft,
     firstDepBonusMin: CONFIG.FIRST_DEP_BONUS_MIN,
     firstDepBonusPct: CONFIG.FIRST_DEP_BONUS_PCT,
     role: u.role, status: u.status
@@ -302,7 +304,7 @@ const userView = (u, isNew) => {
 async function ensureSchema() {
   const S = [
     `CREATE TABLE IF NOT EXISTS casino_vault (id INTEGER PRIMARY KEY DEFAULT 1,vault_balance NUMERIC(14,2) DEFAULT 200000.00,total_wagered NUMERIC(14,2) DEFAULT 0,total_payouts NUMERIC(14,2) DEFAULT 0,gross_profit NUMERIC(14,2) DEFAULT 0,total_bonus_awarded NUMERIC(14,2) DEFAULT 0,updated_at TIMESTAMPTZ DEFAULT NOW())`,
-    `CREATE TABLE IF NOT EXISTS users (user_id VARCHAR(64) PRIMARY KEY,telegram_username VARCHAR(128) DEFAULT '',full_name VARCHAR(128) DEFAULT 'Player',balance NUMERIC(14,2) DEFAULT 0,bonus_balance NUMERIC(14,2) DEFAULT 0,wager_requirement_left NUMERIC(14,2) DEFAULT 0,total_deposited NUMERIC(14,2) DEFAULT 0,total_wagered NUMERIC(14,2) DEFAULT 0,total_won NUMERIC(14,2) DEFAULT 0,first_deposit_completed VARCHAR(8) DEFAULT 'NO',referrer_id VARCHAR(64) DEFAULT '',referral_paid BOOLEAN DEFAULT FALSE,last_cashback_at TIMESTAMPTZ,last_spin_at TIMESTAMPTZ,cashback_settled_loss NUMERIC(14,2) DEFAULT 0,last_active_at TIMESTAMPTZ DEFAULT NOW(),role VARCHAR(24) DEFAULT 'player',status VARCHAR(24) DEFAULT 'active',created_at TIMESTAMPTZ DEFAULT NOW())`,
+    `CREATE TABLE IF NOT EXISTS users (user_id VARCHAR(64) PRIMARY KEY,telegram_username VARCHAR(128) DEFAULT '',full_name VARCHAR(128) DEFAULT 'Player',balance NUMERIC(14,2) DEFAULT 0,bonus_balance NUMERIC(14,2) DEFAULT 0,wager_requirement_left NUMERIC(14,2) DEFAULT 0,deposit_odds_left NUMERIC(14,2) DEFAULT 0,total_deposited NUMERIC(14,2) DEFAULT 0,total_wagered NUMERIC(14,2) DEFAULT 0,total_won NUMERIC(14,2) DEFAULT 0,first_deposit_completed VARCHAR(8) DEFAULT 'NO',referrer_id VARCHAR(64) DEFAULT '',referral_paid BOOLEAN DEFAULT FALSE,last_cashback_at TIMESTAMPTZ,last_spin_at TIMESTAMPTZ,cashback_settled_loss NUMERIC(14,2) DEFAULT 0,last_active_at TIMESTAMPTZ DEFAULT NOW(),role VARCHAR(24) DEFAULT 'player',status VARCHAR(24) DEFAULT 'active',created_at TIMESTAMPTZ DEFAULT NOW())`,
     `CREATE TABLE IF NOT EXISTS transactions (txn_id VARCHAR(64) PRIMARY KEY,user_id VARCHAR(64) NOT NULL,username VARCHAR(128) DEFAULT '',type VARCHAR(32) NOT NULL,method VARCHAR(32) DEFAULT '',amount NUMERIC(14,2) NOT NULL,net_amount NUMERIC(14,2) DEFAULT 0,bank_txn_id VARCHAR(64),sender_account VARCHAR(128) DEFAULT '',agent_assigned VARCHAR(64) DEFAULT '',status VARCHAR(32) DEFAULT 'PENDING',remarks TEXT DEFAULT '',processed_by VARCHAR(64) DEFAULT '',created_at TIMESTAMPTZ DEFAULT NOW(),updated_at TIMESTAMPTZ DEFAULT NOW())`,
     `CREATE TABLE IF NOT EXISTS universal_bets (bet_id VARCHAR(64) PRIMARY KEY,user_id VARCHAR(64) NOT NULL,username VARCHAR(128) DEFAULT '',game_name VARCHAR(64) NOT NULL,bet_amount NUMERIC(14,2) NOT NULL,multiplier NUMERIC(10,4) DEFAULT 0,payout NUMERIC(14,2) DEFAULT 0,house_profit NUMERIC(14,2) DEFAULT 0,status VARCHAR(24) DEFAULT 'IN_FLIGHT',flight_start TIMESTAMPTZ DEFAULT NOW(),created_at TIMESTAMPTZ DEFAULT NOW())`,
     `CREATE TABLE IF NOT EXISTS balance_audit_logs (id BIGSERIAL PRIMARY KEY,user_id VARCHAR(64),action_type VARCHAR(40),amount NUMERIC(14,2),balance_before NUMERIC(14,2),balance_after NUMERIC(14,2),reference_id VARCHAR(64),created_at TIMESTAMPTZ DEFAULT NOW())`,
@@ -318,7 +320,7 @@ async function ensureSchema() {
     `CREATE TABLE IF NOT EXISTS sports_bets (ticket_id VARCHAR(64) PRIMARY KEY,bet_id VARCHAR(64),user_id VARCHAR(64),username VARCHAR(128),match_id VARCHAR(64),match_title TEXT,market TEXT,odds NUMERIC(8,2),stake NUMERIC(14,2),potential_win NUMERIC(14,2),cashout_value NUMERIC(14,2),payout NUMERIC(14,2) DEFAULT 0,status VARCHAR(24) DEFAULT 'IN_PLAY',created_at TIMESTAMPTZ DEFAULT NOW(),settled_at TIMESTAMPTZ)`,
     `ALTER TABLE sports_bets ADD COLUMN IF NOT EXISTS ticket_id VARCHAR(64), ADD COLUMN IF NOT EXISTS bet_id VARCHAR(64), ADD COLUMN IF NOT EXISTS user_id VARCHAR(64), ADD COLUMN IF NOT EXISTS username VARCHAR(128), ADD COLUMN IF NOT EXISTS match_id VARCHAR(64), ADD COLUMN IF NOT EXISTS match_title TEXT, ADD COLUMN IF NOT EXISTS market TEXT, ADD COLUMN IF NOT EXISTS odds NUMERIC(8,2), ADD COLUMN IF NOT EXISTS stake NUMERIC(14,2), ADD COLUMN IF NOT EXISTS potential_win NUMERIC(14,2), ADD COLUMN IF NOT EXISTS cashout_value NUMERIC(14,2), ADD COLUMN IF NOT EXISTS payout NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS status VARCHAR(24) DEFAULT 'IN_PLAY', ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(), ADD COLUMN IF NOT EXISTS settled_at TIMESTAMPTZ`,
     `CREATE UNIQUE INDEX IF NOT EXISTS uq_sports_ticket ON sports_bets (ticket_id) WHERE ticket_id IS NOT NULL`,
-    `ALTER TABLE users ADD COLUMN IF NOT EXISTS bonus_balance NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS wager_requirement_left NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS total_won NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS total_wagered NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS total_deposited NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS referrer_id VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS referral_paid BOOLEAN DEFAULT FALSE, ADD COLUMN IF NOT EXISTS last_cashback_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS last_spin_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS cashback_settled_loss NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS bonus_balance NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS wager_requirement_left NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS deposit_odds_left NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS total_won NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS total_wagered NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS total_deposited NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS referrer_id VARCHAR(64) DEFAULT '', ADD COLUMN IF NOT EXISTS referral_paid BOOLEAN DEFAULT FALSE, ADD COLUMN IF NOT EXISTS last_cashback_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS last_spin_at TIMESTAMPTZ, ADD COLUMN IF NOT EXISTS cashback_settled_loss NUMERIC(14,2) DEFAULT 0, ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMPTZ`,
     `CREATE TABLE IF NOT EXISTS payment_accounts (id SERIAL PRIMARY KEY,method VARCHAR(32) NOT NULL,account_name VARCHAR(120) NOT NULL,account_number VARCHAR(64) NOT NULL,owner_label VARCHAR(80) DEFAULT 'Owner',sms_agent_id INTEGER,is_active BOOLEAN DEFAULT TRUE,is_primary BOOLEAN DEFAULT FALSE,notes TEXT DEFAULT '',created_at TIMESTAMPTZ DEFAULT NOW())`,
     `CREATE TABLE IF NOT EXISTS owner_agent_ledger (id SERIAL PRIMARY KEY,entry_type VARCHAR(32) NOT NULL,method VARCHAR(32) DEFAULT 'Telebirr',agent_name VARCHAR(80) NOT NULL,account_id INTEGER,amount NUMERIC(14,2) NOT NULL,bank_ref VARCHAR(64),owner_balance_before NUMERIC(14,2) DEFAULT 0,owner_balance_after NUMERIC(14,2) DEFAULT 0,raw_sms TEXT DEFAULT '',notes TEXT DEFAULT '',actor VARCHAR(80) DEFAULT 'Admin',created_at TIMESTAMPTZ DEFAULT NOW())`,
     `CREATE UNIQUE INDEX IF NOT EXISTS uq_owner_ledger_ref ON owner_agent_ledger (bank_ref) WHERE bank_ref IS NOT NULL AND bank_ref <> ''`,
@@ -524,7 +526,8 @@ app.get('/api/public/config', h(async (_q, res) => {
     welcomeBonus: CONFIG.WELCOME_BONUS,
     referralBonus: CONFIG.REFERRAL_BONUS,
     wagerReqMult: CONFIG.WAGER_REQ_MULT,
-    depositWagerMult: CONFIG.DEPOSIT_WAGER_MULT,
+    depositOddReq: CONFIG.DEPOSIT_ODD_REQ,
+    depositWagerMult: CONFIG.DEPOSIT_ODD_REQ,
     firstDepBonusMin: CONFIG.FIRST_DEP_BONUS_MIN,
     firstDepBonusPct: CONFIG.FIRST_DEP_BONUS_PCT,
     cashbackPercent: CASHBACK.percent,
@@ -643,7 +646,7 @@ app.get('/api/user/history', userAuth, limit('uhist', 120, 60e3), h(async (req, 
 app.get('/api/bonus/status', userAuth, limit('bonusstat', 240, 60e3), h(async (req, res) => {
   const uid = req.tg.id;
   const ur = await pool.query(
-    `SELECT balance,bonus_balance,wager_requirement_left,total_wagered,total_won,cashback_settled_loss,last_spin_at,first_deposit_completed,
+    `SELECT balance,bonus_balance,wager_requirement_left,total_deposited,deposit_odds_left,total_wagered,total_won,cashback_settled_loss,last_spin_at,first_deposit_completed,
             (SELECT COUNT(*)::int FROM users r WHERE r.referrer_id=$1) AS referral_count
      FROM users WHERE user_id=$1`,
     [uid]
@@ -655,8 +658,9 @@ app.get('/api/bonus/status', userAuth, limit('bonusstat', 240, 60e3), h(async (r
     bonusBalance: u.bonus_balance,
     wagerRequirementLeft: u.wager_requirement_left,
     totalDeposited: u.total_deposited,
-    totalWagered: u.total_wagered,
-    depositWagerMult: CONFIG.DEPOSIT_WAGER_MULT
+    depositOddsLeft: u.deposit_odds_left,
+    firstDepositCompleted: u.first_deposit_completed,
+    depositOddReq: CONFIG.DEPOSIT_ODD_REQ
   });
   res.json({
     success: true,
@@ -668,9 +672,10 @@ app.get('/api/bonus/status', userAuth, limit('bonusstat', 240, 60e3), h(async (r
     totalWagered: num(u.total_wagered),
     wagerRequirementLeft: num(u.wager_requirement_left),
     wagerReqMult: CONFIG.WAGER_REQ_MULT,
-    depositWagerMult: wInfo.depositWagerMult,
-    depositTurnoverReq: wInfo.depositTurnoverReq,
-    depositWagerLeft: wInfo.depositWagerLeft,
+    depositOddReq: wInfo.depositOddReq,
+    depositOddsLeft: wInfo.depositOddsLeft,
+    depositWagerMult: wInfo.depositOddReq,
+    depositWagerLeft: wInfo.depositOddsLeft,
     firstDepositCompleted: u.first_deposit_completed,
     firstDepBonusMin: CONFIG.FIRST_DEP_BONUS_MIN,
     firstDepBonusPct: CONFIG.FIRST_DEP_BONUS_PCT,
@@ -1156,10 +1161,10 @@ app.post('/api/cashier/withdraw', userAuth, limit('wd', 10, 60e3), h(async (req,
       bonusBalance: u.bonus_balance,
       wagerRequirementLeft: u.wager_requirement_left,
       totalDeposited: u.total_deposited,
-      totalWagered: u.total_wagered,
+      depositOddsLeft: u.deposit_odds_left,
       firstDepositCompleted: u.first_deposit_completed,
       bonusWagerMult: CONFIG.WAGER_REQ_MULT,
-      depositWagerMult: CONFIG.DEPOSIT_WAGER_MULT
+      depositOddReq: CONFIG.DEPOSIT_ODD_REQ
     });
     if (!check.allowed) throw new Biz(check.reason);
     const inflight = await c.query(`SELECT 1 FROM universal_bets WHERE user_id=$1 AND status='IN_FLIGHT' AND flight_start > NOW() - INTERVAL '6 minutes' LIMIT 1`, [req.tg.id]);
@@ -1218,8 +1223,8 @@ async function applyDepositCredit(c, uid, amt, refId, auditAction, actor) {
   const afterDep = r2(before + amt);
   const after = r2(afterDep + fdb.bonusAmount);
   await c.query(
-    `UPDATE users SET balance=$1,total_deposited=total_deposited+$2,first_deposit_completed='YES',bonus_balance=bonus_balance+$3,wager_requirement_left=wager_requirement_left+$4 WHERE user_id=$5`,
-    [after, amt, fdb.bonusAmount, fdb.wagerAdded, uid]
+    `UPDATE users SET balance=$1,total_deposited=total_deposited+$2,first_deposit_completed='YES',bonus_balance=bonus_balance+$3,wager_requirement_left=wager_requirement_left+$4,deposit_odds_left=$5 WHERE user_id=$6`,
+    [after, amt, fdb.bonusAmount, fdb.wagerAdded, CONFIG.DEPOSIT_ODD_REQ, uid]
   );
   await audit(c, uid, auditAction, amt, before, afterDep, refId);
   if (fdb.bonusAmount > 0) {

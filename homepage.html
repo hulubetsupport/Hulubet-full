@@ -2029,7 +2029,7 @@ body.is-tg-app .browser-back-pill { display: none !important; }
         </div>
 
         <div style="background:rgba(245,180,0,0.08);padding:8px 12px;border-radius:10px;border:1px solid rgba(245,180,0,0.22);display:flex;justify-content:space-between;align-items:center;font-size:11px;">
-          <span style="color:var(--text-muted);font-weight:700;"><i class="fa-solid fa-lock" style="color:var(--gold-primary);margin-right:6px;"></i>50x Bonus Wagering Left</span>
+          <span style="color:var(--text-muted);font-weight:700;" id="walletReqLabel"><i class="fa-solid fa-lock" style="color:var(--gold-primary);margin-right:6px;"></i>50x Bonus Wagering Left</span>
           <b class="tabular" style="color:var(--gold-primary);" id="walletWagerLeftTxt">0.00 ETB</b>
         </div>
 
@@ -2866,7 +2866,7 @@ function haptic(t = 'light') {
 }
 
 let currentBalance = null, bonusBal = 0, lockedBonusBal = 0, withdrawableBal = 0, wagerLeft = 0;
-let totalDepositedBal = 0, totalWageredBal = 0, depositWagerMult = 5, depositWagerLeft = 0;
+let totalDepositedBal = 0, totalWageredBal = 0, depositOddReq = 5, depositOddsLeft = 0;
 let firstDepCompleted = false, firstDepBonusMin = 300, firstDepBonusPct = 20, wagerReqMult = 50, isBalanceHidden = false;
 
 function applyWalletSnapshot(d) {
@@ -2876,14 +2876,15 @@ function applyWalletSnapshot(d) {
   if (d.wagerRequirementLeft != null) wagerLeft = Number(d.wagerRequirementLeft);
   if (d.totalDeposited != null) totalDepositedBal = Number(d.totalDeposited);
   if (d.totalWagered != null) totalWageredBal = Number(d.totalWagered);
-  if (d.depositWagerMult != null) depositWagerMult = Number(d.depositWagerMult);
+  if (d.depositOddReq != null) depositOddReq = Number(d.depositOddReq);
+  else if (d.depositWagerMult != null) depositOddReq = Number(d.depositWagerMult);
   if (d.lockedBonusBalance != null) lockedBonusBal = Number(d.lockedBonusBalance);
   else lockedBonusBal = wagerLeft > 0 ? Math.min(currentBalance ?? 0, bonusBal) : 0;
   if (d.withdrawableBalance != null) withdrawableBal = Number(d.withdrawableBalance);
   else withdrawableBal = Math.max(0, (currentBalance ?? 0) - lockedBonusBal);
   if (d.firstDepositCompleted != null) firstDepCompleted = String(d.firstDepositCompleted).toUpperCase() === 'YES';
-  if (d.depositWagerLeft != null) depositWagerLeft = Number(d.depositWagerLeft);
-  else depositWagerLeft = totalDepositedBal > 0 ? Math.max(0, totalDepositedBal * depositWagerMult - totalWageredBal) : 0;
+  if (d.depositOddsLeft != null) depositOddsLeft = Number(d.depositOddsLeft);
+  else if (d.depositWagerLeft != null) depositOddsLeft = Number(d.depositWagerLeft);
   if (d.firstDepBonusMin != null) firstDepBonusMin = Number(d.firstDepBonusMin);
   if (d.firstDepBonusPct != null) firstDepBonusPct = Number(d.firstDepBonusPct);
   if (d.wagerReqMult != null) wagerReqMult = Number(d.wagerReqMult);
@@ -3054,21 +3055,36 @@ function updateBalanceDisplay() {
   const wBon = document.getElementById('walletBonusBalTxt');
   if (wBon) wBon.innerText = bonusBal.toFixed(2) + ' ETB';
 
+  const hasDep = totalDepositedBal > 0 || firstDepCompleted;
+  const wReqLabel = document.getElementById('walletReqLabel');
   const wWag = document.getElementById('walletWagerLeftTxt');
-  if (wWag) wWag.innerText = wagerLeft.toFixed(2) + ' ETB';
+  if (wReqLabel && wWag) {
+    if (!hasDep) {
+      wReqLabel.innerHTML = `<i class="fa-solid fa-lock" style="color:var(--gold-primary);margin-right:6px;"></i>${wagerReqMult}x Bonus Wagering Left`;
+      wWag.innerText = wagerLeft.toFixed(2) + ' ETB';
+    } else if (depositOddsLeft > 0) {
+      wReqLabel.innerHTML = `<i class="fa-solid fa-lock" style="color:var(--gold-primary);margin-right:6px;"></i>${depositOddReq} Odd Requirement Left`;
+      wWag.innerText = depositOddsLeft.toFixed(2) + ' Odds';
+    } else if (locked > 0) {
+      wReqLabel.innerHTML = `<i class="fa-solid fa-coins" style="color:var(--gold-primary);margin-right:6px;"></i>Play Bonus Credit First`;
+      wWag.innerText = locked.toFixed(2) + ' ETB';
+    } else {
+      wReqLabel.innerHTML = `<i class="fa-solid fa-circle-check" style="color:var(--emerald-primary);margin-right:6px;"></i>Withdrawal Status`;
+      wWag.innerText = 'Unlocked';
+    }
+  }
 
   const wdInfo = document.getElementById('wdInfo');
   if (wdInfo) {
-    const hasDep = totalDepositedBal > 0 || firstDepCompleted;
     if (!hasDep) {
       wdInfo.innerText = wagerLeft > 0
         ? `Bonus play requires ${wagerReqMult}x wagering (${wagerLeft.toFixed(2)} ETB left) to withdraw.`
         : `Bonus wagering completed! Available cashout: ${realAvail.toFixed(2)} ETB`;
-    } else if (depositWagerLeft > 0) {
-      wdInfo.innerText = `Deposited funds require ${depositWagerMult}x wagering (${depositWagerLeft.toFixed(2)} ETB left). Real cashout balance: ${realAvail.toFixed(2)} ETB`;
+    } else if (depositOddsLeft > 0) {
+      wdInfo.innerText = `Play ${depositOddsLeft.toFixed(2)} more odds (${depositOddReq} odd rule) to unlock withdrawal. Real cashout balance: ${realAvail.toFixed(2)} ETB`;
     } else {
-      wdInfo.innerText = wagerLeft > 0
-        ? `Available real cashout: ${realAvail.toFixed(2)} ETB (${locked.toFixed(2)} ETB bonus locked until ${wagerReqMult}x)`
+      wdInfo.innerText = locked > 0
+        ? `Available real cashout: ${realAvail.toFixed(2)} ETB (play through ${locked.toFixed(2)} ETB remaining bonus credit first)`
         : `Available real cashout: ${realAvail.toFixed(2)} ETB`;
     }
   }
@@ -3924,7 +3940,7 @@ function setWdPreset(val) {
 function setWdMax() {
   haptic('light');
   const hasDep = totalDepositedBal > 0 || firstDepCompleted;
-  const maxAvail = (!hasDep && wagerLeft > 0) || (hasDep && depositWagerLeft > 0)
+  const maxAvail = (!hasDep && wagerLeft > 0) || (hasDep && depositOddsLeft > 0)
     ? 0
     : Math.max(0, (currentBalance || 0) - lockedBonusBal);
   document.getElementById('withdrawAmountInput').value = Math.floor(maxAvail);
@@ -3943,8 +3959,8 @@ async function submitWithdrawOrder() {
   if (!hasDep && wagerLeft > 0) {
     return toast(`Bonus play requires ${wagerReqMult}x wagering (${wagerLeft.toFixed(2)} ETB left) before withdrawing`, 'error');
   }
-  if (hasDep && depositWagerLeft > 0) {
-    return toast(`Deposited funds require ${depositWagerMult}x wagering (${depositWagerLeft.toFixed(2)} ETB left) before withdrawing`, 'error');
+  if (hasDep && depositOddsLeft > 0) {
+    return toast(`Deposited funds require playing ${depositOddReq} odds (${depositOddsLeft.toFixed(2)} odds left) before withdrawing`, 'error');
   }
   if (currentBalance !== null && amount > Math.max(0, currentBalance - lockedBonusBal)) {
     return toast("Insufficient withdrawable balance", 'error');

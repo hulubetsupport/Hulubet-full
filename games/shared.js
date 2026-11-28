@@ -2,6 +2,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const math = require('../lib/game-math');
+const { computeBetProgress, computeSettlementOdds } = require('../lib/bonus-engine');
 
 const { createCrashEngine } = require('./crash-engine');
 
@@ -22,11 +23,18 @@ function createSharedHelpers(ctx) {
     return CONFIG.TARGET_RTP;
   };
 
-  async function creditWin(c, uid, payout, betId, vd, auditTag = 'CHICKEN_WIN') {
+  async function creditWin(c, uid, payout, betId, vd, auditTag = 'CHICKEN_WIN', mult = 0) {
     if (!(payout > 0)) return num((await c.query('SELECT balance FROM users WHERE user_id=$1', [uid])).rows[0].balance);
-    const before = num((await c.query('SELECT balance FROM users WHERE user_id=$1 FOR UPDATE', [uid])).rows[0].balance);
+    const uRow = (await c.query('SELECT balance,total_deposited,first_deposit_completed,deposit_odds_left FROM users WHERE user_id=$1 FOR UPDATE', [uid])).rows[0];
+    const before = num(uRow.balance);
     const after = r2(before + payout);
-    await c.query('UPDATE users SET balance=$1,total_won=total_won+$2 WHERE user_id=$3', [after, payout, uid]);
+    const nextOddsLeft = computeSettlementOdds({
+      totalDeposited: uRow.total_deposited,
+      firstDepositCompleted: uRow.first_deposit_completed,
+      depositOddsLeft: uRow.deposit_odds_left,
+      oddDelta: num(mult) >= 1.20 ? num(mult) : 0
+    });
+    await c.query('UPDATE users SET balance=$1,total_won=total_won+$2,deposit_odds_left=$3 WHERE user_id=$4', [after, payout, nextOddsLeft, uid]);
     vd.push({ bal: -payout, payouts: payout, profit: -payout });
     await audit(c, uid, auditTag, payout, before, after, betId);
     return after;
@@ -62,13 +70,20 @@ function createSharedHelpers(ctx) {
       const profit = r2(wager - payout);
       const newBal = r2(bal - wager + payout);
       const betId = newId('BET');
+      const prog = computeBetProgress({
+        bonusBalance: user.bonus_balance,
+        wagerRequirementLeft: user.wager_requirement_left,
+        totalDeposited: user.total_deposited,
+        firstDepositCompleted: user.first_deposit_completed,
+        depositOddsLeft: user.deposit_odds_left,
+        wager,
+        oddDelta: Math.max(1, multiplier)
+      });
 
       await c.query(
         `UPDATE users SET balance=$1,total_wagered=total_wagered+$2,total_won=total_won+$3,
-         wager_requirement_left=GREATEST(0,COALESCE(wager_requirement_left,0)-$2),
-         bonus_balance=CASE WHEN GREATEST(0,COALESCE(wager_requirement_left,0)-$2)=0 THEN 0 ELSE COALESCE(bonus_balance,0) END,
-         last_active_at=NOW() WHERE user_id=$4`,
-        [newBal, wager, payout, uid]
+         bonus_balance=$4,wager_requirement_left=$5,deposit_odds_left=$6,last_active_at=NOW() WHERE user_id=$7`,
+        [newBal, wager, payout, prog.newBonusBalance, prog.newWagerRequirementLeft, prog.newDepositOddsLeft, uid]
       );
       await c.query(
         `INSERT INTO universal_bets (bet_id,game_name,user_id,username,bet_amount,rng_roll,tier_applied,multiplier,payout,house_profit,status,game_data)
@@ -129,13 +144,20 @@ function createSharedHelpers(ctx) {
       const commit = crypto.createHash('sha256').update(seed).digest('hex');
       const cp = math.crashPointFromSeed(seed, roundId, CONFIG.TARGET_RTP, CONFIG.MAX_CRASH);
       const newBal = r2(bal - total);
+      const prog = computeBetProgress({
+        bonusBalance: user.bonus_balance,
+        wagerRequirementLeft: user.wager_requirement_left,
+        totalDeposited: user.total_deposited,
+        firstDepositCompleted: user.first_deposit_completed,
+        depositOddsLeft: user.deposit_odds_left,
+        wager: total,
+        oddDelta: 0
+      });
 
       await c.query(
         `UPDATE users SET balance=$1,total_wagered=total_wagered+$2,
-         wager_requirement_left=GREATEST(0,COALESCE(wager_requirement_left,0)-$2),
-         bonus_balance=CASE WHEN GREATEST(0,COALESCE(wager_requirement_left,0)-$2)=0 THEN 0 ELSE COALESCE(bonus_balance,0) END,
-         last_active_at=NOW() WHERE user_id=$3`,
-        [newBal, total, uid]
+         bonus_balance=$3,wager_requirement_left=$4,deposit_odds_left=$5,last_active_at=NOW() WHERE user_id=$6`,
+        [newBal, total, prog.newBonusBalance, prog.newWagerRequirementLeft, prog.newDepositOddsLeft, uid]
       );
 
       const ids = [];
@@ -213,11 +235,29 @@ function createSharedHelpers(ctx) {
     if (d.state === 'WON') {
       mult = d.mult;
       payout = Math.min(r2(wager * mult), CONFIG.MAX_PAYOUT);
-      const before = num((await c.query('SELECT balance FROM users WHERE user_id=$1 FOR UPDATE', [uid])).rows[0].balance);
+      const uRow = (await c.query('SELECT balance,total_deposited,first_deposit_completed,deposit_odds_left FROM users WHERE user_id=$1 FOR UPDATE', [uid])).rows[0];
+      const before = num(uRow.balance);
       const after = r2(before + payout);
-      await c.query('UPDATE users SET balance=$1,total_won=total_won+$2 WHERE user_id=$3', [after, payout, uid]);
+      const nextOddsLeft = computeSettlementOdds({
+        totalDeposited: uRow.total_deposited,
+        firstDepositCompleted: uRow.first_deposit_completed,
+        depositOddsLeft: uRow.deposit_odds_left,
+        oddDelta: mult >= 1.20 ? mult : 0
+      });
+      await c.query('UPDATE users SET balance=$1,total_won=total_won+$2,deposit_odds_left=$3 WHERE user_id=$4', [after, payout, nextOddsLeft, uid]);
       if (opts.vd) opts.vd.push({ bal: -payout, payouts: payout, profit: -payout });
       await audit(c, uid, 'CASHOUT_WIN', payout, before, after, betId);
+    } else if (d.state === 'CRASHED') {
+      const uRow = (await c.query('SELECT total_deposited,first_deposit_completed,deposit_odds_left FROM users WHERE user_id=$1 FOR UPDATE', [uid])).rows[0];
+      if (uRow) {
+        const nextOddsLeft = computeSettlementOdds({
+          totalDeposited: uRow.total_deposited,
+          firstDepositCompleted: uRow.first_deposit_completed,
+          depositOddsLeft: uRow.deposit_odds_left,
+          oddDelta: 1
+        });
+        await c.query('UPDATE users SET deposit_odds_left=$1 WHERE user_id=$2', [nextOddsLeft, uid]);
+      }
     }
 
     await c.query(`UPDATE universal_bets SET status=$1,multiplier=$2,payout=$3,house_profit=$4 WHERE bet_id=$5`, [

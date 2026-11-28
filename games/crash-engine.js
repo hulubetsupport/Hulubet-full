@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 const math = require('../lib/game-math');
 const { createRoomState } = require('../lib/crash-room');
+const { computeBetProgress, computeSettlementOdds } = require('../lib/bonus-engine');
 
 /**
  * Real-time Socket.IO + DB-backed Multiplayer Crash Engine for Aviator & JetX.
@@ -83,18 +84,25 @@ function createCrashEngine(ctx) {
 
         const wager = num(cur.rows[0].bet_amount);
         const payout = Math.min(r2(b.payout), CONFIG.MAX_PAYOUT);
-        const uRes = await c.query('SELECT balance,telegram_username FROM users WHERE user_id=$1 FOR UPDATE', [b.userId]);
+        const uRes = await c.query('SELECT balance,telegram_username,total_deposited,first_deposit_completed,deposit_odds_left FROM users WHERE user_id=$1 FOR UPDATE', [b.userId]);
         if (!uRes.rows.length) return null;
 
-        const before = num(uRes.rows[0].balance);
+        const uRow = uRes.rows[0];
+        const before = num(uRow.balance);
         const after = r2(before + payout);
-        await c.query('UPDATE users SET balance=$1,total_won=total_won+$2 WHERE user_id=$3', [after, payout, b.userId]);
+        const nextOddsLeft = computeSettlementOdds({
+          totalDeposited: uRow.total_deposited,
+          firstDepositCompleted: uRow.first_deposit_completed,
+          depositOddsLeft: uRow.deposit_odds_left,
+          oddDelta: num(b.multiplier) >= 1.20 ? num(b.multiplier) : 0
+        });
+        await c.query('UPDATE users SET balance=$1,total_won=total_won+$2,deposit_odds_left=$3 WHERE user_id=$4', [after, payout, nextOddsLeft, b.userId]);
         await c.query(
           `UPDATE universal_bets SET status=$1,multiplier=$2,payout=$3,house_profit=$4 WHERE bet_id=$5`,
           ['WON', b.multiplier, payout, r2(wager - payout), b.betId]
         );
         await audit(c, b.userId, 'CASHOUT_WIN', payout, before, after, b.betId);
-        return { newBalance: after, payout, uname: uRes.rows[0].telegram_username };
+        return { newBalance: after, payout, uname: uRow.telegram_username };
       });
 
       if (out) {
@@ -117,7 +125,26 @@ function createCrashEngine(ctx) {
         `UPDATE universal_bets SET status='LOST',multiplier=0,payout=0,house_profit=bet_amount WHERE bet_id=ANY($1::text[]) AND status='IN_FLIGHT'`,
         [betIds]
       );
-      const affectedUsers = [...new Set(crashedBets.map(b => b.userId))];
+      const lossCounts = new Map();
+      for (const b of crashedBets) {
+        if (b.userId) lossCounts.set(String(b.userId), (lossCounts.get(String(b.userId)) || 0) + 1);
+      }
+      if (lossCounts.size) {
+        await tx(async c => {
+          for (const [uid, cnt] of lossCounts) {
+            const uRow = (await c.query('SELECT total_deposited,first_deposit_completed,deposit_odds_left FROM users WHERE user_id=$1 FOR UPDATE', [uid])).rows[0];
+            if (!uRow) continue;
+            const nextOddsLeft = computeSettlementOdds({
+              totalDeposited: uRow.total_deposited,
+              firstDepositCompleted: uRow.first_deposit_completed,
+              depositOddsLeft: uRow.deposit_odds_left,
+              oddDelta: cnt
+            });
+            await c.query('UPDATE users SET deposit_odds_left=$1 WHERE user_id=$2', [nextOddsLeft, uid]);
+          }
+        });
+      }
+      const affectedUsers = [...lossCounts.keys()];
       if (affectedUsers.length) {
         const r = await pool.query('SELECT user_id,balance FROM users WHERE user_id=ANY($1::text[])', [affectedUsers]).catch(() => null);
         if (r && r.rows) {
@@ -295,12 +322,19 @@ function createCrashEngine(ctx) {
       if (bal < total) throw new Biz('Insufficient balance');
 
       const newBal = r2(bal - total);
+      const prog = computeBetProgress({
+        bonusBalance: user.bonus_balance,
+        wagerRequirementLeft: user.wager_requirement_left,
+        totalDeposited: user.total_deposited,
+        firstDepositCompleted: user.first_deposit_completed,
+        depositOddsLeft: user.deposit_odds_left,
+        wager: total,
+        oddDelta: 0
+      });
       await c.query(
         `UPDATE users SET balance=$1,total_wagered=total_wagered+$2,
-         wager_requirement_left=GREATEST(0,COALESCE(wager_requirement_left,0)-$2),
-         bonus_balance=CASE WHEN GREATEST(0,COALESCE(wager_requirement_left,0)-$2)=0 THEN 0 ELSE COALESCE(bonus_balance,0) END,
-         last_active_at=NOW() WHERE user_id=$3`,
-        [newBal, total, uid]
+         bonus_balance=$3,wager_requirement_left=$4,deposit_odds_left=$5,last_active_at=NOW() WHERE user_id=$6`,
+        [newBal, total, prog.newBonusBalance, prog.newWagerRequirementLeft, prog.newDepositOddsLeft, uid]
       );
 
       const ids = [];
@@ -438,17 +472,24 @@ function createCrashEngine(ctx) {
       let out;
       try {
         out = await tx(async c => {
-          const cur = await c.query('SELECT balance,telegram_username FROM users WHERE user_id=$1 FOR UPDATE', [uid]);
-          const before = num(cur.rows[0].balance);
+          const cur = await c.query('SELECT balance,telegram_username,total_deposited,first_deposit_completed,deposit_odds_left FROM users WHERE user_id=$1 FOR UPDATE', [uid]);
+          const uRow = cur.rows[0];
+          const before = num(uRow.balance);
           const payout = settled.bet.payout;
           const after = r2(before + payout);
-          await c.query('UPDATE users SET balance=$1,total_won=total_won+$2 WHERE user_id=$3', [after, payout, uid]);
+          const nextOddsLeft = computeSettlementOdds({
+            totalDeposited: uRow.total_deposited,
+            firstDepositCompleted: uRow.first_deposit_completed,
+            depositOddsLeft: uRow.deposit_odds_left,
+            oddDelta: num(settled.bet.multiplier) >= 1.20 ? num(settled.bet.multiplier) : 0
+          });
+          await c.query('UPDATE users SET balance=$1,total_won=total_won+$2,deposit_odds_left=$3 WHERE user_id=$4', [after, payout, nextOddsLeft, uid]);
           await c.query(
             `UPDATE universal_bets SET status=$1,multiplier=$2,payout=$3,house_profit=$4 WHERE bet_id=$5`,
             ['WON', settled.bet.multiplier, payout, r2(settled.bet.wager - payout), betId]
           );
           await audit(c, uid, 'CASHOUT_WIN', payout, before, after, betId);
-          return { newBalance: after, uname: cur.rows[0].telegram_username };
+          return { newBalance: after, uname: uRow.telegram_username };
         });
       } catch (e) {
         mgr.revertManualCashout(betId, uid);

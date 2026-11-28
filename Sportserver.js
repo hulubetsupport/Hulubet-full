@@ -10,6 +10,7 @@ const {
   computeCashoutValue
 } = require('./lib/sports-engine');
 const { fetchSportsFeedDetailed, isOddsApiUrl } = require('./lib/sports-feed');
+const { computeBetProgress } = require('./lib/bonus-engine');
 
 const SETTINGS_KEY = 'sports_fixtures_state';
 const SPORTS_API_URL = String(process.env.SPORTS_API_URL || '').trim();
@@ -311,12 +312,19 @@ function registerSportsbook(app, ctx) {
       const bal = num(u.balance);
       if (bal < stake) throw new Biz('Insufficient balance');
       const newBal = r2(bal - stake);
+      const prog = computeBetProgress({
+        bonusBalance: u.bonus_balance,
+        wagerRequirementLeft: u.wager_requirement_left,
+        totalDeposited: u.total_deposited,
+        firstDepositCompleted: u.first_deposit_completed,
+        depositOddsLeft: u.deposit_odds_left,
+        wager: stake,
+        oddDelta: sel.odds
+      });
       await c.query(
         `UPDATE users SET balance=$1,total_wagered=total_wagered+$2,
-         wager_requirement_left=GREATEST(0,COALESCE(wager_requirement_left,0)-$2),
-         bonus_balance=CASE WHEN GREATEST(0,COALESCE(wager_requirement_left,0)-$2)=0 THEN 0 ELSE COALESCE(bonus_balance,0) END,
-         last_active_at=NOW() WHERE user_id=$3`,
-        [newBal, stake, uid]
+         bonus_balance=$3,wager_requirement_left=$4,deposit_odds_left=$5,last_active_at=NOW() WHERE user_id=$6`,
+        [newBal, stake, prog.newBonusBalance, prog.newWagerRequirementLeft, prog.newDepositOddsLeft, uid]
       );
       await c.query(
         `INSERT INTO sports_bets (ticket_id,bet_id,user_id,username,match_id,match_title,market,odds,stake,potential_win,cashout_value,status)

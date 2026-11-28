@@ -1,6 +1,7 @@
 'use strict';
 const express = require('express');
 const buffaloMath = require('../lib/buffalo-math');
+const { computeBetProgress } = require('../lib/bonus-engine');
 
 module.exports = function createBuffaloModule(ctx) {
   const GAME_NAME = 'YoungBuffalo';
@@ -57,13 +58,20 @@ module.exports = function createBuffaloModule(ctx) {
 
       const newBal = ctx.r2(bal - totalCost + payout);
       const betId = ctx.newId('BET');
+      const prog = computeBetProgress({
+        bonusBalance: user.bonus_balance,
+        wagerRequirementLeft: user.wager_requirement_left,
+        totalDeposited: user.total_deposited,
+        firstDepositCompleted: user.first_deposit_completed,
+        depositOddsLeft: user.deposit_odds_left,
+        wager: totalCost,
+        oddDelta: Math.max(1, multiplier)
+      });
 
       await c.query(
         `UPDATE users SET balance=$1,total_wagered=total_wagered+$2,total_won=total_won+$3,
-         wager_requirement_left=GREATEST(0,COALESCE(wager_requirement_left,0)-$2),
-         bonus_balance=CASE WHEN GREATEST(0,COALESCE(wager_requirement_left,0)-$2)=0 THEN 0 ELSE COALESCE(bonus_balance,0) END,
-         last_active_at=NOW() WHERE user_id=$4`,
-        [newBal, totalCost, payout, uid]
+         bonus_balance=$4,wager_requirement_left=$5,deposit_odds_left=$6,last_active_at=NOW() WHERE user_id=$7`,
+        [newBal, totalCost, payout, prog.newBonusBalance, prog.newWagerRequirementLeft, prog.newDepositOddsLeft, uid]
       );
 
       const compactData = {

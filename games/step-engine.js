@@ -2,6 +2,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const math = require('../lib/game-math');
+const { computeBetProgress, computeSettlementOdds } = require('../lib/bonus-engine');
 
 /**
  * Shared server-authoritative step-by-step interactive game engine
@@ -51,12 +52,19 @@ function createStepGameModule(ctx, shared, opts) {
       );
       if (open.rows.length) throw new Biz(`Finish your current ${gameName} round first`);
       const betId = newId('BET'), newBal = r2(bal - wager);
+      const prog = computeBetProgress({
+        bonusBalance: user.bonus_balance,
+        wagerRequirementLeft: user.wager_requirement_left,
+        totalDeposited: user.total_deposited,
+        firstDepositCompleted: user.first_deposit_completed,
+        depositOddsLeft: user.deposit_odds_left,
+        wager,
+        oddDelta: 0
+      });
       await c.query(
         `UPDATE users SET balance=$1,total_wagered=total_wagered+$2,
-         wager_requirement_left=GREATEST(0,COALESCE(wager_requirement_left,0)-$2),
-         bonus_balance=CASE WHEN GREATEST(0,COALESCE(wager_requirement_left,0)-$2)=0 THEN 0 ELSE COALESCE(bonus_balance,0) END,
-         last_active_at=NOW() WHERE user_id=$3`,
-        [newBal, wager, uid]
+         bonus_balance=$3,wager_requirement_left=$4,deposit_odds_left=$5,last_active_at=NOW() WHERE user_id=$6`,
+        [newBal, wager, prog.newBonusBalance, prog.newWagerRequirementLeft, prog.newDepositOddsLeft, uid]
       );
       await c.query(
         `INSERT INTO universal_bets (bet_id,game_name,user_id,username,bet_amount,rng_roll,tier_applied,multiplier,payout,house_profit,status,game_data,flight_start)
@@ -106,12 +114,20 @@ function createStepGameModule(ctx, shared, opts) {
       const alive = gd.u < (gd.S[step - 1] ?? 0);
       if (!alive) {
         await c.query(`UPDATE universal_bets SET status='LOST',multiplier=0,payout=0,house_profit=$1,game_data=$2 WHERE bet_id=$3`, [wager, JSON.stringify({ ...gd, step }), betId]);
-        return { vd, body: { state: 'HIT', step, payout: 0, newBalance: await shared.balanceOf(c, uid) } };
+        const uRow = await lockUser(c, uid);
+        const nextOddsLeft = computeSettlementOdds({
+          totalDeposited: uRow.total_deposited,
+          firstDepositCompleted: uRow.first_deposit_completed,
+          depositOddsLeft: uRow.deposit_odds_left,
+          oddDelta: 1
+        });
+        await c.query('UPDATE users SET deposit_odds_left=$1 WHERE user_id=$2', [nextOddsLeft, uid]);
+        return { vd, body: { state: 'HIT', step, payout: 0, newBalance: num(uRow.balance) } };
       }
       if (step >= m.length) {
         const payout = Math.min(r2(wager * m[step - 1]), CONFIG.MAX_PAYOUT);
         await c.query(`UPDATE universal_bets SET status='WON',multiplier=$1,payout=$2,house_profit=$3,game_data=$4 WHERE bet_id=$5`, [m[step - 1], payout, r2(wager - payout), JSON.stringify({ ...gd, step }), betId]);
-        const nb = await shared.creditWin(c, uid, payout, betId, vd, auditTag);
+        const nb = await shared.creditWin(c, uid, payout, betId, vd, auditTag, m[step - 1]);
         return { vd, body: { state: 'GOAL', step, multiplier: m[step - 1], payout, newBalance: nb } };
       }
       await c.query(`UPDATE universal_bets SET game_data=$1 WHERE bet_id=$2`, [JSON.stringify({ ...gd, step }), betId]);
@@ -142,7 +158,7 @@ function createStepGameModule(ctx, shared, opts) {
     const mult = tables[resolveDiff(gd.difficulty)][step - 1];
     const payout = Math.min(r2(wager * mult), CONFIG.MAX_PAYOUT);
     await c.query(`UPDATE universal_bets SET status='WON',multiplier=$1,payout=$2,house_profit=$3 WHERE bet_id=$4`, [mult, payout, r2(wager - payout), betId]);
-    const nb = await shared.creditWin(c, uid, payout, betId, vd, auditTag);
+    const nb = await shared.creditWin(c, uid, payout, betId, vd, auditTag, mult);
     return { state: 'WON', step, multiplier: mult, payout, newBalance: nb };
   }
 

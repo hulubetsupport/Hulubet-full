@@ -172,6 +172,7 @@ function createMockPool() {
         balance: Number(bal),
         bonus_balance: Number(bal),
         wager_requirement_left: Number(wr || 0),
+        deposit_odds_left: 0,
         total_deposited: 0,
         total_wagered: 0,
         total_won: 0,
@@ -244,6 +245,18 @@ function createMockPool() {
       const refCount = low.includes('as referral_count') ? [...db.users.values()].filter(x => x.referrer_id === u.user_id).length : undefined;
       return { rows: [{ ...u, ...(refCount !== undefined ? { referral_count: refCount } : {}) }], rowCount: 1 };
     }
+    if (low.startsWith('update users set balance=$1,total_wagered=total_wagered+$2,total_won=total_won+$3') && low.includes('bonus_balance=$4')) {
+      const u = db.users.get(String(params[6]));
+      if (!u) return { rows: [], rowCount: 0 };
+      u.balance = Number(params[0]);
+      u.total_wagered += Number(params[1]);
+      u.total_won += Number(params[2]);
+      u.bonus_balance = Number(params[3]);
+      u.wager_requirement_left = Number(params[4]);
+      u.deposit_odds_left = Number(params[5]);
+      u.last_active_at = new Date();
+      return { rows: [], rowCount: 1 };
+    }
     if (low.startsWith('update users set balance=$1,total_wagered=total_wagered+$2,total_won=total_won+$3')) {
       const u = db.users.get(String(params[3]));
       if (!u) return { rows: [], rowCount: 0 };
@@ -252,6 +265,17 @@ function createMockPool() {
       u.total_won += Number(params[2]);
       u.wager_requirement_left = Math.max(0, (u.wager_requirement_left || 0) - Number(params[1]));
       if (u.wager_requirement_left === 0) u.bonus_balance = 0;
+      u.last_active_at = new Date();
+      return { rows: [], rowCount: 1 };
+    }
+    if (low.startsWith('update users set balance=$1,total_wagered=total_wagered+$2') && low.includes('bonus_balance=$3')) {
+      const u = db.users.get(String(params[5]));
+      if (!u) return { rows: [], rowCount: 0 };
+      u.balance = Number(params[0]);
+      u.total_wagered += Number(params[1]);
+      u.bonus_balance = Number(params[2]);
+      u.wager_requirement_left = Number(params[3]);
+      u.deposit_odds_left = Number(params[4]);
       u.last_active_at = new Date();
       return { rows: [], rowCount: 1 };
     }
@@ -265,6 +289,14 @@ function createMockPool() {
       u.last_active_at = new Date();
       return { rows: [], rowCount: 1 };
     }
+    if (low.startsWith('update users set balance=$1,total_won=total_won+$2,deposit_odds_left=$3')) {
+      const u = db.users.get(String(params[3]));
+      if (!u) return { rows: [], rowCount: 0 };
+      u.balance = Number(params[0]);
+      u.total_won += Number(params[1]);
+      u.deposit_odds_left = Number(params[2]);
+      return { rows: [], rowCount: 1 };
+    }
     if (low.startsWith('update users set balance=$1,total_won=total_won+$2')) {
       const u = db.users.get(String(params[2]));
       if (!u) return { rows: [], rowCount: 0 };
@@ -272,11 +304,28 @@ function createMockPool() {
       u.total_won += Number(params[1]);
       return { rows: [], rowCount: 1 };
     }
+    if (low.startsWith('update users set deposit_odds_left=$1 where user_id=$2')) {
+      const u = db.users.get(String(params[1]));
+      if (!u) return { rows: [], rowCount: 0 };
+      u.deposit_odds_left = Number(params[0]);
+      return { rows: [], rowCount: 1 };
+    }
     if (low.startsWith('update users set balance=balance+$1,total_wagered=greatest')) {
       const u = db.users.get(String(params[1]));
       if (!u) return { rows: [], rowCount: 0 };
       u.balance += Number(params[0]);
       u.total_wagered = Math.max(0, u.total_wagered - Number(params[0]));
+      return { rows: [], rowCount: 1 };
+    }
+    if (low.startsWith("update users set balance=$1,total_deposited=total_deposited+$2,first_deposit_completed='yes',bonus_balance=bonus_balance+$3,wager_requirement_left=wager_requirement_left+$4,deposit_odds_left=$5")) {
+      const u = db.users.get(String(params[5]));
+      if (!u) return { rows: [], rowCount: 0 };
+      u.balance = Number(params[0]);
+      u.total_deposited += Number(params[1]);
+      u.first_deposit_completed = 'YES';
+      u.bonus_balance = (u.bonus_balance || 0) + Number(params[2] || 0);
+      u.wager_requirement_left = (u.wager_requirement_left || 0) + Number(params[3] || 0);
+      u.deposit_odds_left = Number(params[4] || 0);
       return { rows: [], rowCount: 1 };
     }
     if (low.startsWith("update users set balance=$1,total_deposited=total_deposited+$2,first_deposit_completed='yes',bonus_balance=bonus_balance+$3,wager_requirement_left=wager_requirement_left+$4")) {
